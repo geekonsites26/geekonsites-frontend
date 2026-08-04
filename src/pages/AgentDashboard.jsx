@@ -7,6 +7,7 @@ import {
   getAgentNotifications,
 } from "../services/agentService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
+import { apiRequest } from "../services/api"
 import {
   Activity,
   BarChart3,
@@ -27,8 +28,6 @@ import {
   Wrench,
   X,
 } from "lucide-react"
-
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`
 
 const statusLabel = {
   PENDING: "Pending",
@@ -141,21 +140,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
     }
 
     try {
-      const response = await fetch(
-  `${API_BASE_URL}/bookings/${selectedBooking.id}/assign-technician/${selectedTechnicianId}`,
-  {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("gos_token")}`,
-    },
-  }
-)
-
-      if (!response.ok) {
-        throw new Error("Assign technician failed")
-      }
-
-      const updatedBooking = await response.json()
+      const updatedBooking = await apiRequest(
+        `/api/bookings/${selectedBooking.id}/assign-technician/${selectedTechnicianId}`,
+        { method: "PUT" }
+      )
 
       setBookings((prev) =>
         prev.map((booking) =>
@@ -174,21 +162,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
   const updateBookingStatus = async (bookingId, status) => {
     try {
-      const response = await fetch(
-  `${API_BASE_URL}/bookings/${bookingId}/status/${status}`,
-  {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("gos_token")}`,
-    },
-  }
-)
-
-      if (!response.ok) {
-        throw new Error("Status update failed")
-      }
-
-      const updatedBooking = await response.json()
+      const updatedBooking = await apiRequest(
+        `/api/bookings/${bookingId}/status/${encodeURIComponent(status)}`,
+        { method: "PUT" }
+      )
 
       setBookings((prev) =>
         prev.map((booking) =>

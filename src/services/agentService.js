@@ -1,20 +1,20 @@
 import { apiRequest } from "./api"
 
 export const getAllAgents = async () => {
-  return apiRequest("/agents", {
+  return apiRequest("/api/agents", {
     method: "GET",
   })
 }
 
 export const createAgent = async (data) => {
-  return apiRequest("/agents", {
+  return apiRequest("/api/agents", {
     method: "POST",
     body: JSON.stringify(data),
   })
 }
 
 export const getAgentNotifications = async () => {
-  return apiRequest("/agents/my-notifications", {
+  return apiRequest("/api/agents/my-notifications", {
     method: "GET",
   })
 }

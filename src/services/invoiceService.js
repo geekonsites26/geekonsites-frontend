@@ -1,15 +1,8 @@
-import axios from "axios"
-
-const API =
-`${import.meta.env.VITE_API_BASE_URL}/api/invoices`
+import { apiRequest } from "./api"
 
 export const getInvoice =
   async (invoiceId) => {
-
-    const response =
-      await axios.get(
-        `${API}/${invoiceId}`
-      )
-
-    return response.data
+    return apiRequest(`/api/invoices/${invoiceId}`, {
+      method: "GET",
+    })
 }

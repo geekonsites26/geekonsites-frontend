@@ -4,7 +4,7 @@ export const createStripeCheckoutSession = async (
   bookingId,
   paymentType
 ) => {
-  return apiRequest("/payments/create-checkout-session", {
+  return apiRequest("/api/payments/create-checkout-session", {
     method: "POST",
     body: JSON.stringify({
       bookingId,

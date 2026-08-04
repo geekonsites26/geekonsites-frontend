@@ -23,7 +23,7 @@ export const paymentSuccess = async (
   paymentMethod = "CARD"
 ) => {
   return apiRequest(
-    `/bookings/${bookingId}/payment-success/${transactionId}?paymentMethod=${paymentMethod.toUpperCase()}`,
+    `/api/bookings/${bookingId}/payment-success/${encodeURIComponent(transactionId)}?paymentMethod=${encodeURIComponent(paymentMethod.toUpperCase())}`,
     {
       method: "PUT",
     }
@@ -31,7 +31,7 @@ export const paymentSuccess = async (
 }
 
 export const getMyBookings = async () => {
-  return apiRequest("/bookings/my-bookings", {
+  return apiRequest("/api/bookings/my-bookings", {
     method: "GET",
   })
 }
@@ -41,20 +41,20 @@ export const getCustomerBookings = async () => {
 }
 
 export const getAllBookings = async () => {
-  return apiRequest("/bookings", {
+  return apiRequest("/api/bookings", {
     method: "GET",
   })
 }
 
 export const getBookingById = async (bookingId) => {
-  return apiRequest(`/bookings/${bookingId}`, {
+  return apiRequest(`/api/bookings/${bookingId}`, {
     method: "GET",
   })
 }
 
 export const assignTechnicianToBooking = async (bookingId, technicianId) => {
   return apiRequest(
-    `/bookings/${bookingId}/assign-technician/${technicianId}`,
+    `/api/bookings/${bookingId}/assign-technician/${technicianId}`,
     {
       method: "PUT",
     }
@@ -62,7 +62,7 @@ export const assignTechnicianToBooking = async (bookingId, technicianId) => {
 }
 
 export const submitBookingRating = async (bookingId, rating, review = "") => {
-  return apiRequest(`/bookings/${bookingId}/rating`, {
+  return apiRequest(`/api/bookings/${bookingId}/rating`, {
     method: "PUT",
     body: JSON.stringify({
       rating: String(rating),
@@ -72,13 +72,13 @@ export const submitBookingRating = async (bookingId, rating, review = "") => {
 }
 
 export const getBookingTracking = async (bookingId) => {
-  return apiRequest(`/bookings/${bookingId}/tracking`, {
+  return apiRequest(`/api/bookings/${bookingId}/tracking`, {
     method: "GET",
   })
 }
 
 export const updateCustomerLocation = async (bookingId, latitude, longitude) => {
-  return apiRequest(`/bookings/${bookingId}/customer-location`, {
+  return apiRequest(`/api/bookings/${bookingId}/customer-location`, {
     method: "PUT",
     body: JSON.stringify({
       latitude,
@@ -88,7 +88,7 @@ export const updateCustomerLocation = async (bookingId, latitude, longitude) => 
 }
 
 export const generateInvoice = async (bookingId) => {
-  return apiRequest(`/bookings/${bookingId}/generate-invoice`, {
+  return apiRequest(`/api/bookings/${bookingId}/generate-invoice`, {
     method: "PUT",
   })
 }
@@ -99,7 +99,7 @@ export const remainingPaymentSuccess = async (
   paymentMethod = "CARD"
 ) => {
   return apiRequest(
-    `/bookings/${bookingId}/remaining-payment-success/${transactionId}?paymentMethod=${paymentMethod.toUpperCase()}`,
+    `/api/bookings/${bookingId}/remaining-payment-success/${encodeURIComponent(transactionId)}?paymentMethod=${encodeURIComponent(paymentMethod.toUpperCase())}`,
     {
       method: "PUT",
     }
@@ -107,13 +107,13 @@ export const remainingPaymentSuccess = async (
 }
 
 export const markTechnicianArrived = async (bookingId) => {
-  return apiRequest(`/bookings/${bookingId}/technician/arrived`, {
+  return apiRequest(`/api/bookings/${bookingId}/technician/arrived`, {
     method: "PUT",
   })
 }
 
 export const closeBooking = async (bookingId) => {
-  return apiRequest(`/bookings/${bookingId}/close`, {
+  return apiRequest(`/api/bookings/${bookingId}/close`, {
     method: "PUT",
   })
 }
