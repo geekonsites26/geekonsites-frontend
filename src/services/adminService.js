@@ -11,3 +11,17 @@ export const getAdminNotifications = async () => {
     method: "GET",
   })
 }
+
+export const getAdminRemoteSessions = async () => {
+  return apiRequest("/api/admin/remote-sessions", { method: "GET" })
+}
+
+export const getAdminCustomers = async () => {
+  return apiRequest("/api/admin/customers", { method: "GET" })
+}
+
+export const provisionAdminRemoteSession = async (bookingId) => {
+  return apiRequest(`/api/admin/remote-sessions/${bookingId}/provision`, {
+    method: "POST",
+  })
+}

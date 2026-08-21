@@ -1,111 +1,50 @@
+import { BadgeCheck, CreditCard, Headphones, MapPinned, ReceiptText, ShieldCheck } from "lucide-react"
 import { motion } from "framer-motion"
-import {
-  ShieldCheck,
-  Clock,
-  CreditCard,
-  BadgeCheck,
-  Headphones,
-  Wrench,
-  ArrowUpRight,
-} from "lucide-react"
+import Section from "../layout/Section"
+import { staggerContainer, staggerItem, viewportOnce } from "../../styles/motion"
 
-const features = [
-  { title: "Verified Technicians", desc: "Checked and approved experts.", icon: ShieldCheck, stat: "100%" },
-  { title: "Fast Doorstep Service", desc: "Quick home and office visits.", icon: Clock, stat: "Same Day" },
-  { title: "Secure Payments", desc: "Safe booking payment flow.", icon: CreditCard, stat: "Safe" },
-  { title: "Transparent Pricing", desc: "Clear cost before service.", icon: BadgeCheck, stat: "Clear" },
-  { title: "24/7 Support", desc: "Support whenever you need help.", icon: Headphones, stat: "24/7" },
-  { title: "Service Warranty", desc: "Reliable post-service support.", icon: Wrench, stat: "Trusted" },
+const assurances = [
+  { title: "Secure payments", text: "Protected booking and payment steps.", icon: CreditCard },
+  { title: "Live tracking", text: "Clear updates for eligible visits.", icon: MapPinned },
+  { title: "Flexible support", text: "Remote and on-site service options.", icon: Headphones },
+  { title: "Clear pricing", text: "Costs explained before work begins.", icon: ReceiptText },
 ]
-
-const flow = ["Book", "Pay", "Assign", "Track", "Complete"]
 
 export default function WhyChooseSection() {
   return (
-    <section className="relative bg-[#070B12] text-white py-12 sm:py-16 lg:py-20 overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:42px_42px]" />
+    <Section className="relative overflow-hidden border-y border-gos-border bg-white py-10 text-gos-blue-deep sm:py-14 lg:py-16">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-gos-turquoise via-gos-gold to-gos-turquoise" aria-hidden="true" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="grid lg:grid-cols-[0.78fr_1.22fr] gap-7 lg:gap-12 items-start">
-          <div className="lg:sticky lg:top-28">
-            <p className="text-cyan-400 font-black text-sm sm:text-base mb-3 text-center lg:text-left">
-              WHY CHOOSE GOS
-            </p>
-
-            <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black leading-tight text-center lg:text-left">
-              Premium support experience for every booking.
-            </h2>
-
-            <p className="text-slate-400 mt-4 text-sm sm:text-base leading-6 max-w-xl text-center lg:text-left">
-              From booking to technician assignment, GeekOnSites keeps service
-              fast, secure, and easy to track.
-            </p>
-
-            <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.05] p-4 sm:p-5">
-              <p className="text-slate-400 text-xs sm:text-sm mb-3">
-                Platform flow
-              </p>
-
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {flow.map((item) => (
-                  <span
-                    key={item}
-                    className="shrink-0 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
+      <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={viewportOnce} className="grid gap-7 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14">
+        <div className="lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <motion.p variants={staggerItem} className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-blue">Why choose GOS</motion.p>
+            <motion.h2 variants={staggerItem} className="mt-3 max-w-xl font-['Cormorant_Garamond'] text-[clamp(2.5rem,5vw,4.5rem)] font-bold leading-[0.92] tracking-normal text-gos-blue-deep">Confidence is part of the service.</motion.h2>
+            <motion.p variants={staggerItem} className="mt-4 max-w-lg text-base font-bold leading-7 text-gos-charcoal">Professional standards and useful technology support every stage, from booking to completion.</motion.p>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-3 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible">
-            {features.map((feature, index) => {
-              const Icon = feature.icon
-
-              return (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 28 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.45, delay: index * 0.04 }}
-                  viewport={{ once: true, amount: 0.2 }}
-                  className="group relative min-w-[245px] sm:min-w-0 rounded-[1.55rem] border border-white/10 bg-white/[0.055] p-4 sm:p-5 overflow-hidden hover:border-cyan-400/40 transition-all"
-                >
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 mb-4">
-                    <Icon size={22} />
-                  </div>
-
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-base sm:text-lg font-black group-hover:text-cyan-300 transition">
-                      {feature.title}
-                    </h3>
-
-                    <ArrowUpRight
-                      size={17}
-                      className="text-slate-500 group-hover:text-cyan-300 transition shrink-0"
-                    />
-                  </div>
-
-                  <p className="text-slate-400 text-xs sm:text-sm leading-5 mt-2">
-                    {feature.desc}
-                  </p>
-
-                  <div className="mt-5 flex items-center justify-between">
-                    <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-[#D4AF37] to-[#F7E7A1] bg-clip-text text-transparent">
-                      {feature.stat}
-                    </span>
-
-                    <span className="text-[11px] rounded-full bg-white/10 border border-white/10 px-3 py-1 text-slate-300">
-                      GOS
-                    </span>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
+          <motion.div variants={staggerItem} className="mt-6 flex items-center gap-4 border-y border-gos-border py-4 lg:mt-10">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gos-turquoise/60 bg-gos-off-white text-gos-turquoise"><ShieldCheck size={23} /></span>
+            <div><p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-gos-gold">One consistent standard</p><p className="mt-1 text-sm font-bold text-gos-blue-deep">Home, business, remote, and on-site support</p></div>
+          </motion.div>
         </div>
-      </div>
-    </section>
+
+        <div className="overflow-hidden rounded-lg border border-gos-border bg-gos-off-white shadow-[var(--gos-shadow-sm)]">
+          <motion.div variants={staggerItem} className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-4 border-b border-gos-border bg-gos-blue-deep p-5 text-white sm:grid-cols-[4rem_minmax(0,1fr)_auto] sm:items-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gos-turquoise text-gos-blue-deep"><BadgeCheck size={22} /></span>
+            <div><p className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-gos-gold">Core standard</p><h3 className="mt-1 text-2xl font-bold text-white">Verified technicians</h3></div>
+            <p className="col-start-2 text-sm font-semibold leading-6 text-white/80 sm:col-start-auto sm:max-w-[13rem]">Professionals are reviewed before joining the platform.</p>
+          </motion.div>
+
+          {assurances.map(({ title, text, icon: Icon }, index) => (
+            <motion.div variants={staggerItem} key={title} className="grid min-h-[4.75rem] grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-gos-border px-5 py-3 last:border-b-0">
+              <Icon size={19} className="text-gos-turquoise" />
+              <div className="min-w-0"><h3 className="text-base font-bold text-gos-blue-deep">{title}</h3><p className="mt-0.5 text-xs font-semibold text-gos-muted sm:text-sm">{text}</p></div>
+              <span className="text-[9px] font-extrabold tracking-[0.14em] text-gos-muted">0{index + 2}</span>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    </Section>
   )
 }

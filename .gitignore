@@ -27,5 +27,15 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.development
+!.env.production
 node_modules/
 dist/
+android/app/google-services.json
+firebase-service-account*.json
+**/firebase-service-account*.json
+.tools/
+.claude/
+.chrome-*/
+.edge-*/
+.mobile-check/

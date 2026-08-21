@@ -1,6 +1,6 @@
 import { apiRequest, getUser } from "./api"
 
-export const createBooking = async (bookingData) => {
+export const createBooking = async (bookingData, options = {}) => {
   const user = getUser()
 
   const payload = {
@@ -14,6 +14,7 @@ export const createBooking = async (bookingData) => {
   return apiRequest("/api/bookings", {
     method: "POST",
     body: JSON.stringify(payload),
+    signal: options.signal,
   })
 }
 
@@ -115,5 +116,11 @@ export const markTechnicianArrived = async (bookingId) => {
 export const closeBooking = async (bookingId) => {
   return apiRequest(`/api/bookings/${bookingId}/close`, {
     method: "PUT",
+  })
+}
+
+export const provisionRemoteSession = async (bookingId) => {
+  return apiRequest(`/api/bookings/${bookingId}/remote-session/provision`, {
+    method: "POST",
   })
 }

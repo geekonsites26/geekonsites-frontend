@@ -55,6 +55,18 @@ export default function SessionSummary() {
   const resolutionNotes =
     "Technician reviewed the reported issue, performed remote diagnostics, optimized system startup, cleaned temporary files, and completed a basic security scan."
 
+  if (!state?.booking) {
+    return (
+      <main className="min-h-screen bg-gos-off-white px-4 pt-24 text-gos-blue-deep">
+        <section className="mx-auto max-w-md rounded-xl border border-gos-border bg-white p-6 text-center shadow-sm">
+          <h1 className="text-xl font-black">Session summary unavailable</h1>
+          <p className="mt-2 text-sm text-gos-muted">Open a completed booking from your dashboard to view its summary.</p>
+          <button type="button" onClick={() => navigate("/customer-dashboard?view=bookings")} className="mt-5 min-h-11 rounded-lg bg-gos-blue-deep px-5 text-sm font-bold text-white">View bookings</button>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020817] px-4 pb-20 pt-[95px] text-white sm:px-6 sm:pt-[120px] lg:pt-[145px]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_34%)]" />

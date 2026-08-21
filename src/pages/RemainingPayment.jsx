@@ -13,6 +13,7 @@ import {
   remainingPaymentSuccess,
   closeBooking,
 } from "../services/bookingService"
+import { getLocation } from "../utils/location"
 
 export default function RemainingPayment() {
   const navigate = useNavigate()
@@ -22,7 +23,8 @@ export default function RemainingPayment() {
   const [loading, setLoading] = useState(false)
   const [method, setMethod] = useState("CARD")
 
-  const currency = booking?.currency || "£"
+  const currencyCode = booking?.currency || (booking?.country === "UK" || getLocation().code === "UK" ? "GBP" : "USD")
+  const currency = currencyCode === "GBP" ? "\u00A3" : "$"
   const remaining = Number(booking?.remainingAmount || 0).toFixed(2)
   const paid = Number(booking?.paidAmount || booking?.amountPaid || 0).toFixed(2)
   const total = Number(booking?.totalAmount || 0).toFixed(2)

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { getBookingById } from "../services/bookingService"
+import { confirmStripeCheckoutSession } from "../services/paymentService"
 import { motion } from "framer-motion"
+import { getLocation } from "../utils/location"
 import {
-  ArrowRight,
   CheckCircle2,
   Clock3,
+  FileText,
   LockKeyhole,
   MapPin,
   ReceiptText,
@@ -23,18 +25,28 @@ export default function PaymentDetails() {
     return null
   }
 })
+  const [confirming, setConfirming] = useState(true)
+  const [confirmationError, setConfirmationError] = useState("")
 
   useEffect(() => {
   const loadLatestBooking = async () => {
     const params = new URLSearchParams(location.search)
 
-    const bookingId =
-      params.get("bookingId") || booking?.id
+    const bookingId = params.get("bookingId") || booking?.id
+    const sessionId = params.get("session_id")
 
-    if (!bookingId) return
+    if (!bookingId) {
+      setConfirmationError("Booking details are missing. Return to your dashboard and open the booking again.")
+      setConfirming(false)
+      return
+    }
 
     try {
-      const latestBooking = await getBookingById(bookingId)
+      setConfirming(true)
+      setConfirmationError("")
+      const latestBooking = sessionId
+        ? await confirmStripeCheckoutSession(sessionId)
+        : await getBookingById(bookingId)
       setBooking(latestBooking)
       localStorage.setItem(
         "currentBooking",
@@ -42,13 +54,16 @@ export default function PaymentDetails() {
       )
     } catch (error) {
       console.error(error)
+      setConfirmationError(error.message || "Payment confirmation is still pending.")
+    } finally {
+      setConfirming(false)
     }
   }
 
   loadLatestBooking()
-}, [location.search])
+}, [location.search, booking?.id])
 
-  const country = booking?.country || "UK"
+  const country = booking?.country || getLocation().code
   const currency = booking?.currency || (country === "US" ? "USD" : "GBP")
   const symbol = currency === "USD" ? "$" : "£"
 
@@ -75,11 +90,17 @@ export default function PaymentDetails() {
       serviceFee + addonsAmount + protectionAmount + platformFee
   )
 
-  const amountPaidNow = Number(
-    booking?.amountPaidNow || booking?.paymentAmount || totalAmount
+  const remainingAmount = Number(booking?.remainingAmount || 0)
+
+  const advanceAmount = Number(
+    booking?.advanceAmount || booking?.paidAmount || totalAmount * 0.3
   )
 
-  const remainingAmount = Number(booking?.remainingAmount || 0)
+  const amountPaidNow = isRemainingPayment
+    ? Number(booking?.paymentAmount || totalAmount - advanceAmount)
+    : isRemote
+      ? Number(booking?.paidAmount || totalAmount)
+      : advanceAmount
 
   const paymentType = booking?.paymentType || (isRemote ? "Full Payment" : "Advance Payment")
 
@@ -98,17 +119,25 @@ export default function PaymentDetails() {
       .filter(Boolean)
       .join(", ") || "Location not provided"
 
+  if (confirming) {
+    return <main className="flex min-h-screen items-center justify-center bg-gos-off-white px-4 pt-20"><div className="w-full max-w-md rounded-lg border border-gos-border bg-white p-7 text-center shadow-[var(--gos-shadow-md)]"><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gos-turquoise">Secure payment verification</p><h1 className="mt-3 font-['Cormorant_Garamond'] text-4xl font-bold text-gos-blue-deep">Confirming your payment.</h1><p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">Stripe is being verified securely. Keep this page open for a moment.</p></div></main>
+  }
+
+  if (confirmationError) {
+    return <main className="flex min-h-screen items-center justify-center bg-gos-off-white px-4 pt-20"><div className="w-full max-w-md rounded-lg border border-red-200 bg-white p-7 shadow-[var(--gos-shadow-md)]"><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-red-600">Payment not confirmed</p><h1 className="mt-3 font-['Cormorant_Garamond'] text-4xl font-bold text-gos-blue-deep">We could not verify this payment.</h1><p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">{confirmationError}</p><button type="button" onClick={() => window.location.reload()} className="mt-6 min-h-11 w-full rounded-md bg-gos-blue-deep px-5 text-sm font-extrabold text-white">Try verification again</button></div></main>
+  }
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#07111F] pb-28 pt-28 text-white lg:pt-40">
+    <main className="gos-service-flow payment-confirmation-page relative min-h-screen overflow-hidden bg-[#07111F] pb-36 pt-20 text-white sm:pt-24 xl:pb-20 xl:pt-28">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.12),transparent_35%)]" />
 
       <section className="relative mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-10">
-          <p className="text-sm font-black tracking-[0.35em] text-cyan-300">
+        <div className="mb-6 sm:mb-8">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300 sm:text-xs">
             PAYMENT CONFIRMED
           </p>
 
-          <h1 className="mt-4 text-3xl font-black sm:text-5xl">
+          <h1 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none text-gos-blue-deep sm:text-5xl">
             Payment Successful
           </h1>
 
@@ -121,20 +150,20 @@ export default function PaymentDetails() {
           </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-7">
           <motion.div
             initial={{ opacity: 0, x: -35 }}
             animate={{ opacity: 1, x: 0 }}
-            className="rounded-[2rem] border border-white/10 bg-[#0D1B2A]/85 p-5 shadow-2xl backdrop-blur-xl sm:p-7"
+            className="min-w-0 rounded-[2rem] border border-white/10 bg-[#0D1B2A]/85 p-4 shadow-2xl backdrop-blur-xl sm:p-6"
           >
-            <div className="rounded-[2rem] border border-emerald-400/20 bg-emerald-400/10 p-6">
+            <div className="rounded-[2rem] border border-emerald-400/20 bg-emerald-400/10 p-4 sm:p-5">
               <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-400 text-black">
-                  <CheckCircle2 size={30} />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-400 text-black sm:h-12 sm:w-12">
+                  <CheckCircle2 size={25} />
                 </div>
 
                 <div>
-                  <h2 className="text-2xl font-black text-emerald-100">
+                  <h2 className="text-lg font-black leading-tight text-emerald-100 sm:text-xl">
                     {
                       isRemainingPayment
                         ? "Booking Successfully Closed"
@@ -151,7 +180,7 @@ export default function PaymentDetails() {
               </div>
             </div>
 
-            <div className="mt-8 rounded-[2rem] border border-white/10 bg-black/20 p-6">
+            <div className="mt-5 rounded-[2rem] border border-white/10 bg-black/20 p-4 sm:p-5">
               <h3 className="font-black">Payment Details</h3>
               <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5">
   <div className="flex items-center gap-3">
@@ -197,7 +226,7 @@ export default function PaymentDetails() {
               </div>
             </div>
 
-            <div className="mt-8 rounded-[2rem] border border-white/10 bg-black/20 p-6">
+            <div className="mt-5 rounded-[2rem] border border-white/10 bg-black/20 p-4 sm:p-5">
               <h3 className="font-black">Booking Details</h3>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -218,7 +247,7 @@ export default function PaymentDetails() {
                   label="Schedule"
                   value={
                     booking?.bookingDate && booking?.timeSlot
-                      ? `${booking.bookingDate} • ${booking.timeSlot}`
+                      ? `${booking.bookingDate} - ${booking.timeSlot}`
                       : "Not selected"
                   }
                 />
@@ -227,7 +256,7 @@ export default function PaymentDetails() {
               </div>
             </div>
 
-            <div className="mt-8 rounded-[2rem] border border-amber-400/20 bg-amber-400/10 p-6">
+            <div className="mt-5 rounded-[2rem] border border-amber-400/20 bg-amber-400/10 p-4 sm:p-5">
               <h3 className="font-black text-amber-100">
                 {
                  isRemainingPayment
@@ -237,7 +266,7 @@ export default function PaymentDetails() {
               </h3>
 
               <p className="mt-2 text-sm leading-7 text-slate-300">
-                Expected assignment time is 10–15 minutes. You can track the
+                Expected assignment time is 10-15 minutes. You can track the
                 booking status on the next screen.
               </p>
             </div>
@@ -246,11 +275,11 @@ export default function PaymentDetails() {
           <motion.aside
             initial={{ opacity: 0, x: 35 }}
             animate={{ opacity: 1, x: 0 }}
-            className="h-fit rounded-[2rem] border border-white/10 bg-[#0D1B2A]/85 p-6 shadow-2xl backdrop-blur-xl lg:sticky lg:top-32"
+            className="h-fit rounded-[2rem] border border-white/10 bg-[#0D1B2A]/85 p-4 shadow-2xl backdrop-blur-xl sm:p-5 xl:sticky xl:top-28"
           >
             <div className="flex items-center gap-3">
               <ShieldCheck className="text-cyan-300" />
-              <h2 className="text-2xl font-black">Receipt Summary</h2>
+              <h2 className="text-xl font-black">Receipt Summary</h2>
             </div>
 
             <div className="mt-6 space-y-4">
@@ -297,6 +326,17 @@ export default function PaymentDetails() {
               </div>
             )}
 
+            {booking?.invoiceGenerated && (
+              <button
+                type="button"
+                onClick={() => navigate("/invoice", { state: { booking } })}
+                className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gos-border bg-white px-4 py-2.5 text-sm font-extrabold text-gos-blue-deep"
+              >
+                <FileText size={18} />
+                {isRemote || isRemainingPayment ? "View Invoice" : "View Advance Invoice"}
+              </button>
+            )}
+
             <button
   onClick={() =>
     navigate(
@@ -308,7 +348,7 @@ export default function PaymentDetails() {
       }
     )
   }
-  className="rounded-2xl bg-cyan-400 px-6 py-4 text-sm font-black text-black"
+  className="mt-5 hidden min-h-12 w-full items-center justify-center rounded-2xl bg-cyan-400 px-6 py-3 text-sm font-black text-black xl:flex"
 >
   Continue
 </button>
@@ -320,7 +360,7 @@ export default function PaymentDetails() {
         </div>
       </section>
 
-      <div className="fixed bottom-16 left-0 right-0 z-[9999] border-t border-white/10 bg-[#07111F]/95 p-3 backdrop-blur-xl lg:hidden">
+      <div className="payment-confirmation-bar fixed bottom-16 left-0 right-0 z-[9999] border-t border-white/10 bg-[#07111F]/95 p-3 backdrop-blur-xl xl:hidden">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div>
             <p className="text-xs text-slate-400">
@@ -346,7 +386,7 @@ export default function PaymentDetails() {
       }
     )
   }
-  className="rounded-2xl bg-cyan-400 px-6 py-4 text-sm font-black text-black"
+  className="flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-black"
 >
   Continue
 </button>
@@ -366,7 +406,7 @@ function InfoItem({ icon: Icon, label, value }) {
         </p>
       </div>
 
-      <p className="mt-3 break-words text-sm font-bold text-slate-100">
+      <p className="mt-3 break-all text-xs font-bold leading-5 text-slate-100 sm:text-sm">
         {value}
       </p>
     </div>

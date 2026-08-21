@@ -12,3 +12,10 @@ export const createStripeCheckoutSession = async (
     }),
   })
 }
+
+export const confirmStripeCheckoutSession = async (sessionId) => {
+  return apiRequest(
+    `/api/payments/confirm-checkout-session?sessionId=${encodeURIComponent(sessionId)}`,
+    { method: "GET" }
+  )
+}

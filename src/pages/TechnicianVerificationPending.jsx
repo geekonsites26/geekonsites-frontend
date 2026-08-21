@@ -69,7 +69,7 @@ export default function TechnicianVerificationPending() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#020817] text-white px-5 py-8 relative overflow-hidden">
+    <div className="gos-technician-auth gos-technician-verification min-h-screen bg-[#020817] text-white px-5 py-8 relative overflow-hidden">
       <div className="absolute top-10 left-10 w-80 h-80 bg-cyan-500/20 blur-[130px] rounded-full" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-blue-500/10 blur-[140px] rounded-full" />
       <div className="absolute inset-0 opacity-20 bg-[linear-gradient(rgba(34,211,238,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,.12)_1px,transparent_1px)] bg-[size:42px_42px]" />

@@ -1,8 +1,8 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { motion } from "framer-motion"
-import logo from "../assets/logo.png"
 import { loginUser } from "../services/authService"
+import BrandLogo from "../components/common/BrandLogo"
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,8 +22,6 @@ import {
 } from "lucide-react"
 
 export default function TechnicianLogin() {
-  const navigate = useNavigate()
-
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -73,21 +71,17 @@ setTimeout(() => {
 }
 
   return (
-    <div className="min-h-screen bg-[#020817] text-white relative overflow-hidden">
+    <div className="gos-technician-auth gos-technician-login min-h-screen bg-[#020817] text-white relative overflow-hidden">
+      <header className="relative z-40 border-b border-gos-border bg-white px-4 py-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <Link to="/" className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border text-gos-blue" aria-label="Back to website"><ArrowLeft size={17} /></Link>
+          <Link to="/" aria-label="GeekOnSites home"><BrandLogo className="h-auto w-36" /></Link>
+        </div>
+      </header>
       <div className="absolute top-20 left-5 md:left-20 w-72 h-72 bg-cyan-500/20 blur-[130px] rounded-full" />
       <div className="absolute bottom-10 right-5 md:right-20 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full" />
 
-      <button
-        onClick={() => navigate("/")}
-        className="fixed top-4 left-4 z-50 w-11 h-11 md:w-auto md:px-4 md:py-3 rounded-2xl bg-[#071122]/90 border border-cyan-500/20 flex items-center justify-center gap-2 text-cyan-300 hover:bg-cyan-500/10 transition"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        <span className="hidden md:block text-sm font-semibold">
-          Back to Website
-        </span>
-      </button>
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-10 min-h-screen grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 lg:gap-10 items-center">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-10 min-h-[calc(100dvh-3.75rem)] grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 lg:gap-10 items-center">
         <motion.section
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
@@ -157,41 +151,21 @@ setTimeout(() => {
           transition={{ duration: 0.55, delay: 0.08 }}
           className="w-full"
         >
-          <div className="lg:hidden mb-8 text-center">
-            <img
-              src={logo}
-              alt="GeekOnSites Logo"
-              className="mx-auto h-20 w-auto object-contain"
-            />
-
-            <h1 className="mt-4 text-3xl font-black">
-              GeekOnSites
-            </h1>
-
-            <p className="text-cyan-300 mt-1">
-              Technician Portal
-            </p>
-          </div>
-
           <div className="rounded-[32px] md:rounded-[38px] bg-[#071122]/95 border border-cyan-500/20 p-5 sm:p-7 md:p-9 shadow-2xl">
             <div className="flex items-start justify-between gap-5">
               <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-cyan-300">Technician portal</p>
                 <h2 className="text-3xl md:text-4xl font-black">
-                  Welcome Back
+                  Welcome back.
                 </h2>
                 <p className="mt-2 text-cyan-100/50 text-sm md:text-base">
                   Login with your company-issued technician account.
                 </p>
               </div>
 
-              <img
-                src={logo}
-                alt="GeekOnSites Logo"
-                className="hidden sm:block h-14 w-auto object-contain"
-              />
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-3 gap-0 border-y border-gos-border">
               <SmallInfo label="Status" value="Secure" />
               <SmallInfo label="Region" value="US/UK" />
               <SmallInfo label="Role" value="Tech" />
@@ -216,7 +190,7 @@ setTimeout(() => {
             <form onSubmit={handleLogin} className="mt-7 space-y-5">
               <div>
                 <label className="text-sm text-cyan-100/70">
-                  Technician Email
+                  Official GOS Email
                 </label>
 
                 <div className="relative mt-2">
@@ -226,7 +200,7 @@ setTimeout(() => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="john@gos.com"
+                    placeholder="yourname@gos.com"
                     className="w-full bg-[#0b1628] border border-white/10 focus:border-cyan-400/60 rounded-2xl pl-12 pr-4 py-4 text-white outline-none placeholder:text-cyan-100/25"
                   />
                 </div>
@@ -350,7 +324,7 @@ function StatCard({ title, value }) {
 
 function SmallInfo({ label, value }) {
   return (
-    <div className="rounded-2xl bg-[#0b1628] border border-white/10 p-3 text-center">
+    <div className="border-l border-gos-border p-3 text-center first:border-l-0">
       <p className="text-[11px] text-cyan-100/35">{label}</p>
       <h3 className="text-sm font-bold mt-1">{value}</h3>
     </div>

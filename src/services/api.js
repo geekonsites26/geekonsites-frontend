@@ -37,6 +37,10 @@ export const clearAuth = () => {
 
 export async function apiRequest(endpoint, options = {}) {
   const token = getToken()
+  const timeoutController = options.signal ? null : new AbortController()
+  const timeoutId = timeoutController
+    ? window.setTimeout(() => timeoutController.abort(), 20000)
+    : null
 
   const headers = {
     "Content-Type": "application/json",
@@ -47,10 +51,21 @@ export async function apiRequest(endpoint, options = {}) {
     headers.Authorization = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      signal: options.signal || timeoutController.signal,
+      headers,
+    })
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("The server is taking too long to respond. Please try again.", { cause: error })
+    }
+    throw error
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId)
+  }
 
   const contentType = response.headers.get("content-type")
   const isJson = contentType && contentType.includes("application/json")

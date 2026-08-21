@@ -1,9 +1,9 @@
 import SEO from "../components/common/SEO"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
+import { getLocation } from "../utils/location"
 import {
-  Search,
   ArrowRight,
   CheckCircle2,
   MapPin,
@@ -47,12 +47,12 @@ const mostBooked = [
 ]
 
 const onsiteServices = [
-  ["Laptop Repair", "Technician visit for diagnostics, repair and setup.", Laptop],
-  ["Desktop Repair", "Hardware, software and performance repair.", Laptop],
-  ["CCTV Installation", "Camera installation, DVR/NVR and monitoring setup.", Camera],
-  ["Router Setup", "Router installation, secure Wi-Fi and coverage setup.", Wifi],
-  ["Smart Home Setup", "Smart TV, Alexa, Google Home and smart doorbell setup.", Home],
-  ["Business IT Support", "Office IT, server, network and managed support.", Server],
+  ["Laptop Repair", "Technician visit for diagnostics, repair and setup.", Laptop, "Laptop Repair"],
+  ["Desktop Repair", "Hardware, software and performance repair.", Laptop, "Computer Repair"],
+  ["CCTV Installation", "Camera installation, DVR/NVR and monitoring setup.", Camera, "CCTV Installation"],
+  ["Router Setup", "Router installation, secure Wi-Fi and coverage setup.", Wifi, "WiFi / Router Setup"],
+  ["Smart Home Setup", "Smart TV, Alexa, Google Home and smart doorbell setup.", Home, "Smart Home Setup"],
+  ["Business IT Support", "Office IT, server, network and managed support.", Server, "Business IT Support"],
 ]
 
 const businessServices = [
@@ -158,18 +158,25 @@ const faqs = [
   },
 ]
 
+const catalogViews = [
+  { id: "services", label: "Services", icon: Headphones, eyebrow: "Service catalog", title: "Choose the support that fits.", description: "Compare remote, on-site, and business support with clear starting prices and direct booking." },
+  { id: "bundles", label: "Bundles", icon: ShieldCheck, eyebrow: "Combined support", title: "More covered in one booking.", description: "Select a focused package for protection, new-device setup, or a complete work-from-home configuration." },
+  { id: "products", label: "Products", icon: HardDrive, eyebrow: "Recommended equipment", title: "The right additions for the job.", description: "Review practical accessories, storage, networking equipment, and commonly supported device brands." },
+  { id: "info", label: "Support info", icon: CheckCircle2, eyebrow: "Booking confidence", title: "Clear terms before you begin.", description: "Understand pricing policies, service expectations, and answers to common customer questions." },
+]
+
 export default function Services() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState("remote")
+  const [catalogView, setCatalogView] = useState("services")
   const [openFaq, setOpenFaq] = useState(0)
  const [location, setLocation] = useState(
-  localStorage.getItem("gos_location") || "UK"
+  getLocation().code
 )
 
 useEffect(() => {
   const updateLocation = () => {
-    setLocation(localStorage.getItem("gos_location") || "UK")
+    setLocation(getLocation().code)
   }
 
   window.addEventListener("gos-location-changed", updateLocation)
@@ -181,12 +188,8 @@ useEffect(() => {
     )
 }, [])
 
-  const filteredRemoteServices = useMemo(() => {
-    if (!query.trim()) return remoteServices
-    return remoteServices.filter(([name]) =>
-      name.toLowerCase().includes(query.toLowerCase())
-    )
-  }, [query])
+  const filteredRemoteServices = remoteServices
+  const activeCatalog = catalogViews.find(({ id }) => id === catalogView) || catalogViews[0]
 
   const bookService = (name, usaPrice = "", ukPrice = "", category = "") => {
     navigate("/book-service", {
@@ -200,8 +203,60 @@ useEffect(() => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050B12] pb-24 text-white">
-      <section className="relative overflow-hidden px-4 pt-28 pb-12 sm:px-6 lg:px-10">
+    <div className="gos-services-page min-h-screen bg-[#f3f6f8] pb-24 text-gos-charcoal" data-catalog-view={catalogView}>
+      <SEO title="Services | GeekOnSites" description="Explore professional remote support, on-site technology service and business IT solutions from GeekOnSites." />
+      <section className="relative flex min-h-[33rem] overflow-hidden px-4 pb-10 pt-24 sm:min-h-[35rem] sm:px-6 sm:pb-12 sm:pt-28 lg:px-10">
+        <img src="/images/services/computer-support.webp?v=1" alt="Professional computer support service" className="absolute inset-0 h-full w-full object-cover object-[center_58%]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,13,29,0.9)_0%,rgba(3,13,29,0.7)_48%,rgba(3,13,29,0.12)_100%)] max-md:bg-[linear-gradient(180deg,rgba(3,13,29,0.12)_0%,rgba(3,13,29,0.76)_52%,rgba(3,13,29,0.94)_100%)]" />
+        <div className="relative mx-auto flex w-full max-w-7xl items-end lg:items-center">
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl">
+            <div className="mb-5 flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-cyan-200 sm:text-xs">
+              <span className="h-px w-8 bg-yellow-300" /><MapPin size={15} /> Available across USA & UK
+            </div>
+            <h1 className="font-['Cormorant_Garamond'] text-[clamp(3.2rem,7vw,6.4rem)] font-bold leading-[0.88] tracking-normal text-white">
+              Technology services,<span className="block italic text-cyan-300">built around you.</span>
+            </h1>
+            <p className="mt-6 max-w-2xl font-['Cormorant_Garamond'] text-xl font-semibold leading-8 text-white/90 sm:text-2xl">
+              Remote expertise, professional on-site visits, and dependable business IT support in one clear service experience.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button onClick={() => bookService("PC Health Check & Diagnosis", "$29", "Â£25", "Remote Support")} className="min-h-12 rounded-md bg-cyan-400 px-6 py-3 font-black text-slate-950 transition hover:bg-cyan-300">Book Service</button>
+              <button onClick={() => document.getElementById("service-tabs")?.scrollIntoView({ behavior: "smooth" })} className="min-h-12 rounded-md border border-white/55 px-6 py-3 font-black text-white transition hover:bg-white hover:text-slate-950">Browse Services</button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <nav className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 border-y border-gos-border bg-white/95 px-4 py-2 backdrop-blur-md sm:top-[calc(4rem+env(safe-area-inset-top))] sm:px-6 lg:px-10" aria-label="Service catalog sections">
+        <div className="mx-auto grid max-w-7xl grid-cols-4 gap-1">
+          {catalogViews.map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" onClick={() => setCatalogView(id)} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-md px-1.5 text-[10px] font-extrabold sm:gap-2 sm:px-2 sm:text-sm ${catalogView === id ? "bg-gos-blue-deep text-white" : "text-gos-blue-deep hover:bg-gos-off-white"}`}>
+              <Icon size={15} className="shrink-0" /> <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <section className="gos-catalog-intro border-b border-gos-border bg-white px-4 py-7 sm:px-6 sm:py-9 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <motion.div key={activeCatalog.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-turquoise">{activeCatalog.eyebrow}</p>
+            <h2 className="mt-2 max-w-2xl font-['Cormorant_Garamond'] text-[2.3rem] font-bold leading-[0.96] text-gos-blue-deep sm:text-5xl">{activeCatalog.title}</h2>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-gos-charcoal sm:text-base">{activeCatalog.description}</p>
+          </motion.div>
+          <div className="grid grid-cols-3 border-y border-gos-border lg:min-w-[28rem]">
+            {[[ShieldCheck, "Verified", "Professionals"], [Clock, "Clear", "Scheduling"], [MapPin, "US & UK", "Coverage"]].map(([Icon, value, label], index) => (
+              <div key={label} className={`px-2 py-3 text-center sm:px-4 ${index ? "border-l border-gos-border" : ""}`}>
+                <Icon size={17} className="mx-auto text-gos-turquoise" />
+                <p className="mt-1.5 text-xs font-extrabold text-gos-blue-deep sm:text-sm">{value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.06em] text-gos-muted">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="hidden relative overflow-hidden px-4 pt-28 pb-12 sm:px-6 lg:px-10">
         <div className="absolute left-[-160px] top-[-160px] h-[380px] w-[380px] rounded-full bg-cyan-500/20 blur-[120px]" />
         <div className="absolute right-[-140px] top-[140px] h-[340px] w-[340px] rounded-full bg-yellow-400/10 blur-[120px]" />
 
@@ -230,13 +285,6 @@ useEffect(() => {
 
             <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.06] p-3 backdrop-blur-xl">
               <div className="flex items-center gap-3 rounded-2xl bg-slate-950/75 px-4 py-3">
-                <Search className="text-cyan-300" size={22} />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search virus, printer, Wi-Fi, office, setup..."
-                  className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-500 sm:text-base"
-                />
               </div>
             </div>
 
@@ -300,9 +348,9 @@ useEffect(() => {
         </div>
       </section>
 
-      <SectionTitle badge="Most Booked" title="High-demand services" />
+      <SectionTitle group="services" badge="Most Booked" title="High-demand services" />
 
-      <section className="px-4 pb-10 sm:px-6 lg:px-10">
+      <section className="gos-catalog-panel catalog-services px-4 pb-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {mostBooked.map(([name, us, uk, Icon]) => (
             <button
@@ -325,7 +373,7 @@ useEffect(() => {
         </div>
       </section>
 
-      <section id="service-tabs" className="px-4 pb-8 sm:px-6 lg:px-10">
+      <section id="service-tabs" className="gos-catalog-panel catalog-services px-4 pb-8 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-3 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-2 sm:grid-cols-3">
             {[
@@ -338,7 +386,7 @@ useEffect(() => {
                 onClick={() => setActiveTab(id)}
                 className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${
                   activeTab === id
-                    ? "bg-cyan-400 text-slate-950"
+                    ? "bg-gos-blue-deep text-white"
                     : "text-slate-300 hover:bg-white/[0.06]"
                 }`}
               >
@@ -352,8 +400,8 @@ useEffect(() => {
 
       {activeTab === "remote" && (
         <>
-          <SectionTitle badge="Remote Support" title="Online remote service pricing" />
-          <section className="px-4 pb-10 sm:px-6 lg:px-10">
+          <SectionTitle group="services" badge="Remote Support" title="Remote help and clear pricing" />
+          <section className="gos-catalog-panel catalog-services px-4 pb-10 sm:px-6 lg:px-10">
             <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.055] shadow-2xl backdrop-blur-xl">
               <div className="hidden grid-cols-[1fr_130px_130px_150px] border-b border-white/10 bg-white/[0.06] px-5 py-4 text-sm font-black text-slate-300 md:grid">
                 <p>Service</p>
@@ -382,9 +430,9 @@ useEffect(() => {
 </p>
                   <button
                     onClick={() => bookService(name, us, uk, "Remote Support")}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
+                    className="rounded-md bg-gos-blue-deep px-4 py-3 text-sm font-black text-white transition hover:bg-gos-blue"
                   >
-                    Book Service
+                    Add to booking
                   </button>
                 </div>
               ))}
@@ -395,13 +443,13 @@ useEffect(() => {
 
       {activeTab === "onsite" && (
         <>
-          <SectionTitle badge="On-Site Services" title="Technician visit services" />
-          <section className="px-4 pb-10 sm:px-6 lg:px-10">
+          <SectionTitle group="services" badge="On-Site Support" title="Professional help at your location" />
+          <section className="gos-catalog-panel catalog-services px-4 pb-10 sm:px-6 lg:px-10">
             <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {onsiteServices.map(([name, desc, Icon]) => (
+              {onsiteServices.map(([name, desc, Icon, bookingCategory]) => (
                 <button
                   key={name}
-                  onClick={() => bookService(name, "", "", "On-Site Service")}
+                  onClick={() => bookService(name, "", "", bookingCategory)}
                   className="rounded-[1.7rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:-translate-y-1 hover:border-cyan-300/40 hover:bg-cyan-400/10"
                 >
                   <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/15 text-cyan-300">
@@ -410,7 +458,7 @@ useEffect(() => {
                   <h3 className="font-black">{name}</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-400">{desc}</p>
                   <p className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">
-                    Book visit <ArrowRight size={16} />
+                    Add to booking <ArrowRight size={16} />
                   </p>
                 </button>
               ))}
@@ -421,18 +469,19 @@ useEffect(() => {
 
       {activeTab === "business" && (
         <>
-          <SectionTitle badge="Business IT" title="Small office technology solutions" />
-          <section className="px-4 pb-10 sm:px-6 lg:px-10">
+          <SectionTitle group="services" badge="Business IT" title="Reliable support for your business" />
+          <section className="gos-catalog-panel catalog-services px-4 pb-10 sm:px-6 lg:px-10">
             <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {businessServices.map(([name, desc, Icon]) => (
                 <button
                   key={name}
-                  onClick={() => bookService(name, "", "", "Business IT")}
+                  onClick={() => bookService(name, "", "", "Business IT Support")}
                   className="rounded-[1.7rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:-translate-y-1 hover:border-cyan-300/40 hover:bg-cyan-400/10"
                 >
                   <Icon className="mb-4 text-cyan-300" size={25} />
                   <h3 className="font-black">{name}</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-400">{desc}</p>
+                  <p className="mt-4 flex items-center gap-2 text-sm font-bold text-cyan-300">Add to booking <ArrowRight size={16} /></p>
                 </button>
               ))}
             </div>
@@ -440,9 +489,9 @@ useEffect(() => {
         </>
       )}
 
-      <SectionTitle badge="Bundles" title="Service bundles that save money" />
+      <SectionTitle group="bundles" badge="Service Bundles" title="Complete support in one booking" />
 
-      <section className="px-4 pb-10 sm:px-6 lg:px-10">
+      <section className="gos-catalog-panel catalog-bundles px-4 pb-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-3">
           {bundles.map((bundle) => {
             const Icon = bundle.icon
@@ -479,9 +528,9 @@ useEffect(() => {
                   onClick={() =>
                     bookService(bundle.name, bundle.price, bundle.ukPrice, "Service Bundle")
                   }
-                  className="mt-6 w-full rounded-2xl bg-cyan-400 px-5 py-3.5 font-black text-slate-950 hover:bg-cyan-300"
+                  className="mt-6 w-full rounded-md bg-gos-blue-deep px-5 py-3.5 font-black text-white hover:bg-gos-blue"
                 >
-                  Book Bundle
+                  Add to booking
                 </button>
               </div>
             )
@@ -489,9 +538,9 @@ useEffect(() => {
         </div>
       </section>
 
-      <SectionTitle badge="Products" title="Recommended add-ons & accessories" />
+      <SectionTitle group="products" badge="Equipment Support" title="Add equipment help to your booking" />
 
-      <section className="px-4 pb-10 sm:px-6 lg:px-10">
+      <section className="gos-catalog-panel catalog-products px-4 pb-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {products.map(([title, desc, Icon]) => (
             <button
@@ -510,9 +559,9 @@ useEffect(() => {
         </div>
       </section>
 
-      <SectionTitle badge="Brands" title="Devices and software we commonly support" />
+      <SectionTitle group="products" badge="Brands" title="Devices and software we commonly support" />
 
-      <section className="px-4 pb-10 sm:px-6 lg:px-10">
+      <section className="gos-catalog-panel catalog-products px-4 pb-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {brands.map((brand) => (
             <div
@@ -530,9 +579,9 @@ useEffect(() => {
         </p>
       </section>
 
-      <SectionTitle badge="Policy" title="Transparent pricing policies" />
+      <SectionTitle group="info" badge="Policy" title="Transparent pricing policies" />
 
-      <section className="px-4 pb-10 sm:px-6 lg:px-10">
+      <section className="gos-catalog-panel catalog-info px-4 pb-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-2 lg:grid-cols-5">
           {policies.map((policy) => (
             <div
@@ -548,9 +597,9 @@ useEffect(() => {
         </div>
       </section>
 
-      <SectionTitle badge="FAQ" title="Common customer questions" />
+      <SectionTitle group="info" badge="FAQ" title="Common customer questions" />
 
-      <section className="px-4 sm:px-6 lg:px-10">
+      <section className="gos-catalog-panel catalog-info px-4 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-4xl space-y-3">
           {faqs.map((faq, index) => (
             <div
@@ -583,14 +632,14 @@ useEffect(() => {
   )
 }
 
-function SectionTitle({ badge, title }) {
+function SectionTitle({ badge, title, group }) {
   return (
-    <section className="px-4 pb-5 sm:px-6 lg:px-10">
+    <section className={`gos-services-title gos-catalog-panel catalog-${group} px-4 pb-5 pt-9 sm:px-6 sm:pt-12 lg:px-10`}>
       <div className="mx-auto max-w-7xl">
-        <p className="text-sm font-bold uppercase tracking-[0.25em] text-cyan-300">
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-turquoise">
           {badge}
         </p>
-        <h2 className="mt-2 text-3xl font-black sm:text-4xl">{title}</h2>
+        <h2 className="mt-2 font-['Cormorant_Garamond'] text-3xl font-bold leading-none text-gos-blue-deep sm:text-4xl">{title}</h2>
       </div>
     </section>
   )

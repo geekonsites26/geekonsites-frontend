@@ -1,197 +1,51 @@
+import { ArrowRight, CalendarDays, CheckCircle2, Monitor, Wrench } from "lucide-react"
 import { motion } from "framer-motion"
-import {
-  CreditCard,
-  UserCog,
-  UserCheck,
-  Navigation,
-  Wrench,
-  CheckCircle2,
-  Phone,
-  MapPin,
-  Clock,
-  Sparkles,
-} from "lucide-react"
+import Section from "../layout/Section"
+import Button from "../ui/Button"
+import { staggerContainer, staggerItem, viewportOnce } from "../../styles/motion"
 
-const steps = [
-  { title: "Paid", status: "Done", icon: CreditCard },
-  { title: "Assigning", status: "Live", icon: UserCog },
-  { title: "Assigned", status: "Next", icon: UserCheck },
-  { title: "On Way", status: "Next", icon: Navigation },
-  { title: "Started", status: "Next", icon: Wrench },
-  { title: "Completed", status: "Next", icon: CheckCircle2 },
+const journey = [
+  { number: "01", title: "Choose support", text: "Select remote or on-site help.", icon: Monitor },
+  { number: "02", title: "Set the details", text: "Confirm schedule and service information.", icon: CalendarDays },
+  { number: "03", title: "Meet your expert", text: "Receive assignment and status updates.", icon: Wrench },
 ]
 
 export default function BookingFlowSection() {
   return (
-    <section className="relative overflow-hidden bg-[#070B12] py-12 sm:py-16 lg:py-20 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(212,175,55,0.10),transparent_35%)]" />
-
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-7 sm:mb-12 flex flex-col gap-3 text-center lg:text-left lg:flex-row lg:items-end lg:justify-between">
+    <Section className="border-t border-gos-border bg-white pb-3 pt-7 sm:pb-4 sm:pt-10 lg:pb-5 lg:pt-12">
+      <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={viewportOnce}>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
-            <p className="text-cyan-400 font-black text-sm sm:text-base">
-              BOOKING TRACKING
-            </p>
-
-            <h2 className="mt-3 text-2xl sm:text-4xl lg:text-5xl font-black leading-tight">
-              Service Tracking
-            </h2>
+            <motion.p variants={staggerItem} className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-blue">A better booking experience</motion.p>
+            <motion.h2 variants={staggerItem} className="mt-2 max-w-3xl font-['Cormorant_Garamond'] text-[2.35rem] font-bold leading-[0.95] tracking-normal text-gos-blue-deep sm:text-[clamp(2.5rem,5vw,4rem)]">A clear path from problem to solution.</motion.h2>
           </div>
-
-          <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto lg:mx-0 leading-6">
-            Track payment, technician assignment, arrival and service completion
-            from website or mobile app.
-          </p>
+          <motion.p variants={staggerItem} className="max-w-md text-sm font-bold leading-6 text-gos-charcoal">Secure booking keeps service details, scheduling, and technician assignment in one place.</motion.p>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:gap-6 lg:items-start">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            className="rounded-[1.55rem] border border-white/10 bg-white/[0.055] p-4 sm:p-6 shadow-2xl backdrop-blur-xl"
-          >
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[11px] sm:text-sm text-slate-400">
-                  Booking ID
-                </p>
+        <motion.div variants={staggerItem} className="mt-5 overflow-hidden rounded-lg border border-gos-border bg-white p-1.5 shadow-[var(--gos-shadow-sm)]">
+          <div
+            role="img"
+            aria-label="Connected GOS booking journey"
+            className="h-28 w-full rounded-md bg-gos-off-white bg-cover bg-center sm:h-32 lg:h-36"
+            style={{ backgroundImage: "url('/images/home/booking-journey.webp')" }}
+          />
+        </motion.div>
 
-                <h3 className="text-lg sm:text-2xl font-black">
-                  GOS-2026-1048
-                </h3>
-              </div>
-
-              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] sm:text-sm font-bold text-cyan-300">
-                Live
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              {steps.map((step, index) => {
-                const Icon = step.icon
-                const active = index <= 1
-
-                return (
-                  <div
-                    key={step.title}
-                    className={`rounded-2xl border p-3.5 sm:p-4 ${
-                      active
-                        ? "border-cyan-400/30 bg-cyan-500/10"
-                        : "border-white/10 bg-black/20"
-                    }`}
-                  >
-                    <div
-                      className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${
-                        active ? "bg-cyan-500/15" : "bg-white/5"
-                      }`}
-                    >
-                      <Icon
-                        size={19}
-                        className={active ? "text-cyan-300" : "text-slate-400"}
-                      />
-                    </div>
-
-                    <h4 className="text-sm sm:text-base font-black">
-                      {step.title}
-                    </h4>
-
-                    <span
-                      className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] sm:text-xs font-bold ${
-                        step.status === "Done"
-                          ? "bg-emerald-500/10 text-emerald-300"
-                          : step.status === "Live"
-                          ? "bg-cyan-500/10 text-cyan-300"
-                          : "bg-white/10 text-slate-400"
-                      }`}
-                    >
-                      {step.status}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            className="rounded-[1.55rem] border border-white/10 bg-white/[0.055] p-4 sm:p-6 shadow-2xl backdrop-blur-xl"
-          >
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] sm:text-sm font-bold text-[#F7E7A1]">
-              <Sparkles size={14} />
-              Technician Preview
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-black/25 p-4 sm:p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-xl sm:text-2xl font-black">
-                  RK
-                </div>
-
-                <div className="min-w-0">
-                  <h3 className="text-xl sm:text-2xl font-black">
-                    Rahul Kumar
-                  </h3>
-
-                  <p className="text-xs sm:text-sm text-slate-400">
-                    Laptop Repair Specialist
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3">
-                <CompactInfo
-                  icon={Clock}
-                  label="Arrival"
-                  value="Today, 4:00 PM - 5:00 PM"
-                />
-
-                <CompactInfo
-                  icon={MapPin}
-                  label="Area"
-                  value="Nearest local technician"
-                />
-
-                <CompactInfo
-                  icon={Wrench}
-                  label="Experience"
-                  value="4+ years field service"
-                />
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-sm font-black text-black">
-                  <Phone size={16} />
-                  Call
-                </button>
-
-                <button className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-slate-300">
-                  Track
-                </button>
-              </div>
-            </div>
+        <div className="mt-6 overflow-hidden rounded-lg border border-gos-border bg-gos-off-white">
+          <div className="grid sm:grid-cols-3">
+            {journey.map(({ number, title, text, icon: Icon }, index) => (
+              <motion.div variants={staggerItem} key={number} className={`grid min-h-24 grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 px-4 py-4 ${index ? "border-t border-gos-border sm:border-l sm:border-t-0" : ""}`}>
+                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-gos-blue"><Icon size={18} /></span>
+                <div className="min-w-0"><p className="text-[9px] font-extrabold tracking-[0.14em] text-gos-turquoise">{number}</p><h3 className="mt-0.5 text-base font-extrabold text-gos-blue-deep">{title}</h3><p className="mt-0.5 text-xs font-bold leading-5 text-gos-charcoal">{text}</p></div>
+              </motion.div>
+            ))}
+          </div>
+          <motion.div variants={staggerItem} className="flex flex-col gap-3 border-t border-gos-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex items-center gap-2 text-xs font-extrabold text-gos-blue-deep"><CheckCircle2 size={16} className="text-gos-turquoise" /> Review everything before confirming</span>
+            <Button to="/book-service" className="group min-h-11 w-full sm:w-auto">Start booking <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" /></Button>
           </motion.div>
         </div>
-      </div>
-    </section>
-  )
-}
-
-function CompactInfo({ icon: Icon, label, value }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10">
-        <Icon size={18} className="text-cyan-300" />
-      </div>
-
-      <div className="min-w-0">
-        <p className="text-[11px] text-slate-500">{label}</p>
-        <p className="truncate text-sm font-semibold text-slate-200">
-          {value}
-        </p>
-      </div>
-    </div>
+      </motion.div>
+    </Section>
   )
 }

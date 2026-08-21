@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { Browser } from "@capacitor/browser"
 import {
   AlertTriangle,
   CalendarClock,
@@ -7,6 +8,7 @@ import {
   ChevronLeft,
   Clock3,
   Copy,
+  CreditCard,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -20,23 +22,20 @@ import {
   Wifi,
   X,
 } from "lucide-react"
+import { getBookingById, provisionRemoteSession } from "../services/bookingService"
 
 export default function RemoteSession() {
   const navigate = useNavigate()
   const { state } = useLocation()
 
-  const booking = state?.booking || {
-    id: "GOS-1024",
-    serviceType: "Laptop Repair",
-    issueDescription: "Laptop is slow and not turning on properly.",
-    remoteMeetingLink: "https://meet.google.com/abc-defg-hij",
-    sessionId: "GOS-RM-28472",
-  }
-
+  const storedBooking = (() => {
+    try { return JSON.parse(localStorage.getItem("currentBooking")) } catch { return null }
+  })()
+  const [booking, setBooking] = useState(state?.booking || storedBooking)
   const technician = state?.technician || {
-    name: "Rahul Kumar",
-    role: "Senior Remote Support Technician",
-    phone: "+44 7700 900123",
+    name: booking?.technicianName || "GeekOnSites support team",
+    role: "Verified remote support professional",
+    phone: "",
   }
 
   const [seconds, setSeconds] = useState(0)
@@ -44,6 +43,8 @@ export default function RemoteSession() {
   const [message, setMessage] = useState("")
   const [copied, setCopied] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState([])
+  const [provisioning, setProvisioning] = useState(false)
+  const provisionAttempted = useRef(false)
 
   const [chat, setChat] = useState([
     {
@@ -57,12 +58,62 @@ export default function RemoteSession() {
   ])
 
   useEffect(() => {
+    if (!meetingJoined) return undefined
+
     const timer = setInterval(() => {
       setSeconds((prev) => prev + 1)
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [meetingJoined])
+
+  useEffect(() => {
+    if (!booking?.id) return
+    let active = true
+
+    const refreshBooking = () => getBookingById(booking.id)
+      .then((latest) => {
+        if (!active) return
+        setBooking(latest)
+        localStorage.setItem("currentBooking", JSON.stringify(latest))
+      })
+      .catch(console.error)
+
+    refreshBooking()
+    const refreshTimer = setInterval(refreshBooking, 7000)
+
+    return () => {
+      active = false
+      clearInterval(refreshTimer)
+    }
+  }, [booking?.id])
+
+  const prepareMeeting = async () => {
+    if (!booking?.id || booking?.paymentStatus !== "PAID" || provisioning) return
+
+    setProvisioning(true)
+    try {
+      const latest = await provisionRemoteSession(booking.id)
+      setBooking(latest)
+      localStorage.setItem("currentBooking", JSON.stringify(latest))
+    } catch (error) {
+      console.error("Meeting provisioning failed:", error)
+    } finally {
+      setProvisioning(false)
+    }
+  }
+
+  useEffect(() => {
+    if (
+      booking?.id &&
+      booking?.paymentStatus === "PAID" &&
+      !booking?.remoteSessionLink &&
+      !provisionAttempted.current
+    ) {
+      provisionAttempted.current = true
+      prepareMeeting()
+    }
+  }, [booking?.id, booking?.paymentStatus, booking?.remoteSessionLink])
 
   const sessionTime = useMemo(() => {
     const hrs = String(Math.floor(seconds / 3600)).padStart(2, "0")
@@ -77,27 +128,43 @@ export default function RemoteSession() {
     "Session activity will be recorded in booking history",
   ]
 
-  const isDemoMeetLink =
-    !booking.remoteMeetingLink ||
-    booking.remoteMeetingLink.includes("abc-defg-hij")
+  const paymentRequired = booking?.paymentStatus !== "PAID"
+  const meetingPending = !booking?.remoteSessionLink || booking?.remoteSessionStatus !== "READY"
+  const meetingFailed = ["SETUP_REQUIRED", "PROVISIONING_FAILED"].includes(booking?.remoteSessionStatus)
+  const meetingStatusLabel = paymentRequired
+    ? "Payment Required"
+    : meetingFailed
+      ? "Meeting Needs Attention"
+      : meetingPending
+        ? "Preparing Meeting"
+        : "Meeting Ready"
 
-  const joinMeeting = () => {
-    if (isDemoMeetLink) {
-      alert("Meeting link is not ready yet. Backend will generate a real Google Meet link for this booking.")
+  const joinMeeting = async () => {
+    if (paymentRequired) {
+      navigate("/payment", { state: { booking } })
+      return
+    }
+
+    if (meetingPending) {
       return
     }
 
     setMeetingJoined(true)
-    window.open(booking.remoteMeetingLink, "_blank", "noopener,noreferrer")
+    try {
+      await Browser.open({ url: booking.remoteSessionLink })
+    } catch (error) {
+      console.error("Unable to open Google Meet externally:", error)
+      window.location.href = booking.remoteSessionLink
+    }
   }
 
   const copyMeetingLink = async () => {
-    if (isDemoMeetLink) {
+    if (meetingPending) {
       alert("Meeting link is not ready yet.")
       return
     }
 
-    await navigator.clipboard.writeText(booking.remoteMeetingLink)
+    await navigator.clipboard.writeText(booking.remoteSessionLink)
     setCopied(true)
 
     setTimeout(() => {
@@ -147,8 +214,19 @@ export default function RemoteSession() {
     })
   }
 
+  const goToMeetingPanel = () => {
+    document.getElementById("google-meet-panel")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    })
+  }
+
+  if (!booking) {
+    return <main className="flex min-h-screen items-center justify-center bg-gos-off-white px-4 pt-20"><div className="w-full max-w-md rounded-lg border border-gos-border bg-white p-7 text-center shadow-[var(--gos-shadow-md)]"><h1 className="font-['Cormorant_Garamond'] text-4xl font-bold text-gos-blue-deep">Remote booking unavailable.</h1><p className="mt-3 text-sm font-semibold text-gos-muted">Open the remote session from your customer dashboard after payment is confirmed.</p><button type="button" onClick={() => navigate("/customer-dashboard?view=bookings")} className="mt-6 min-h-11 rounded-md bg-gos-blue-deep px-5 text-sm font-extrabold text-white">View my bookings</button></div></main>
+  }
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020817] px-4 pb-20 pt-[95px] text-white sm:px-6 sm:pt-[120px] lg:pt-[145px]">
+    <main className="gos-service-flow remote-session-page relative min-h-screen overflow-hidden bg-[#020817] px-3 pb-20 pt-16 text-white sm:px-5 sm:pt-20 lg:px-6 lg:pt-20">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_34%)]" />
 
       <section className="relative mx-auto max-w-7xl">
@@ -177,7 +255,7 @@ export default function RemoteSession() {
           </button>
 
           <div className="rounded-full border border-green-400/20 bg-green-400/10 px-4 py-2 text-xs font-bold text-green-300">
-            {isDemoMeetLink ? "Meeting Pending" : "Meeting Ready"}
+            {meetingStatusLabel}
           </div>
         </div>
 
@@ -201,20 +279,20 @@ export default function RemoteSession() {
 
             <div className="mt-5 space-y-3">
               <button
-                onClick={joinMeeting}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-4 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-blue-500"
+                onClick={paymentRequired ? joinMeeting : goToMeetingPanel}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-4 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-blue-500 disabled:cursor-wait disabled:opacity-55"
               >
-                <Video size={20} />
-                Join Video / Voice Meeting
+                {paymentRequired ? <CreditCard size={20} /> : <Video size={20} />}
+                {paymentRequired ? "Complete Payment" : meetingPending ? "View Meeting Status" : "Go to Google Meet"}
               </button>
 
-              <a
+              {technician.phone && <a
                 href={`tel:${technician.phone}`}
                 className="flex w-full items-center justify-center gap-3 rounded-2xl border border-green-400/20 bg-green-400/10 px-5 py-4 text-sm font-black text-green-300 transition hover:bg-green-400/15"
               >
                 <Phone size={19} />
                 Call Technician
-              </a>
+              </a>}
 
               <button
                 onClick={() =>
@@ -307,7 +385,7 @@ export default function RemoteSession() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <SessionPill icon={Clock3} text={sessionTime} />
+                  <SessionPill icon={Clock3} text={meetingJoined ? sessionTime : "Not Started"} />
                   <SessionPill icon={Wifi} text="Secure" green />
                   <SessionPill icon={Shield} text="Unique Meet Link" />
 
@@ -322,7 +400,7 @@ export default function RemoteSession() {
               </div>
             </div>
 
-            <section className="relative overflow-hidden rounded-[2rem] border border-cyan-500/20 bg-[#06101f] p-6 sm:p-8">
+            <section id="google-meet-panel" className="relative scroll-mt-24 overflow-hidden rounded-[2rem] border border-cyan-500/20 bg-[#06101f] p-6 sm:p-8">
               <div className="absolute inset-0 opacity-20">
                 <div className="absolute left-10 top-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
                 <div className="absolute bottom-10 right-10 h-40 w-40 rounded-full bg-green-400/20 blur-3xl" />
@@ -332,7 +410,7 @@ export default function RemoteSession() {
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-green-400/20 bg-green-400/10 px-4 py-2 text-xs font-bold text-green-300">
                     <CheckCircle2 size={15} />
-                    {isDemoMeetLink ? "Google Meet Pending" : "Google Meet Ready"}
+                    {meetingStatusLabel}
                   </div>
 
                   <h2 className="mt-5 text-3xl font-black leading-tight sm:text-4xl">
@@ -340,31 +418,64 @@ export default function RemoteSession() {
                   </h2>
 
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
-                    Each booking gets one unique Google Meet link. The customer,
-                    assigned technician, and approved support team members join
-                    the same session.
+                    Your private Google Meet link appears here after payment.
+                    Open it to join the assigned technician and begin support.
                   </p>
 
-                  {isDemoMeetLink && (
+                  {paymentRequired && (
                     <div className="mt-5 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100/80">
-                      Demo link is not real. Backend will generate a real Google
-                      Meet link automatically after technician assignment.
+                      Complete the secure payment to confirm this booking and
+                      generate its Google Meet session.
+                    </div>
+                  )}
+
+                  {!paymentRequired && meetingPending && (
+                    <div className="mt-5 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100/80">
+                      <p>{meetingFailed
+                        ? "The secure meeting could not be created automatically. You do not need to pay again."
+                        : "Payment is confirmed. The secure meeting is being created and this page refreshes automatically."}</p>
+                      {meetingFailed && (
+                        <button
+                          type="button"
+                          onClick={prepareMeeting}
+                          disabled={provisioning}
+                          className="remote-meeting-retry mt-3 min-h-10 rounded-lg bg-gos-blue-deep px-4 text-xs font-extrabold text-white disabled:opacity-60"
+                        >
+                          {provisioning ? "Creating Meet Link..." : "Retry Meet Link"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {!meetingPending && booking.remoteSessionLink && (
+                    <div className="mt-5 rounded-xl border border-green-500/25 bg-green-500/10 p-4">
+                      <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-green-300">
+                        Google Meet Ready
+                      </p>
+                      <a
+                        href={booking.remoteSessionLink}
+                        className="mt-2 block break-all text-sm font-bold text-gos-blue-deep underline decoration-gos-turquoise underline-offset-4"
+                      >
+                        {booking.remoteSessionLink}
+                      </a>
                     </div>
                   )}
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     <button
                       onClick={joinMeeting}
-                      className="inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-7 py-4 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-blue-500"
+                      disabled={!paymentRequired && meetingPending}
+                      className="inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-7 py-4 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-blue-500 disabled:cursor-wait disabled:opacity-55"
                     >
-                      <Video size={20} />
-                      Join Meeting
+                      {paymentRequired ? <CreditCard size={20} /> : <Video size={20} />}
+                      {paymentRequired ? "Continue to Payment" : meetingPending ? "Creating Meet Link" : "Join Google Meet"}
                       <ExternalLink size={18} />
                     </button>
 
                     <button
                       onClick={copyMeetingLink}
-                      className="inline-flex items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-7 py-4 text-sm font-black text-slate-200 transition hover:bg-white/10"
+                      disabled={meetingPending}
+                      className="remote-copy-link inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Copy size={18} />
                       {copied ? "Copied" : "Copy Link"}
@@ -377,13 +488,13 @@ export default function RemoteSession() {
                     <Video className="h-8 w-8 text-cyan-300" />
                   </div>
 
-                  <InfoRow label="Session ID" value={booking.sessionId} />
+                  <InfoRow label="Session ID" value={`GOS-RM-${booking?.id || "PENDING"}`} />
                   <InfoRow label="Meeting Provider" value="Google Meet" />
                   <InfoRow
                     label="Meeting Status"
                     value={
-                      isDemoMeetLink
-                        ? "Waiting For Backend Link"
+                      meetingPending
+                        ? provisioning ? "Creating Google Meet Link" : "Meet Link Pending"
                         : meetingJoined
                           ? "Opened by Customer"
                           : "Ready"
@@ -431,7 +542,7 @@ export default function RemoteSession() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   {[
-                    isDemoMeetLink
+                    meetingPending
                       ? "Waiting for backend Meet link"
                       : "Meeting link created for this booking",
                     "Technician is online",

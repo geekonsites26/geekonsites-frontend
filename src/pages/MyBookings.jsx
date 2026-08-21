@@ -16,6 +16,7 @@ import {
   Navigation,
   Video,
   Monitor,
+  X,
 } from "lucide-react"
 
 const statusTabs = [
@@ -99,7 +100,7 @@ export default function MyBookings() {
 }
 
   const filtered = useMemo(() => {
-    const keyword = search.toLowerCase()
+    const keyword = search.trim().toLowerCase()
 
     return bookings.filter((item) => {
       const readableStatus = statusLabel[item.bookingStatus] || item.bookingStatus || "Pending"
@@ -195,8 +196,7 @@ export default function MyBookings() {
           issueDescription: booking.issueDescription,
           supportType: "remote",
           sessionId: `GOS-RM-${booking.id}`,
-          remoteMeetingLink:
-            booking.remoteSessionLink || `https://remote.geekonsites.com/session/${booking.id}`,
+          remoteMeetingLink: booking.remoteSessionLink || "",
         },
         technician: {
           name: booking.technicianName || "Technician not assigned",
@@ -252,11 +252,13 @@ export default function MyBookings() {
         <div className="mb-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#071122] px-4 py-3">
           <Search size={18} className="text-slate-500" />
           <input
+            type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search booking, service, technician..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-500"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-500"
           />
+          {search && <button type="button" onClick={() => setSearch("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-slate-500 hover:text-white" aria-label="Clear search"><X size={16} /></button>}
         </div>
 
         {loadError && (
@@ -433,12 +435,16 @@ export default function MyBookings() {
   Number(booking.remainingAmount || 0) > 0 && (
     <button
       onClick={() =>
-        navigate("/payment", {
-          state: {
-            bookingId: booking.id,
-            paymentType: "REMAINING",
-          },
-        })
+        {
+          localStorage.setItem("currentBooking", JSON.stringify(booking))
+          navigate("/payment", {
+            state: {
+              booking,
+              bookingId: booking.id,
+              paymentType: "REMAINING",
+            },
+          })
+        }
       }
       className="mt-3 flex w-full items-center justify-center rounded-2xl bg-amber-400 py-3 text-sm font-black text-black hover:bg-amber-300"
     >

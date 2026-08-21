@@ -1,338 +1,82 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import {
-  ArrowLeft,
-  Bell,
-  CalendarCheck,
-  Headphones,
-  Mail,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  User,
-  Wrench,
-  BriefcaseBusiness,
-  Edit3,
-  Activity,
-  X,
-  Save,
-} from "lucide-react"
+import { ArrowLeft, Edit3, FileText, Headphones, LogOut, Mail, MapPin, Phone, Save, ShieldCheck, User, X } from "lucide-react"
+import { useCustomerAuth } from "../context/CustomerAuthContext"
+
+const displayName = (user) => user?.fullName || user?.name || user?.username || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email?.split("@")[0] || "User"
 
 export default function Profile() {
-  const user = JSON.parse(localStorage.getItem("gos_user") || "null")
-  const authRole =
-  localStorage.getItem("gos_role") ||
-  user?.role ||
-  ""
+  const { customer, updateCustomerProfile, logoutCustomer } = useCustomerAuth()
+  const storedUser = (() => { try { return JSON.parse(localStorage.getItem("gos_user") || "null") } catch { return null } })()
+  const user = customer || storedUser
+  const role = String(user?.role || localStorage.getItem("gos_role") || "CUSTOMER").toLowerCase()
+  const dashboard = role === "technician" ? "/technician-dashboard" : role === "agent" ? "/agent-dashboard" : "/customer-dashboard"
+  const loginPath = role === "technician" ? "/technician-login" : role === "agent" ? "/agent-login" : "/customer-login"
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(displayName(user))
+  const [email, setEmail] = useState(user?.email || "")
+  const [phone, setPhone] = useState(user?.phone || "")
 
-  const customer = authRole === "CUSTOMER"
-  const technician = authRole === "TECHNICIAN"
-  const agent = authRole === "AGENT"
-  const role = customer ? "Customer" : technician ? "Technician" : agent ? "Agent" : ""
-
-  const storageNameKey = customer
-    ? "customerName"
-    : technician
-    ? "technicianName"
-    : agent
-    ? "agentName"
-    : ""
-
-  const storageEmailKey = customer
-    ? "customerEmail"
-    : technician
-    ? "technicianGosEmail"
-    : agent
-    ? "agentEmail"
-    : ""
-
-  const initialName =
-  user?.fullName ||
-  user?.name ||
-  localStorage.getItem(storageNameKey) ||
-  role ||
-  "User"
-
-const initialEmail =
-  user?.email ||
-  localStorage.getItem(storageEmailKey) ||
-  ""
-
-  const [name, setName] = useState(initialName)
-  const [email, setEmail] = useState(initialEmail)
-  const [phone, setPhone] = useState(
-    localStorage.getItem("gos_profile_phone") || ""
-  )
-  const [editOpen, setEditOpen] = useState(false)
-
-  const data = customer
-    ? {
-        role: "Customer",
-        dashboard: "/customer-dashboard",
-        status: "Active Customer",
-        id: "GOS-CUS-1048",
-        icon: User,
-        stats: [
-          ["Bookings", "12"],
-          ["Completed", "10"],
-          ["Rating", "4.9"],
-          ["Support", "24/7"],
-        ],
-        actions: [
-          ["My Bookings", "/my-bookings", CalendarCheck],
-          ["Notifications", "/notifications", Bell],
-          ["Support", "/contact", Headphones],
-          ["Dashboard", "/customer-dashboard", Activity],
-        ],
-      }
-    : technician
-    ? {
-        role: "Technician",
-        dashboard: "/technician-dashboard",
-        status: "Approved Technician",
-        id: "GOS-TEC-2048",
-        icon: Wrench,
-        stats: [
-          ["Jobs", "34"],
-          ["Completed", "31"],
-          ["Rating", "4.8"],
-          ["Status", "Online"],
-        ],
-        actions: [
-          ["Assigned Jobs", "/technician-dashboard", Wrench],
-          ["Availability", "/technician-dashboard", MapPin],
-          ["Notifications", "/notifications", Bell],
-          ["Support", "/contact", Headphones],
-        ],
-      }
-    : agent
-    ? {
-        role: "Agent",
-        dashboard: "/agent-dashboard",
-        status: "Operations Active",
-        id: "GOS-AGT-3048",
-        icon: BriefcaseBusiness,
-        stats: [
-          ["Customers", "128"],
-          ["Bookings", "52"],
-          ["Assigned", "46"],
-          ["SLA", "96%"],
-        ],
-        actions: [
-          ["Customers", "/agent-dashboard", User],
-          ["Live Bookings", "/agent-dashboard", Activity],
-          ["Notifications", "/notifications", Bell],
-          ["Support", "/contact", Headphones],
-        ],
-      }
-    : null
+  if (!user) {
+    return <main className="min-h-screen bg-gos-off-white px-4 pb-20 pt-28"><section className="mx-auto max-w-md border border-gos-border bg-white p-6 text-center"><User className="mx-auto text-gos-turquoise" /><h1 className="mt-4 font-['Cormorant_Garamond'] text-3xl font-bold text-gos-blue-deep">Sign in to view your profile</h1><Link to="/customer-login" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-gos-blue-deep px-6 text-sm font-extrabold text-white">Log in</Link></section></main>
+  }
 
   const saveProfile = () => {
-    if (storageNameKey) localStorage.setItem(storageNameKey, name)
-    if (storageEmailKey) localStorage.setItem(storageEmailKey, email)
-    localStorage.setItem("gos_profile_phone", phone)
-    const updatedUser = {
-  ...user,
-  fullName: name,
-  name,
-  email,
-}
-
-localStorage.setItem("gos_user", JSON.stringify(updatedUser))
-    setEditOpen(false)
-    window.location.reload()
+    const updated = { ...user, fullName: name.trim(), name: name.trim(), email: email.trim(), phone: phone.trim() }
+    localStorage.setItem("gos_user", JSON.stringify(updated))
+    updateCustomerProfile(updated)
+    setEditing(false)
   }
 
-  if (!data) {
-    return (
-      <div className="min-h-screen bg-[#050B12] px-4 pt-24 text-white">
-        <div className="mx-auto max-w-md rounded-[2rem] border border-white/10 bg-[#071122] p-8 text-center">
-          <h1 className="text-2xl font-black">Please login first</h1>
-
-          <Link
-            to="/customer-login"
-            className="mt-6 inline-flex rounded-2xl bg-cyan-400 px-6 py-3 font-black text-black"
-          >
-            Login
-          </Link>
-        </div>
-      </div>
-    )
+  const logout = () => {
+    logoutCustomer()
+    window.location.href = loginPath
   }
 
   return (
-    <div className="min-h-screen bg-[#050B12] px-4 pt-[110px] pb-24 text-white">
-      {editOpen && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#071122] p-6 shadow-2xl">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-cyan-300">
-                  Account Settings
-                </p>
-                <h2 className="text-2xl font-black">Edit Profile</h2>
-              </div>
-
-              <button
-                onClick={() => setEditOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <Field label="Full Name" value={name} onChange={setName} />
-              <Field label="Email Address" value={email} onChange={setEmail} />
-              <Field label="Phone Number" value={phone} onChange={setPhone} />
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setEditOpen(false)}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-slate-300"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={saveProfile}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-600 py-3 text-sm font-black text-black"
-              >
-                <Save size={16} />
-                Save
-              </button>
-            </div>
+    <main className="min-h-screen bg-[#edf2f5] pb-24 pt-[calc(5rem+env(safe-area-inset-top))] text-gos-charcoal sm:pt-24">
+      <section className="border-b border-gos-border bg-white px-4 py-7 sm:px-6 sm:py-10">
+        <div className="mx-auto max-w-6xl">
+          <Link to={dashboard} className="inline-flex items-center gap-2 text-xs font-extrabold text-gos-blue transition hover:text-gos-turquoise"><ArrowLeft size={15} /> Back to dashboard</Link>
+          <div className="mt-6 flex items-end justify-between gap-4">
+            <div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-turquoise">Your GOS account</p><h1 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none text-gos-blue-deep sm:text-5xl">Profile</h1><p className="mt-3 text-sm font-semibold text-gos-muted">Manage your contact details and account access.</p></div>
+            <button type="button" onClick={() => setEditing(true)} className="hidden min-h-11 items-center gap-2 rounded-md bg-gos-blue-deep px-4 text-sm font-extrabold text-white sm:flex"><Edit3 size={16} /> Edit profile</button>
           </div>
         </div>
-      )}
+      </section>
 
-      <div className="mx-auto max-w-6xl">
-        <Link
-          to={data.dashboard}
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300"
-        >
-          <ArrowLeft size={17} />
-          Back to Dashboard
-        </Link>
-
-        <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[#071122] shadow-2xl">
-          <div className="relative p-5 sm:p-8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(212,175,55,0.10),transparent_35%)]" />
-
-            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-[1.7rem] bg-gradient-to-br from-cyan-400 to-blue-600 text-3xl font-black text-black">
-                  {name.charAt(0).toUpperCase()}
-                </div>
-
-                <div>
-                  <p className="text-sm font-black text-cyan-300">
-                    {data.role} Profile
-                  </p>
-
-                  <h1 className="mt-1 text-3xl font-black sm:text-4xl">
-                    {name}
-                  </h1>
-
-                  <p className="mt-1 text-sm text-slate-400">
-                    {data.id} • {data.status}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setEditOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-3 text-sm font-black text-black"
-              >
-                <Edit3 size={16} />
-                Edit Profile
-              </button>
-            </div>
+      <section className="mx-auto grid max-w-6xl items-stretch gap-5 px-4 py-5 sm:px-6 sm:py-8 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="flex h-fit flex-col rounded-lg border border-gos-border bg-white p-5 shadow-[var(--gos-shadow-sm)]">
+          <div className="flex items-center gap-4 lg:block">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-[#dff3f1] bg-gos-blue-deep font-['Cormorant_Garamond'] text-2xl font-bold text-white lg:h-20 lg:w-20 lg:text-3xl">{name.charAt(0).toUpperCase()}</div>
+            <div className="min-w-0 lg:mt-4"><h2 className="truncate font-['Cormorant_Garamond'] text-2xl font-bold text-gos-blue-deep">{name}</h2><p className="mt-1 text-xs font-extrabold capitalize text-gos-turquoise">{role} account</p></div>
           </div>
+          <div className="mt-5 border-t border-gos-border pt-4"><p className="flex items-center gap-2 text-xs font-extrabold text-gos-charcoal"><ShieldCheck size={15} className="text-gos-turquoise" /> Active GOS account</p></div>
+        </aside>
 
-          <div className="grid gap-4 p-5 sm:p-8 md:grid-cols-3">
-            <Info icon={Mail} label="Email" value={email} />
-            <Info icon={Phone} label="Phone" value={phone || "Not added yet"} />
-            <Info
-              icon={MapPin}
-              label="Service Region"
-              value={localStorage.getItem("gos_location") || "US"}
-            />
-          </div>
-
-          <div className="px-5 pb-5 sm:px-8 sm:pb-8">
-            <h2 className="text-xl font-black">Account Overview</h2>
-
-            <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {data.stats.map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-3xl border border-white/10 bg-white/[0.04] p-5"
-                >
-                  <p className="text-sm text-slate-400">{label}</p>
-                  <h3 className="mt-2 text-2xl font-black">{value}</h3>
-                </div>
-              ))}
-            </div>
-
-            <h2 className="mt-8 text-xl font-black">Quick Actions</h2>
-
-            <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {data.actions.map(([label, path, Icon]) => (
-                <Link
-                  key={label}
-                  to={path}
-                  className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 hover:border-cyan-400/40"
-                >
-                  <Icon className="h-6 w-6 text-cyan-300" />
-                  <p className="mt-4 text-sm font-black">{label}</p>
-                </Link>
-              ))}
-            </div>
-
-            <div className="mt-8 rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-5">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="h-6 w-6 text-cyan-300" />
-
-                <div>
-                  <h3 className="font-black">Verified Account</h3>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Your GeekOnSites account is secure and verified for platform
-                    access.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="rounded-lg border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-sm)] sm:p-6">
+          <div className="flex items-center justify-between border-b border-gos-border pb-4"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-gos-muted">Account details</p><h2 className="mt-1 font-['Cormorant_Garamond'] text-2xl font-bold text-gos-blue-deep">Personal information</h2></div><button type="button" onClick={() => setEditing(true)} className="flex h-10 w-10 items-center justify-center rounded-md border border-gos-border text-gos-blue sm:hidden" aria-label="Edit profile"><Edit3 size={16} /></button></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2"><Detail icon={User} label="Full name" value={name} /><Detail icon={Mail} label={role === "customer" ? "Email address" : "Official email"} value={email || "Not added"} /><Detail icon={Phone} label="Phone number" value={phone || "Not added"} /><Detail icon={MapPin} label={role === "agent" ? "Office / service area" : "Service region"} value={user?.city || user?.serviceArea || (localStorage.getItem("gos_location") === "UK" ? "United Kingdom" : "United States")} /><Detail icon={ShieldCheck} label="Account role" value={`${role.charAt(0).toUpperCase()}${role.slice(1)}`} /><Detail icon={ShieldCheck} label="Account status" value={user?.status || "Active"} /></div>
         </div>
-      </div>
-    </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
+        <div className="flex flex-col gap-3 rounded-lg border border-gos-border bg-white px-4 py-4 shadow-[var(--gos-shadow-sm)] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div><p className="text-xs font-extrabold text-gos-blue-deep">Finished managing your account?</p><p className="mt-1 text-xs font-semibold text-gos-muted">Log out securely from this device.</p></div>
+          <button type="button" onClick={logout} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-5 text-xs font-extrabold text-red-700 transition hover:border-red-300 hover:bg-red-50 sm:w-auto"><LogOut size={15} /> Log out</button>
+        </div>
+      </section>
+
+      <nav aria-label="Account and legal links" className="mx-auto grid max-w-6xl grid-cols-3 gap-2 px-4 pb-4 sm:px-6 lg:hidden">
+        <Link to="/privacy" className="flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-gos-border bg-white px-2 text-center text-[10px] font-extrabold text-gos-blue-deep"><ShieldCheck size={14} className="shrink-0 text-gos-turquoise" /> Privacy</Link>
+        <Link to="/terms" className="flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-gos-border bg-white px-2 text-center text-[10px] font-extrabold text-gos-blue-deep"><FileText size={14} className="shrink-0 text-gos-turquoise" /> Terms</Link>
+        <Link to="/contact" className="flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-gos-border bg-white px-2 text-center text-[10px] font-extrabold text-gos-blue-deep"><Headphones size={14} className="shrink-0 text-gos-turquoise" /> Support</Link>
+      </nav>
+
+      {editing && <div className="fixed inset-0 z-[99999] flex items-end bg-gos-blue-deep/55 p-0 sm:items-center sm:justify-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title"><div className="w-full bg-white p-5 shadow-[var(--gos-shadow-md)] sm:max-w-md sm:rounded-md sm:p-6"><div className="flex items-center justify-between border-b border-gos-border pb-4"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-gos-turquoise">Account settings</p><h2 id="edit-profile-title" className="mt-1 font-['Cormorant_Garamond'] text-3xl font-bold text-gos-blue-deep">Edit profile</h2></div><button type="button" onClick={() => setEditing(false)} className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border text-gos-blue" aria-label="Close"><X size={17} /></button></div><div className="mt-5 space-y-4"><Field label="Full name" value={name} onChange={setName} /><Field label="Email address" value={email} onChange={setEmail} type="email" /><Field label="Phone number" value={phone} onChange={setPhone} type="tel" /></div><div className="mt-6 flex gap-3"><button type="button" onClick={() => setEditing(false)} className="min-h-11 flex-1 rounded-md border border-gos-border text-sm font-extrabold text-gos-blue">Cancel</button><button type="button" onClick={saveProfile} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-gos-blue-deep text-sm font-extrabold text-white"><Save size={16} /> Save changes</button></div></div></div>}
+    </main>
   )
 }
 
-function Info({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-      <Icon className="h-5 w-5 text-cyan-300" />
-      <p className="mt-3 text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-black text-slate-200">{value}</p>
-    </div>
-  )
-}
-
-function Field({ label, value, onChange }) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-bold text-slate-400">
-        {label}
-      </label>
-
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/50"
-      />
-    </div>
-  )
-}
+function Detail({ icon: Icon, label, value }) { return <div className="flex min-h-20 min-w-0 items-start gap-3 rounded-lg border border-gos-border bg-[#f8fafb] p-3.5 transition hover:border-gos-turquoise/45 hover:bg-white"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-gos-turquoise shadow-sm"><Icon size={16} /></span><div className="min-w-0"><p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-gos-muted">{label}</p><p className="mt-1 break-words text-sm font-extrabold leading-5 text-gos-blue-deep">{value}</p></div></div> }
+function Field({ label, value, onChange, type = "text" }) { return <label className="block"><span className="mb-2 block text-xs font-extrabold text-gos-blue-deep">{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-11 w-full rounded-md border border-gos-border bg-white px-3 text-sm font-semibold text-gos-charcoal outline-none transition focus:border-gos-turquoise" /></label> }

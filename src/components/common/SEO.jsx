@@ -4,7 +4,7 @@ export default function SEO({
   title,
   description,
   keywords,
-  image = "https://geekonsites.com/og-image.png",
+  image = "https://geekonsites.com/images/contact/contact-support.webp",
   url = "https://geekonsites.com",
 }) {
   return (

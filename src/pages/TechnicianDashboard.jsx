@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
+import BrandLogo from "../components/common/BrandLogo"
 import {
   getTechnicianBookings,
   getTechnicianNotifications,
+  getTechnicianProfile,
+  getTechnicianProfilePhoto,
+  updateTechnicianAvailability,
   acceptTechnicianJob,
   rejectTechnicianJob,
   technicianOnTheWay,
@@ -14,6 +18,7 @@ import {
   completeTechnicianService,
 } from "../services/technicianService"
 import useLiveTechnicianLocation from "../hooks/useLiveTechnicianLocation"
+import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import {
   Activity,
   Bell,
@@ -46,6 +51,9 @@ import {
   Home,
   Navigation,
   MapPinned,
+  RefreshCw,
+  Volume2,
+  VolumeX,
 } from "lucide-react"
 
 const statusToLabel = {
@@ -110,8 +118,7 @@ const mapBookingToJob = (booking) => {
     serviceAmount: Number(booking.baseAmount || 0).toFixed(2),
     remainingAmount: Number(booking.remainingAmount || 0).toFixed(2),
     sessionId: `GOS-RM-${booking.id}`,
-    remoteMeetingLink:
-      booking.remoteSessionLink || `https://remote.geekonsites.com/session/${booking.id}`,
+    remoteMeetingLink: booking.remoteSessionLink || "",
     invoiceNumber: booking.invoiceNumber || `INV-GOS-${booking.id}`,
     trackingEnabled: Boolean(booking.trackingEnabled),
     technicianArrived: Boolean(booking.technicianArrived),
@@ -126,8 +133,10 @@ export default function TechnicianDashboard() {
   const navigate = useNavigate()
   const { user, logoutCustomer } = useCustomerAuth()
 
-  const [activeTab, setActiveTab] = useState("Dashboard")
+  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get("view") === "notifications" ? "Notifications" : "Dashboard")
   const [availability, setAvailability] = useState("Available")
+  const [technicianProfile, setTechnicianProfile] = useState(null)
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("")
   const [popup, setPopup] = useState("")
   const [mobileMenu, setMobileMenu] = useState(false)
   const [jobs, setJobs] = useState([])
@@ -136,6 +145,10 @@ export default function TechnicianDashboard() {
   const [activeTrackingJobId, setActiveTrackingJobId] = useState(null)
   const [startingRemote, setStartingRemote] = useState(false)
   const [meetingLink, setMeetingLink] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [notificationsMuted, setNotificationsMuted] = useState(() => localStorage.getItem("gos_technician_notifications_muted") === "true")
+  const [notificationRefreshing, setNotificationRefreshing] = useState(false)
+  const knownNotificationIds = useRef(new Set())
 
   const technicianStatus = "APPROVED"
   const technicianName = user?.fullName || "Technician"
@@ -145,7 +158,7 @@ export default function TechnicianDashboard() {
   const technicianState = {
     name: technicianName,
     role: "Senior GeekOnSites Technician",
-    phone: "+447700900123",
+    phone: technicianProfile?.phone || "",
   }
 
   const {
@@ -169,10 +182,57 @@ export default function TechnicianDashboard() {
     loadTechnicianBookings()
   }, [navigate])
 
+  useEffect(() => () => {
+    if (profilePhotoUrl) URL.revokeObjectURL(profilePhotoUrl)
+  }, [profilePhotoUrl])
+
   const showPopup = (text) => {
     setPopup(text)
     setTimeout(() => setPopup(""), 2400)
   }
+
+  const loadTechnicianNotifications = async () => {
+    try {
+      setNotificationRefreshing(true)
+      const data = await getTechnicianNotifications()
+      const next = Array.isArray(data) ? data : []
+      if (!notificationsMuted && knownNotificationIds.current.size && next.some((item) => !item.read && !knownNotificationIds.current.has(item.id))) showPopup("New job update received")
+      knownNotificationIds.current = new Set(next.map((item) => item.id))
+      setNotifications(next)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setNotificationRefreshing(false)
+    }
+  }
+
+  const readNotification = async (notification) => {
+    if (!notification.read) await markNotificationAsRead(notification.id)
+    setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, read: true } : item))
+  }
+
+  const readAllNotifications = async () => {
+    await markAllNotificationsAsRead()
+    setNotifications((items) => items.map((item) => ({ ...item, read: true })))
+  }
+
+  const toggleNotificationsMuted = () => {
+    const next = !notificationsMuted
+    setNotificationsMuted(next)
+    localStorage.setItem("gos_technician_notifications_muted", String(next))
+  }
+
+  useEffect(() => {
+    const refreshWhenVisible = () => document.visibilityState === "visible" && loadTechnicianNotifications()
+    const interval = window.setInterval(loadTechnicianNotifications, 30000)
+    window.addEventListener("gos:push-received", loadTechnicianNotifications)
+    document.addEventListener("visibilitychange", refreshWhenVisible)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("gos:push-received", loadTechnicianNotifications)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
+    }
+  }, [notificationsMuted])
 
   const loadTechnicianBookings = async () => {
     try {
@@ -180,6 +240,22 @@ export default function TechnicianDashboard() {
 
       const data = await getTechnicianBookings()
       setJobs(Array.isArray(data) ? data.map(mapBookingToJob) : [])
+
+      const profile = await getTechnicianProfile()
+      setTechnicianProfile(profile)
+      try {
+        const photoUrl = await getTechnicianProfilePhoto()
+        setProfilePhotoUrl(photoUrl)
+      } catch (error) {
+        console.error(error)
+      }
+      setAvailability(
+        profile?.availabilityStatus === "UNAVAILABLE"
+          ? "Offline"
+          : profile?.availabilityStatus === "BUSY"
+            ? "Busy"
+            : "Available"
+      )
 
       try {
         const notificationData = await getTechnicianNotifications()
@@ -192,6 +268,23 @@ export default function TechnicianDashboard() {
       alert(error.message || "Failed to load technician jobs.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const changeAvailability = async (nextAvailability) => {
+    try {
+      const profile = await updateTechnicianAvailability(
+        nextAvailability === "Available"
+          ? "AVAILABLE"
+          : nextAvailability === "Busy"
+            ? "BUSY"
+            : "UNAVAILABLE"
+      )
+      setTechnicianProfile(profile)
+      setAvailability(nextAvailability)
+      showPopup(`Status changed to ${nextAvailability}`)
+    } catch (error) {
+      showPopup(error.message || "Could not change availability")
     }
   }
 
@@ -250,7 +343,7 @@ export default function TechnicianDashboard() {
           ...buildBookingState(job),
           technicianName,
           technicianRole: "Senior GeekOnSites Technician",
-          technicianPhone: "+447700900123",
+          technicianPhone: technicianState.phone,
           rating: "N/A",
           status: job.status,
         },
@@ -389,7 +482,7 @@ const saveMeetingLink = async (job) => {
             bookingStatus: "SERVICE_COMPLETED",
           }),
           technician: technicianState,
-          sessionDuration: job.supportType === "remote" ? "00:22:10" : "01:10:00",
+          sessionDuration: job.raw?.sessionDuration || "N/A",
           workPerformed: [
             "Issue diagnosis completed",
             "Customer support completed",
@@ -443,10 +536,44 @@ const saveMeetingLink = async (job) => {
     ]
   }, [jobs])
 
+  const filteredJobs = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase()
+    if (!keyword) return jobs
+
+    return jobs.filter((job) => [
+      job.bookingId,
+      `GOS-${job.bookingId}`,
+      job.customerName,
+      job.customerEmail,
+      job.customerPhone,
+      job.serviceType,
+      job.status,
+      job.bookingStatus,
+      job.supportType,
+      job.raw?.city,
+      job.raw?.postalCode,
+    ].some((value) => String(value || "").toLowerCase().includes(keyword)))
+  }, [jobs, searchTerm])
+
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((item) => !item.read).length,
+    [notifications]
+  )
+
+  const serviceMode = technicianProfile?.serviceMode || "REMOTE_AND_ONSITE"
+  const canWorkRemote = serviceMode === "REMOTE_ONLY" || serviceMode === "REMOTE_AND_ONSITE"
+  const canWorkOnsite = serviceMode === "ONSITE_ONLY" || serviceMode === "REMOTE_AND_ONSITE"
+  const availabilityStyle = availability === "Available"
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : availability === "Busy"
+      ? "border-amber-300 bg-amber-50 text-amber-800"
+      : "border-slate-300 bg-slate-100 text-slate-700"
+
   const sidebar = [
     { title: "Dashboard", icon: LayoutDashboard },
     { title: "Assigned Jobs", icon: BriefcaseBusiness },
-    { title: "Remote Sessions", icon: Monitor },
+    ...(canWorkRemote ? [{ title: "Remote Services", icon: Laptop }, { title: "Remote Sessions", icon: Monitor }] : []),
+    ...(canWorkOnsite ? [{ title: "On-site Services", icon: MapPinned }] : []),
     { title: "Customers", icon: Users },
     { title: "Earnings", icon: DollarSign },
     { title: "Ratings", icon: Star },
@@ -458,8 +585,8 @@ const saveMeetingLink = async (job) => {
   const mobileTabs = [
     { title: "Dashboard", icon: LayoutDashboard },
     { title: "Assigned Jobs", icon: BriefcaseBusiness },
-    { title: "Remote Sessions", icon: Monitor },
-    { title: "Earnings", icon: DollarSign },
+    ...(canWorkRemote ? [{ title: "Remote Services", icon: Laptop }] : []),
+    ...(canWorkOnsite ? [{ title: "On-site Services", icon: MapPinned }] : []),
     { title: "Profile", icon: User },
   ]
 
@@ -477,33 +604,30 @@ const saveMeetingLink = async (job) => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center overflow-x-hidden bg-[#020817] px-4 text-white">
-        <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-8 text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent" />
-          <p className="mt-4 font-black text-cyan-300">Loading technician jobs...</p>
-        </div>
-      </div>
+      <DashboardLoader label="Preparing technician workspace" />
     )
   }
 
-  const JobsSection = () => (
+  const JobsSection = ({ mode = "all", title = "Assigned Jobs" } = {}) => {
+    const visibleJobs = filteredJobs.filter((job) => mode === "all" || job.supportType === mode)
+    return (
     <section className="rounded-[28px] border border-cyan-500/10 bg-[#071122] p-4 md:rounded-[32px] md:p-7">
       <div className="mb-7 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-black md:text-2xl">Assigned Jobs</h2>
+          <h2 className="text-xl font-black md:text-2xl">{title}</h2>
           <p className="mt-2 text-sm text-cyan-100/50 md:text-base">
             Accept jobs, start journeys, confirm arrival, begin service, and complete requests.
           </p>
         </div>
 
         <span className="w-fit rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300">
-          {jobs.filter((job) => job.status === "New").length} New Requests
+          {visibleJobs.filter((job) => job.status === "New").length} New Requests
         </span>
       </div>
 
       <div className="space-y-5">
-        {jobs.length ? (
-          jobs.map((job) => (
+        {visibleJobs.length ? (
+          visibleJobs.map((job) => (
             <JobCard
               key={job.bookingId}
               job={job}
@@ -520,16 +644,16 @@ const saveMeetingLink = async (job) => {
           ))
         ) : (
           <EmptyCard
-            title="No assigned jobs"
-            text="Assigned technician bookings will appear here."
+            title={searchTerm ? "No matching jobs" : `No ${title.toLowerCase()}`}
+            text={searchTerm ? "Try a different customer, service, status, or booking reference." : `${title} assigned to you will appear here.`}
           />
         )}
       </div>
     </section>
-  )
+  )}
 
   const RemoteSessionsSection = () => {
-    const remoteJobs = jobs.filter((job) => job.supportType === "remote")
+    const remoteJobs = filteredJobs.filter((job) => job.supportType === "remote")
 
     return (
       <section className="rounded-[28px] border border-cyan-500/10 bg-[#071122] p-4 md:rounded-[32px] md:p-7">
@@ -622,13 +746,49 @@ const saveMeetingLink = async (job) => {
     )
   }
 
+  const ServicesSection = ({ mode }) => {
+    const selectedServices = String(technicianProfile?.specialization || "")
+      .split(",")
+      .map((service) => service.trim())
+      .filter(Boolean)
+    const isRemote = mode === "remote"
+
+    return (
+      <section className="rounded-[28px] border border-cyan-500/10 bg-[#071122] p-4 md:rounded-[32px] md:p-7">
+        <div className="mb-6">
+          <p className="text-xs font-black uppercase tracking-wider text-cyan-300">Approved capability</p>
+          <h2 className="mt-2 text-xl font-black md:text-2xl">{isRemote ? "Remote Services" : "On-site Services"}</h2>
+          <p className="mt-2 text-sm text-cyan-100/50">
+            Services approved from your technician application for {isRemote ? "secure remote support" : "customer-site visits"}.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {selectedServices.map((service) => (
+            <div key={`${mode}-${service}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
+                {isRemote ? <Monitor size={19} /> : <MapPin size={19} />}
+              </span>
+              <div className="min-w-0">
+                <h3 className="font-black">{service}</h3>
+                <p className="mt-1 text-xs text-cyan-100/45">{isRemote ? "Remote" : "On-site"} approved</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {!selectedServices.length && <EmptyCard title="No approved services" text="Your approved service skills will appear here." />}
+      </section>
+    )
+  }
+
   const CustomersSection = () => (
     <section className="rounded-[28px] border border-cyan-500/10 bg-[#071122] p-4 md:rounded-[32px] md:p-7">
       <h2 className="mb-6 text-xl font-black md:text-2xl">Customers</h2>
 
       <div className="space-y-4">
-        {jobs.length ? (
-          jobs.map((job) => (
+        {filteredJobs.length ? (
+          filteredJobs.map((job) => (
             <div
               key={job.bookingId}
               className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-[#0b1628] p-5 md:flex-row md:items-center md:justify-between"
@@ -658,8 +818,8 @@ const saveMeetingLink = async (job) => {
           ))
         ) : (
           <EmptyCard
-            title="No customers yet"
-            text="Customers from assigned jobs will appear here."
+            title={searchTerm ? "No matching customers" : "No customers yet"}
+            text={searchTerm ? "Try a different name, email, phone number, or booking reference." : "Customers from assigned jobs will appear here."}
           />
         )}
       </div>
@@ -717,20 +877,19 @@ const saveMeetingLink = async (job) => {
           </p>
         </div>
 
-        <button
-          onClick={loadTechnicianBookings}
-          className="rounded-2xl border border-white/10 bg-[#0b1628] px-4 py-3 text-sm font-bold text-cyan-300"
-        >
-          Refresh
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button onClick={toggleNotificationsMuted} className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0b1628] text-cyan-300" aria-label={notificationsMuted ? "Enable notification sounds" : "Mute notification sounds"}>{notificationsMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+          <button onClick={loadTechnicianNotifications} disabled={notificationRefreshing} className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0b1628] text-cyan-300 disabled:opacity-50" aria-label="Refresh notifications"><RefreshCw size={18} className={notificationRefreshing ? "animate-spin" : ""} /></button>
+          {unreadNotificationCount > 0 && <button onClick={readAllNotifications} className="min-h-11 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 text-xs font-black text-cyan-200">Mark all read</button>}
+        </div>
       </div>
 
       {notifications.length ? (
         <div className="space-y-4">
           {notifications.map((notification) => (
-            <div
+            <button type="button" onClick={() => readNotification(notification)}
               key={notification.id}
-              className="flex gap-4 rounded-2xl border border-white/10 bg-[#0b1628] p-5"
+              className={`flex w-full gap-4 rounded-2xl border p-5 text-left ${notification.read ? "border-white/10 bg-[#0b1628]" : "border-cyan-400/35 bg-cyan-400/10"}`}
             >
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10">
                 <Bell className="h-5 w-5 text-cyan-300" />
@@ -751,7 +910,7 @@ const saveMeetingLink = async (job) => {
                   {notification.message || ""}
                 </p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       ) : (
@@ -769,9 +928,13 @@ const saveMeetingLink = async (job) => {
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
         <div className="rounded-3xl border border-white/10 bg-[#0b1628] p-6 text-center">
-          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-cyan-500/10 text-4xl font-black text-cyan-300">
-            {technicianName?.charAt(0)?.toUpperCase() || "T"}
-          </div>
+          {profilePhotoUrl ? (
+            <img src={profilePhotoUrl} alt={`${technicianName} profile`} className="mx-auto h-24 w-24 rounded-full border-2 border-cyan-500/20 object-cover" />
+          ) : (
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-cyan-500/10 text-4xl font-black text-cyan-300">
+              {technicianName?.charAt(0)?.toUpperCase() || "T"}
+            </div>
+          )}
 
           <h3 className="mt-5 text-xl font-black">{technicianName}</h3>
           <p className="mt-1 text-cyan-100/50">Approved GOS Technician</p>
@@ -782,10 +945,11 @@ const saveMeetingLink = async (job) => {
             {[
               ["Personal Email", technicianPersonalEmail],
               ["GOS Email", technicianGosEmail],
-              ["Location", "US / UK Service Area"],
-              ["Verification", "Approved"],
-              ["Work Type", "Remote + Onsite"],
-              ["Rating", "N/A"],
+              ["Phone", technicianProfile?.phone],
+              ["Location", [technicianProfile?.city, technicianProfile?.country].filter(Boolean).join(", ")],
+              ["Verification", technicianProfile?.verificationStatus],
+              ["Services", technicianProfile?.specialization],
+              ["Rating", technicianProfile?.rating || "New"],
             ].map(([label, value]) => (
               <div key={label}>
                 <p className="text-sm text-cyan-100/40">{label}</p>
@@ -831,6 +995,8 @@ const saveMeetingLink = async (job) => {
 
   const renderContent = () => {
     if (activeTab === "Assigned Jobs") return <JobsSection />
+    if (activeTab === "Remote Services") return <ServicesSection mode="remote" />
+    if (activeTab === "On-site Services") return <ServicesSection mode="onsite" />
     if (activeTab === "Remote Sessions") return <RemoteSessionsSection />
     if (activeTab === "Customers") return <CustomersSection />
     if (activeTab === "Earnings") return <EarningsSection />
@@ -874,17 +1040,18 @@ const saveMeetingLink = async (job) => {
                 {["Available", "Busy", "Offline"].map((item) => (
                   <button
                     key={item}
-                    onClick={() => setAvailability(item)}
+                    onClick={() => changeAvailability(item)}
                     className={`rounded-2xl border p-4 text-left ${
                       availability === item
                         ? "border-cyan-300 bg-cyan-400 font-black text-black"
                         : "border-white/10 bg-[#0b1628] text-white"
                     }`}
                   >
-                    {item === "Available" && "🟢 "}
-                    {item === "Busy" && "🟡 "}
-                    {item === "Offline" && "🔴 "}
+                    <span className={`mr-2 inline-block h-2 w-2 rounded-full ${item === "Available" ? "bg-emerald-500" : item === "Busy" ? "bg-amber-500" : "bg-slate-400"}`} />
                     {item}
+                    <span className="mt-1 block pl-4 text-xs font-medium opacity-70">
+                      {item === "Available" ? "Ready for new assignments" : item === "Busy" ? "Working or temporarily occupied" : "Not accepting assignments"}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -916,10 +1083,11 @@ const saveMeetingLink = async (job) => {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#020817] text-white">
+    <div className="gos-technician-portal flex h-screen w-full overflow-hidden bg-[#020817] text-white">
       {popup && (
-        <div className="fixed bottom-24 right-4 z-50 rounded-2xl border border-cyan-500/20 bg-[#071122] px-5 py-4 shadow-2xl md:bottom-6 md:right-6">
-          <p className="font-medium text-cyan-100">{popup}</p>
+        <div className="tech-status-toast" role="status" aria-live="polite">
+          <CheckCircle2 className="h-4 w-4" />
+          <p>{popup}</p>
         </div>
       )}
 
@@ -937,16 +1105,24 @@ const saveMeetingLink = async (job) => {
 
       <aside className="hidden w-[300px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
         <div className="mb-8">
-          <h1 className="text-4xl font-black text-cyan-300">GOS</h1>
+          <BrandLogo className="h-auto w-48" />
           <p className="mt-2 text-sm text-cyan-100/50">
             Technician Command Center
           </p>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-[#0b1628] p-4">
-            <p className="text-xs text-cyan-100/40">Official Email</p>
-            <p className="mt-1 truncate text-sm font-semibold text-cyan-200">
-              {technicianGosEmail}
-            </p>
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] p-3">
+            {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 font-black text-cyan-300">{technicianName?.charAt(0)?.toUpperCase() || "T"}</span>}
+            <div className="min-w-0">
+              <p className="text-xs text-cyan-100/40">Official Email</p>
+              <p className="mt-1 truncate text-sm font-semibold text-cyan-200">{technicianGosEmail}</p>
+            </div>
+          </div>
+          <div className={`mt-3 flex items-center justify-between rounded-md border px-3 py-2 text-xs font-black ${availabilityStyle}`}>
+            <span className="flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${availability === "Available" ? "bg-emerald-500" : availability === "Busy" ? "bg-amber-500" : "bg-slate-500"}`} />
+              {availability}
+            </span>
+            <span className="font-semibold opacity-70">Work status</span>
           </div>
         </div>
 
@@ -986,7 +1162,7 @@ const saveMeetingLink = async (job) => {
         <div className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden bg-[#020817]/95 p-5 backdrop-blur-xl lg:hidden">
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black text-cyan-300">GOS</h1>
+              <BrandLogo className="h-auto w-40" />
               <p className="text-sm text-cyan-100/50">Technician Menu</p>
             </div>
 
@@ -1040,18 +1216,26 @@ const saveMeetingLink = async (job) => {
           <div className="hidden w-full max-w-[360px] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-5 py-3 md:flex">
             <Search className="h-5 w-5 text-cyan-100/40" />
             <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search jobs, customers..."
-              className="w-full bg-transparent text-white outline-none placeholder:text-cyan-100/30"
+              className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-cyan-100/30"
             />
+            {searchTerm && <button type="button" onClick={() => setSearchTerm("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-cyan-100/50 hover:text-white" aria-label="Clear search"><X size={16} /></button>}
           </div>
 
           <div className="flex items-center gap-3">
+            <span className={`hidden items-center gap-2 rounded-md border px-3 py-2 text-xs font-black sm:flex ${availabilityStyle}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${availability === "Available" ? "bg-emerald-500" : availability === "Busy" ? "bg-amber-500" : "bg-slate-500"}`} />
+              {availability}
+            </span>
             <button
               onClick={() => openTab("Notifications")}
               className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0b1628] md:h-12 md:w-12"
             >
               <Bell className="h-5 w-5 text-cyan-300" />
-              {notifications.length > 0 && (
+              {unreadNotificationCount > 0 && (
                 <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-cyan-400" />
               )}
             </button>
@@ -1063,6 +1247,14 @@ const saveMeetingLink = async (job) => {
               <Menu className="h-5 w-5 text-cyan-300" />
             </button>
           </div>
+        </div>
+
+        <div className="border-b border-cyan-500/10 bg-[#071122]/60 px-4 py-3 md:hidden">
+          <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-4">
+            <Search className="h-5 w-5 shrink-0 text-cyan-100/40" />
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search jobs or customers" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-cyan-100/30" />
+            {searchTerm && <button type="button" onClick={() => setSearchTerm("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-cyan-100/50" aria-label="Clear search"><X size={16} /></button>}
+          </label>
         </div>
 
         <div
@@ -1505,3 +1697,5 @@ function EmptyCard({ title, text }) {
     </div>
   )
 }
+
+function DashboardLoader({ label }) { return <div className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><BrandLogo className="mx-auto h-auto w-48" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">{label}</p><p className="mt-1 text-xs font-semibold text-gos-muted">Secure workspace loading</p></div></div> }

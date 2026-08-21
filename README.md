@@ -1,4 +1,22 @@
-# React + Vite
+# GeekOnSites Frontend
+
+React and Vite frontend for GeekOnSites remote and on-site technology support.
+
+## Frontend Standards
+
+All GOS V2 work from Phase 2 onward must follow the mobile-first and
+cross-platform acceptance criteria in
+[`docs/GOS_V2_FRONTEND_STANDARDS.md`](docs/GOS_V2_FRONTEND_STANDARDS.md).
+
+## Development
+
+```bash
+npm run dev
+npm run build
+npm run lint
+```
+
+## Vite Reference
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

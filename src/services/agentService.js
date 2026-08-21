@@ -18,3 +18,7 @@ export const getAgentNotifications = async () => {
     method: "GET",
   })
 }
+
+export const getAgentProfile = async () => {
+  return apiRequest("/api/agents/me", { method: "GET" })
+}

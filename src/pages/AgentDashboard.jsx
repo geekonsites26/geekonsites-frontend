@@ -1,30 +1,46 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import logo from "../assets/geekonsites-logo.png"
 import { getAllBookings } from "../services/bookingService"
 import { getAllTechnicians } from "../services/technicianService"
 import {
   getAllAgents,
   getAgentNotifications,
+  getAgentProfile,
 } from "../services/agentService"
+import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { apiRequest } from "../services/api"
+import { getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
+import RevenueChart from "../components/agent/RevenueChart"
+import BookingChart from "../components/agent/BookingChart"
 import {
   Activity,
+  ArrowLeft,
   BarChart3,
   Bell,
   BriefcaseBusiness,
   CheckCircle2,
   Clock3,
+  CreditCard,
   DollarSign,
+  Download,
   LayoutDashboard,
   LogOut,
+  Mail,
   Menu,
   Monitor,
+  MapPin,
+  Phone,
+  Repeat,
+  RefreshCw,
   Search,
   Settings,
   User,
   Users,
   Video,
+  Volume2,
+  VolumeX,
   Wrench,
   X,
 } from "lucide-react"
@@ -69,7 +85,7 @@ const formatMoney = (booking, amount) =>
 export default function AgentDashboard() {
   const navigate = useNavigate()
 
-  const [activeTab, setActiveTab] = useState("Dashboard")
+  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get("view") === "notifications" ? "Notifications" : "Dashboard")
   const [mobileMenu, setMobileMenu] = useState(false)
   const [popup, setPopup] = useState("")
   const [selectedBooking, setSelectedBooking] = useState(null)
@@ -78,22 +94,23 @@ export default function AgentDashboard() {
   const [technicians, setTechnicians] = useState([])
   const [agents, setAgents] = useState([])
   const [notifications, setNotifications] = useState([])
+  const [agentProfile, setAgentProfile] = useState(null)
+  const [supportMessages, setSupportMessages] = useState([])
+  const [notificationsMuted, setNotificationsMuted] = useState(localStorage.getItem("gos_agent_notifications_muted") === "true")
+  const [notificationRefreshing, setNotificationRefreshing] = useState(false)
+  const knownNotificationIds = useRef(new Set())
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
 const [statusFilter, setStatusFilter] = useState("ALL")
 const [modeFilter, setModeFilter] = useState("ALL")
  
-  const { user, logoutCustomer } = useCustomerAuth()
+  const { user, logoutCustomer, updateCustomerProfile } = useCustomerAuth()
 
- const agentName = user?.fullName || "Agent"
- const agentRole = user?.role || "AGENT"
+  const agentName = agentProfile?.name || user?.fullName || "Agent"
+  const agentRole = user?.role || "AGENT"
 
   useEffect(() => {
     const token = localStorage.getItem("gos_token")
-    const role = localStorage.getItem("gos_role")
-
-    console.log("TOKEN =", token)
-    console.log("ROLE =", role)
 
     if (!token) {
       navigate("/agent-login")
@@ -103,28 +120,64 @@ const [modeFilter, setModeFilter] = useState("ALL")
     loadDashboard()
   }, [navigate])
 
+  useEffect(() => {
+    const refresh = () => loadAgentNotifications(true)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") refresh()
+    }, 30000)
+    window.addEventListener("gos:push-received", refresh)
+    document.addEventListener("visibilitychange", refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("gos:push-received", refresh)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [notificationsMuted])
+
   const loadDashboard = async () => {
     try {
       setLoading(true)
 
-      const [
-  bookingData,
-  technicianData,
-  agentData,
-  notificationData,
-] = await Promise.all([
-  getAllBookings(),
-  getAllTechnicians(),
-  getAllAgents(),
-  getAgentNotifications(),
-])
+      const results = await Promise.allSettled([
+        getAllBookings(),
+        getAllTechnicians(),
+        getAllAgents(),
+        getAgentNotifications(),
+        getAgentProfile(),
+        getAllContactMessages(),
+      ])
+      const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
+      const bookingData = value(0, [])
+      const technicianData = value(1, [])
+      const agentData = value(2, [])
+      const notificationData = value(3, [])
+      const profileData = value(4, null)
+      const supportData = value(5, [])
 
       setBookings(Array.isArray(bookingData) ? bookingData : [])
       setTechnicians(Array.isArray(technicianData) ? technicianData : [])
       setAgents(Array.isArray(agentData) ? agentData : [])
-      setNotifications(
-  Array.isArray(notificationData) ? notificationData : []
-)
+      setNotifications(Array.isArray(notificationData) ? notificationData : [])
+      knownNotificationIds.current = new Set((Array.isArray(notificationData) ? notificationData : []).map((item) => item.id))
+      setAgentProfile(profileData)
+      setSupportMessages(Array.isArray(supportData) ? supportData : [])
+      if (profileData) {
+        updateCustomerProfile({
+          ...user,
+          id: user?.id,
+          fullName: profileData.name,
+          name: profileData.name,
+          email: profileData.email,
+          phone: profileData.phone,
+          country: profileData.country,
+          city: profileData.city,
+          status: profileData.status,
+          role: "AGENT",
+        })
+      }
+      const failures = results.filter((result) => result.status === "rejected")
+      failures.forEach((result) => console.error("Agent dashboard API error:", result.reason))
+      if (failures.length) showPopup(`${6 - failures.length} of 6 dashboard feeds loaded`)
     } catch (error) {
       console.error("Agent dashboard load error:", error)
       showPopup("Failed to load dashboard data")
@@ -133,11 +186,51 @@ const [modeFilter, setModeFilter] = useState("ALL")
     }
   }
 
+  const loadAgentNotifications = async (quiet = false) => {
+    try {
+      if (quiet) setNotificationRefreshing(true)
+      const data = await getAgentNotifications()
+      const items = Array.isArray(data) ? data : []
+      const newItems = knownNotificationIds.current.size
+        ? items.filter((item) => !knownNotificationIds.current.has(item.id))
+        : []
+      knownNotificationIds.current = new Set(items.map((item) => item.id))
+      setNotifications(items)
+      if (newItems.length && !notificationsMuted) {
+        showPopup(newItems[0].title || "New agent notification")
+        navigator.vibrate?.([100, 60, 100])
+      }
+    } catch (error) {
+      if (!quiet) showPopup(error.message || "Notifications could not be loaded")
+    } finally {
+      setNotificationRefreshing(false)
+    }
+  }
+
+  const openAgentNotification = async (notification) => {
+    if (notification.isRead) return
+    setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, isRead: true } : item))
+    try { await markNotificationAsRead(notification.id) } catch { loadAgentNotifications(true) }
+  }
+
+  const markAllAgentNotificationsRead = async () => {
+    setNotifications((current) => current.map((item) => ({ ...item, isRead: true })))
+    try { await markAllNotificationsAsRead() } catch { loadAgentNotifications(true) }
+  }
+
+  const toggleAgentNotifications = () => {
+    const next = !notificationsMuted
+    setNotificationsMuted(next)
+    localStorage.setItem("gos_agent_notifications_muted", String(next))
+  }
+
   const assignTechnician = async () => {
     if (!selectedBooking?.id || !selectedTechnicianId) {
       showPopup("Select booking and technician")
       return
     }
+
+    const wasAssigned = !isUnassigned(selectedBooking)
 
     try {
       const updatedBooking = await apiRequest(
@@ -153,10 +246,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
       setSelectedBooking(null)
       setSelectedTechnicianId("")
-      showPopup("Technician assigned successfully")
+      showPopup(wasAssigned ? "Technician reassigned successfully" : "Technician assigned successfully")
     } catch (error) {
       console.error(error)
-      showPopup("Assignment failed")
+      showPopup(error.message || "Assignment failed")
     }
   }
 
@@ -176,7 +269,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
       showPopup(`Booking updated to ${statusLabel[status] || status}`)
     } catch (error) {
       console.error(error)
-      showPopup("Status update failed")
+      showPopup(error.message || "Status update failed")
     }
   }
 
@@ -238,11 +331,44 @@ const [modeFilter, setModeFilter] = useState("ALL")
   })
 }, [bookings, searchTerm, statusFilter, modeFilter])
 
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications]
+  )
+
+  const exportBookingsCsv = (rows) => {
+    if (!rows.length) {
+      showPopup("No bookings to export")
+      return
+    }
+
+    const columns = ["id", "customerName", "customerEmail", "customerPhone", "serviceType", "bookingStatus", "paymentStatus", "technicianName", "bookingDate", "timeSlot", "country", "totalAmount", "paidAmount"]
+    const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`
+    const csv = [
+      columns.join(","),
+      ...rows.map((booking) => columns.map((column) => escape(booking[column])).join(",")),
+    ].join("\n")
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `gos-bookings-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    showPopup(`Exported ${rows.length} booking${rows.length === 1 ? "" : "s"}`)
+  }
+
   const navItems = [
     { title: "Dashboard", icon: LayoutDashboard },
     { title: "Live Bookings", icon: BriefcaseBusiness },
     { title: "Assign Technician", icon: Wrench },
+    { title: "Technicians", icon: Users },
     { title: "Customers", icon: Users },
+    { title: "Payments", icon: CreditCard },
+    { title: "Support", icon: Activity },
     { title: "Remote Sessions", icon: Monitor },
     { title: "Reports", icon: BarChart3 },
     { title: "Notifications", icon: Bell },
@@ -361,7 +487,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
             <div className="mt-6 grid grid-cols-2 gap-3">
               <MiniInfo label="Agents" value={agents.length} />
               <MiniInfo label="Assigned" value={metrics.assigned} />
-              <MiniInfo label="Revenue" value={`£/$${metrics.totalRevenue.toFixed(2)}`} />
+              <MiniInfo label="Pending" value={metrics.pending} />
               <MiniInfo label="Region" value="US / UK" />
             </div>
           </div>
@@ -378,7 +504,19 @@ const [modeFilter, setModeFilter] = useState("ALL")
   )
 
   const LiveBookingsSection = () => (
-    <Panel title="Live Booking Queue" subtitle="Manage all backend bookings">
+    <Panel
+      title="Live Booking Queue"
+      subtitle="Manage all backend bookings"
+      actions={
+        <button
+          onClick={() => exportBookingsCsv(filteredBookings)}
+          className="flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-2.5 text-sm font-bold text-cyan-300"
+        >
+          <Download className="h-4 w-4" />
+          Export CSV
+        </button>
+      }
+    >
       <div className="space-y-4">
         {filteredBookings.length ? (
           filteredBookings.map((booking) => (
@@ -402,12 +540,27 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
   const AssignTechnicianSection = () => {
     const unassignedBookings = bookings.filter(isUnassigned)
-    const availableTechnicians = technicians.filter(
-      (tech) => tech.availabilityStatus === "AVAILABLE"
-    )
+    const availableCount = technicians.filter((tech) => tech.availabilityStatus === "AVAILABLE").length
+    const isReassigning = Boolean(selectedBooking) && !isUnassigned(selectedBooking)
 
     return (
-      <Panel title="Assign Technician" subtitle="Assign available technicians to unassigned bookings">
+      <Panel title="Assign Technician" subtitle="Assign or reassign technicians for backend bookings">
+        {isReassigning && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-cyan-300">Reassigning GOS-{selectedBooking.id}</p>
+              <p className="mt-1 text-sm text-cyan-100/70">
+                Currently with {selectedBooking.technicianName || "an assigned technician"}. Pick a new technician below.
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedBooking(null)}
+              className="rounded-xl border border-white/10 bg-[#0b1628] px-4 py-2 text-xs font-bold text-cyan-100/60"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
           <div className="space-y-4">
             <h3 className="text-lg font-black">Unassigned Bookings</h3>
@@ -443,7 +596,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-[#0b1628] p-5">
-            <h3 className="text-lg font-black">Available Technicians</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-black">Technicians</h3>
+              <span className="text-xs font-bold text-cyan-100/45">{availableCount} of {technicians.length} available</span>
+            </div>
 
             {!selectedBooking && (
               <p className="mt-4 text-sm text-cyan-100/45">
@@ -462,53 +618,67 @@ const [modeFilter, setModeFilter] = useState("ALL")
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  {availableTechnicians.length ? (
-                    availableTechnicians.map((tech) => (
-                      <label
-                        key={tech.id}
-                        className={`block cursor-pointer rounded-2xl border p-4 ${
-                          String(selectedTechnicianId) === String(tech.id)
-                            ? "border-cyan-400 bg-cyan-500/10"
-                            : "border-white/10 bg-[#071122]"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="technician"
-                          value={tech.id}
-                          checked={String(selectedTechnicianId) === String(tech.id)}
-                          onChange={(e) => setSelectedTechnicianId(e.target.value)}
-                          className="hidden"
-                        />
+                  {technicians.length ? (
+                    technicians.map((tech) => {
+                      const available = tech.availabilityStatus === "AVAILABLE"
+                      const selected = String(selectedTechnicianId) === String(tech.id)
 
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h4 className="font-black">{tech.name}</h4>
-                            <p className="text-sm text-cyan-100/45">{tech.email}</p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <Badge>{tech.country || "Region N/A"}</Badge>
-                              <Badge>{tech.city || "City N/A"}</Badge>
-                              <Badge>{tech.availabilityStatus || "Status N/A"}</Badge>
-                              <Badge>{tech.specialization || "General IT"}</Badge>
+                      return (
+                        <label
+                          key={tech.id}
+                          className={`block rounded-2xl border p-4 ${
+                            !available
+                              ? "cursor-not-allowed border-white/10 bg-[#0b1628]"
+                              : selected
+                                ? "cursor-pointer border-cyan-400 bg-cyan-500/10"
+                                : "cursor-pointer border-white/10 bg-[#071122]"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="technician"
+                            value={tech.id}
+                            checked={selected}
+                            disabled={!available}
+                            onChange={(e) => setSelectedTechnicianId(e.target.value)}
+                            className="hidden"
+                          />
+
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <h4 className={`font-black ${!available ? "text-cyan-100/60" : ""}`}>{tech.name}</h4>
+                              <p className="text-sm text-cyan-100/45">{tech.email}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Badge>{tech.country || "Region N/A"}</Badge>
+                                <Badge>{tech.city || "City N/A"}</Badge>
+                                <span className={`rounded-xl border px-3 py-1 text-xs font-semibold ${available ? "border-green-500/20 bg-green-500/10 text-green-300" : "border-amber-500/20 bg-amber-500/10 text-amber-300"}`}>
+                                  {tech.availabilityStatus || "Status N/A"}
+                                </span>
+                                <Badge>{tech.specialization || "General IT"}</Badge>
+                              </div>
+                              {!available && (
+                                <p className="mt-2 text-xs text-amber-300/80">Not selectable until this technician is marked available.</p>
+                              )}
                             </div>
-                          </div>
 
-                          {String(selectedTechnicianId) === String(tech.id) && (
-                            <CheckCircle2 className="h-6 w-6 text-cyan-300" />
-                          )}
-                        </div>
-                      </label>
-                    ))
+                            {selected && (
+                              <CheckCircle2 className="h-6 w-6 text-cyan-300" />
+                            )}
+                          </div>
+                        </label>
+                      )
+                    })
                   ) : (
-                    <EmptyState title="No available technicians" text="Technicians with AVAILABLE status will appear here." />
+                    <EmptyState title="No technicians on file" text="Approved technicians will appear here once they register." />
                   )}
                 </div>
 
                 <button
                   onClick={assignTechnician}
-                  className="mt-6 w-full rounded-2xl bg-cyan-400 py-4 font-black text-black hover:bg-cyan-300"
+                  disabled={!selectedTechnicianId}
+                  className="mt-6 w-full rounded-2xl bg-cyan-400 py-4 font-black text-black hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Assign Technician
+                  {isReassigning ? "Reassign Technician" : "Assign Technician"}
                 </button>
               </>
             )}
@@ -517,6 +687,55 @@ const [modeFilter, setModeFilter] = useState("ALL")
       </Panel>
     )
   }
+
+  const TechniciansSection = () => {
+    const keyword = searchTerm.trim().toLowerCase()
+    const visibleTechnicians = technicians.filter((tech) => !keyword || [tech.name, tech.email, tech.phone, tech.city, tech.country, tech.specialization, tech.availabilityStatus, tech.serviceMode].some((value) => String(value || "").toLowerCase().includes(keyword)))
+    return (
+      <Panel title="Technician Directory" subtitle={`${technicians.length} registered technicians across GOS operations`}>
+        <div className="mb-5 grid grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-[#0b1628]">
+          <MiniInfo label="Total" value={technicians.length} />
+          <MiniInfo label="Available" value={technicians.filter((tech) => tech.availabilityStatus === "AVAILABLE").length} />
+          <MiniInfo label="Verified" value={technicians.filter((tech) => tech.verificationStatus === "APPROVED").length} />
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {visibleTechnicians.length ? visibleTechnicians.map((tech) => {
+            const available = tech.availabilityStatus === "AVAILABLE"
+            return <article key={tech.id} className="rounded-3xl border border-white/10 bg-[#0b1628] p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-lg font-black text-cyan-300">{String(tech.name || "T").charAt(0).toUpperCase()}</div>
+                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="truncate text-lg font-black">{tech.name || "Technician"}</h3><span className={`rounded-full border px-3 py-1 text-[10px] font-black ${available ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : tech.availabilityStatus === "BUSY" ? "border-amber-400/25 bg-amber-400/10 text-amber-300" : "border-slate-400/20 bg-slate-400/10 text-slate-300"}`}>{tech.availabilityStatus || "OFFLINE"}</span></div><p className="mt-1 truncate text-sm font-semibold text-cyan-100/55">{tech.specialization || "General IT Support"}</p></div>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2"><MiniInfo label="Service mode" value={tech.serviceMode || "Not set"} /><MiniInfo label="Experience" value={`${tech.experienceYears || 0} years`} /><MiniInfo label="Verification" value={tech.verificationStatus || "Pending"} /><MiniInfo label="Rating" value={tech.rating ? `${tech.rating} / 5` : "New"} /></div>
+              <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2"><a href={tech.phone ? `tel:${tech.phone}` : undefined} className="flex min-h-10 min-w-0 items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 text-xs font-black text-cyan-200"><Phone size={14} className="shrink-0" /><span className="min-w-0 break-all">{tech.phone || "No phone"}</span></a><a href={`mailto:${tech.email}`} className="flex min-h-10 min-w-0 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-black text-cyan-100/70"><Mail size={14} className="shrink-0" /><span className="min-w-0 break-all">{tech.email}</span></a></div>
+              <p className="mt-3 flex min-w-0 items-start gap-2 text-xs font-semibold text-cyan-100/45"><MapPin size={14} className="mt-0.5 shrink-0 text-cyan-300" /><span className="min-w-0 break-words">{[tech.city, tech.country].filter(Boolean).join(", ") || "Location not set"}</span></p>
+            </article>
+          }) : <EmptyState title="No technicians found" text="No technician matches the current search." />}
+        </div>
+      </Panel>
+    )
+  }
+
+  const PaymentsSection = () => (
+    <Panel title="Payment Oversight" subtitle="Paid, pending, and remaining balances from live bookings">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><ReportCard title="Collected" value={`GBP/USD ${bookings.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0).toFixed(2)}`} /><ReportCard title="Paid bookings" value={bookings.filter((item) => item.paymentStatus === "PAID").length} /><ReportCard title="Part paid" value={bookings.filter((item) => item.paymentStatus === "PARTIALLY_PAID").length} /><ReportCard title="Pending" value={bookings.filter((item) => !["PAID", "PARTIALLY_PAID"].includes(item.paymentStatus)).length} /></div>
+      <div className="mt-6 space-y-3">{bookings.length ? bookings.map((booking) => <button type="button" key={booking.id} onClick={() => setSelectedBooking(booking)} className="grid w-full gap-3 rounded-2xl border border-white/10 bg-[#0b1628] p-4 text-left sm:grid-cols-[0.7fr_1.3fr_0.8fr_0.8fr]"><MiniInfo label="Booking" value={`GOS-${booking.id}`} /><MiniInfo label="Customer" value={booking.customerName || "Customer"} /><MiniInfo label="Status" value={booking.paymentStatus || "PENDING"} /><MiniInfo label="Paid" value={formatMoney(booking, booking.paidAmount)} /></button>) : <EmptyState title="No payments" text="Payment records will appear with bookings." />}</div>
+    </Panel>
+  )
+
+  const updateSupportStatus = async (messageId, status) => {
+    try {
+      const updated = await updateContactMessageStatus(messageId, status)
+      setSupportMessages((items) => items.map((item) => item.id === messageId ? updated : item))
+      showPopup(`Support case marked ${status.toLowerCase()}`)
+    } catch (error) { showPopup(error.message || "Support case could not be updated") }
+  }
+
+  const SupportSection = () => (
+    <Panel title="Support Cases" subtitle={`${supportMessages.filter((item) => item.status !== "RESOLVED").length} open customer enquiries`}>
+      <div className="space-y-4">{supportMessages.length ? supportMessages.map((message) => <article key={message.id} className="rounded-3xl border border-white/10 bg-[#0b1628] p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-cyan-300">Case GOS-S-{message.id}</p><h3 className="mt-2 text-lg font-black">{message.subject}</h3><p className="mt-1 text-sm font-semibold text-cyan-100/55">{message.fullName} · {message.email}</p></div><StatusBadge status={message.status} /></div><p className="mt-4 rounded-2xl border border-white/10 bg-[#071122] p-4 text-sm leading-6 text-cyan-100/70">{message.message}</p><div className="mt-4 flex flex-wrap gap-2"><a href={`mailto:${message.email}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 text-xs font-black text-cyan-200"><Mail size={14} />Reply</a><button onClick={() => updateSupportStatus(message.id, "IN_PROGRESS")} className="min-h-10 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 text-xs font-black text-amber-200">In progress</button><button onClick={() => updateSupportStatus(message.id, "RESOLVED")} className="min-h-10 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 text-xs font-black text-emerald-200">Resolve</button></div></article>) : <EmptyState title="No support cases" text="Customer contact messages will appear here." />}</div>
+    </Panel>
+  )
 
   const CustomersSection = () => (
     <Panel title="Customers" subtitle="Customer records from bookings">
@@ -636,12 +855,29 @@ const [modeFilter, setModeFilter] = useState("ALL")
     const averageValue = bookings.length ? totalRevenue / bookings.length : 0
 
     return (
-      <Panel title="Agent Reports" subtitle="Calculated from backend bookings">
+      <Panel
+        title="Agent Reports"
+        subtitle="Calculated from backend bookings"
+        actions={
+          <button
+            onClick={() => exportBookingsCsv(bookings)}
+            className="flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-2.5 text-sm font-bold text-cyan-300"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+        }
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ReportCard title="Completed" value={completed} />
           <ReportCard title="Paid Bookings" value={paid} />
           <ReportCard title="Total Revenue" value={`£/$${totalRevenue.toFixed(2)}`} />
           <ReportCard title="Avg Booking" value={`£/$${averageValue.toFixed(2)}`} />
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <RevenueChart bookings={bookings} />
+          <BookingChart bookings={bookings} />
         </div>
 
         <div className="mt-6 rounded-3xl border border-white/10 bg-[#0b1628] p-6">
@@ -674,16 +910,37 @@ const [modeFilter, setModeFilter] = useState("ALL")
   const NotificationsSection = () => (
   <Panel
     title="Notifications"
-    subtitle="Real-time agent notifications"
+    subtitle={unreadCount > 0 ? `${unreadCount} unread of ${notifications.length} total` : `${notifications.length} total`}
   >
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#0b1628] p-3">
+      <button type="button" onClick={toggleAgentNotifications} className="flex min-h-10 items-center gap-2 rounded-md px-2 text-xs font-black">
+        {notificationsMuted ? <VolumeX className="h-4 w-4 text-slate-400" /> : <Volume2 className="h-4 w-4 text-cyan-300" />}
+        {notificationsMuted ? "Live alerts muted" : "Live alerts on"}
+      </button>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => loadAgentNotifications(true)} disabled={notificationRefreshing} className="flex min-h-10 items-center gap-2 rounded-md border border-white/10 px-3 text-xs font-black disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${notificationRefreshing ? "animate-spin" : ""}`} />Refresh</button>
+        <button type="button" onClick={markAllAgentNotificationsRead} disabled={!unreadCount} className="min-h-10 rounded-md bg-cyan-400 px-3 text-xs font-black text-black disabled:opacity-40">Mark all read</button>
+      </div>
+    </div>
     <div className="space-y-4">
       {notifications.length ? (
         notifications.map((notification) => (
-          <div
+          <button
+            type="button"
+            onClick={() => openAgentNotification(notification)}
             key={notification.id}
-            className="flex gap-4 rounded-2xl border border-white/10 bg-[#0b1628] p-5"
+            className={`flex w-full gap-4 rounded-2xl border p-5 text-left ${
+              notification.isRead
+                ? "border-white/10 bg-[#0b1628]"
+                : "border-cyan-500/30 bg-cyan-500/5"
+            }`}
           >
-            <Bell className="h-5 w-5 text-cyan-300" />
+            <div className="relative shrink-0">
+              <Bell className="h-5 w-5 text-cyan-300" />
+              {!notification.isRead && (
+                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+              )}
+            </div>
 
             <div className="flex-1">
               <h3 className="font-black">
@@ -702,7 +959,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
                   : ""}
               </p>
             </div>
-          </div>
+          </button>
         ))
       ) : (
         <EmptyState
@@ -718,6 +975,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
     <Panel title="Settings" subtitle="Agent account and workspace">
       <div className="space-y-4">
         <Info label="Agent Name" value={agentName} />
+        <Info label="Company Email" value={agentProfile?.email || user?.email || "Not available"} />
+        <Info label="Phone" value={agentProfile?.phone || user?.phone || "Not available"} />
+        <Info label="Location" value={[agentProfile?.city, agentProfile?.country].filter(Boolean).join(", ") || "Not available"} />
+        <Info label="Account Status" value={agentProfile?.status || "ACTIVE"} />
         <Info label="Role" value={agentRole || "AGENT"} />
         <Info label="Regions" value="US / UK" />
         <Info label="Connected APIs" value="Bookings, Technicians, Agents" />
@@ -738,7 +999,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
   const renderContent = () => {
     if (activeTab === "Live Bookings") return <LiveBookingsSection />
     if (activeTab === "Assign Technician") return <AssignTechnicianSection />
+    if (activeTab === "Technicians") return <TechniciansSection />
     if (activeTab === "Customers") return <CustomersSection />
+    if (activeTab === "Payments") return <PaymentsSection />
+    if (activeTab === "Support") return <SupportSection />
     if (activeTab === "Remote Sessions") return <RemoteSessionsSection />
     if (activeTab === "Reports") return <ReportsSection />
     if (activeTab === "Notifications") return <NotificationsSection />
@@ -748,36 +1012,37 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center overflow-x-hidden bg-[#020817] text-white">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent" />
-          <p className="mt-4 font-bold text-cyan-300">
-            Loading Agent Dashboard...
-          </p>
-        </div>
-      </div>
+      <DashboardLoader label="Preparing agent workspace" />
     )
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#020817] text-white">
+    <div className="gos-agent-portal flex h-dvh w-full overflow-hidden bg-[#020817] text-white">
       {popup && (
         <div className="fixed bottom-24 right-4 z-[80] rounded-2xl border border-cyan-500/20 bg-[#071122] px-5 py-4 shadow-2xl md:bottom-6 md:right-6">
           <p className="text-sm font-semibold text-cyan-100">{popup}</p>
         </div>
       )}
 
-      <aside className="hidden h-screen w-[310px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black text-cyan-300">GOS</h1>
-          <p className="mt-2 text-sm text-cyan-100/45">
-            Agent Operations Center
-          </p>
-        </div>
+      <aside className="hidden h-dvh w-[310px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
+        <button
+          onClick={() => navigate("/")}
+          className="mb-8 flex items-center gap-3 text-left"
+          aria-label="Back to GeekOnSites home"
+        >
+          <img src={logo} alt="GeekOnSites" className="h-auto w-44 max-w-full shrink object-contain" />
+          <span>
+            <span className="block text-xl font-black leading-none text-cyan-300">GeekOnSites</span>
+            <span className="mt-1.5 block text-xs text-cyan-100/45">
+              Agent Operations Center
+            </span>
+          </span>
+        </button>
 
         <div className="space-y-3 overflow-y-auto pr-1">
           {navItems.map((item) => {
             const Icon = item.icon
+            const showBadge = item.title === "Notifications" && unreadCount > 0
 
             return (
               <button
@@ -790,7 +1055,12 @@ const [modeFilter, setModeFilter] = useState("ALL")
                 }`}
               >
                 <Icon className="h-5 w-5" />
-                <span className="truncate">{item.title}</span>
+                <span className="min-w-0 flex-1 truncate text-left">{item.title}</span>
+                {showBadge && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-black text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -809,64 +1079,124 @@ const [modeFilter, setModeFilter] = useState("ALL")
       </aside>
 
       {mobileMenu && (
-        <div className="fixed inset-0 z-[90] overflow-y-auto overflow-x-hidden bg-[#020817]/95 p-5 backdrop-blur-xl lg:hidden">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-black text-cyan-300">GOS</h1>
-              <p className="text-sm text-cyan-100/45">Agent Menu</p>
-            </div>
+        <div className="agent-mobile-menu fixed inset-0 z-[90] overflow-y-auto overflow-x-hidden bg-[#edf2f5] pb-[max(1rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-gos-blue-deep lg:hidden">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gos-border bg-white px-4 py-3 shadow-sm">
+            <button
+              onClick={() => {
+                setMobileMenu(false)
+                navigate("/")
+              }}
+              className="flex items-center gap-3 text-left"
+              aria-label="Back to GeekOnSites home"
+            >
+              <img src={logo} alt="GeekOnSites" className="h-auto w-36 shrink object-contain" />
+              <span>
+                <span className="block font-['Cormorant_Garamond'] text-xl font-bold leading-none text-gos-blue-deep">Geek<span className="text-gos-turquoise">On</span>Sites</span>
+                <span className="mt-1 block text-[9px] font-extrabold uppercase tracking-[0.12em] text-gos-muted">Agent workspace</span>
+              </span>
+            </button>
 
             <button
               onClick={() => setMobileMenu(false)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#071122]"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gos-border bg-gos-off-white text-gos-blue"
+              aria-label="Close menu"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="px-4 py-4">
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-gos-border bg-white p-3 shadow-sm">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gos-blue-deep font-['Cormorant_Garamond'] text-xl font-bold text-white">{agentName.charAt(0).toUpperCase()}</div>
+              <div className="min-w-0"><p className="truncate text-sm font-extrabold text-gos-blue-deep">{agentName}</p><p className="mt-0.5 truncate text-[10px] font-bold text-gos-muted">{agentProfile?.email || user?.email || "GOS agent"}</p></div>
+            </div>
+            <p className="mb-2 px-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-gos-muted">Operations</p>
+            <div className="grid grid-cols-2 gap-2">
             {navItems.map((item) => {
               const Icon = item.icon
+              const showBadge = item.title === "Notifications" && unreadCount > 0
 
               return (
                 <button
                   key={item.title}
                   onClick={() => openTab(item.title)}
-                  className={`flex w-full items-center gap-4 rounded-2xl px-5 py-4 ${
+                  className={`relative flex min-h-16 w-full items-center gap-3 rounded-lg border px-3 py-3 ${
                     activeTab === item.title
-                      ? "bg-cyan-400 font-black text-black"
-                      : "border border-white/5 bg-[#0b1628] text-cyan-100/70"
+                      ? "border-gos-blue-deep bg-gos-blue-deep font-extrabold text-white shadow-sm"
+                      : "border-gos-border bg-white font-bold text-gos-blue-deep"
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
-                  {item.title}
+                  <Icon className={`h-4 w-4 shrink-0 ${activeTab === item.title ? "text-gos-gold" : "text-gos-turquoise"}`} />
+                  <span className="min-w-0 flex-1 text-left text-xs leading-4">{item.title}</span>
+                  {showBadge && (
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-black text-white">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
                 </button>
               )
             })}
+            </div>
+
+            <button
+              onClick={() => {
+                logoutCustomer()
+                navigate("/agent-login")
+              }}
+              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 text-xs font-extrabold text-red-700"
+            >
+              <LogOut className="h-5 w-5" />
+              Logout
+            </button>
           </div>
         </div>
       )}
 
-      <main className="h-screen min-w-0 flex-1 overflow-hidden pb-20 lg:pb-0">
-        <header className="flex h-[82px] items-center justify-between border-b border-cyan-500/10 bg-[#071122]/95 px-4 md:h-[90px] md:px-6">
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-black md:text-2xl">
-              {activeTab}
-            </h1>
-            <p className="mt-1 truncate text-xs text-cyan-100/40 md:text-sm">
-              Backend-connected dispatch operations
-            </p>
+      <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-[82px] shrink-0 items-center justify-between gap-3 border-b border-cyan-500/10 bg-[#071122]/95 px-4 md:h-[90px] md:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={() => navigate("/")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#0b1628] lg:hidden"
+              aria-label="Back to GeekOnSites home"
+            >
+              <ArrowLeft className="h-5 w-5 text-cyan-300" />
+            </button>
+
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-black md:text-2xl">
+                {activeTab}
+              </h1>
+              <p className="mt-1 truncate text-xs text-cyan-100/40 md:text-sm">
+                Backend-connected dispatch operations
+              </p>
+            </div>
           </div>
 
           <div className="hidden w-full max-w-[380px] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-5 py-3 md:flex">
   <Search className="h-5 w-5 text-cyan-100/40" />
   <input
+    type="search"
     value={searchTerm}
     onChange={(e) => setSearchTerm(e.target.value)}
     placeholder="Search booking, customer, technician..."
-    className="w-full bg-transparent outline-none placeholder:text-cyan-100/30"
+    className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-cyan-100/30"
   />
+  {searchTerm && <button type="button" onClick={() => setSearchTerm("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-cyan-100/50 hover:text-white" aria-label="Clear search"><X size={16} /></button>}
 </div>
+
+          <button
+            onClick={() => openTab("Notifications")}
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-[#0b1628] md:h-12 md:w-12"
+            aria-label="View notifications"
+          >
+            <Bell className="h-5 w-5 text-cyan-300" />
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
 
           <button
             onClick={() => setMobileMenu(true)}
@@ -876,9 +1206,17 @@ const [modeFilter, setModeFilter] = useState("ALL")
           </button>
         </header>
 
+        <div className="shrink-0 border-b border-cyan-500/10 bg-[#071122]/60 px-4 py-3 md:hidden">
+          <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-4">
+            <Search className="h-5 w-5 shrink-0 text-cyan-100/40" />
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search bookings or customers" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-cyan-100/30" />
+            {searchTerm && <button type="button" onClick={() => setSearchTerm("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-cyan-100/50" aria-label="Clear search"><X size={16} /></button>}
+          </label>
+        </div>
+
         <div
           id="agent-main-content"
-          className="h-[calc(100vh-82px)] overflow-y-auto overflow-x-hidden p-4 pb-28 md:h-[calc(100vh-90px)] md:p-6 lg:pb-6"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28 md:p-6 lg:pb-6"
         >
           {renderContent()}
         </div>
@@ -926,12 +1264,17 @@ const [modeFilter, setModeFilter] = useState("ALL")
   )
 }
 
-function Panel({ title, subtitle, children }) {
+function DashboardLoader({ label }) { return <div className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><img src={logo} alt="GeekOnSites" className="mx-auto h-auto w-48 object-contain" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">{label}</p><p className="mt-1 text-xs font-semibold text-gos-muted">Secure workspace loading</p></div></div> }
+
+function Panel({ title, subtitle, actions, children }) {
   return (
     <section className="rounded-[28px] border border-cyan-500/10 bg-[#071122] p-4 md:rounded-[32px] md:p-7">
-      <div className="mb-6">
-        <h2 className="text-xl font-black md:text-2xl">{title}</h2>
-        <p className="mt-2 text-sm text-cyan-100/45">{subtitle}</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-black md:text-2xl">{title}</h2>
+          <p className="mt-2 text-sm text-cyan-100/45">{subtitle}</p>
+        </div>
+        {actions}
       </div>
       {children}
     </section>
@@ -991,6 +1334,18 @@ function BookingCard({ booking, onView, onAssign, onStatus }) {
               Assign
             </button>
           )}
+
+          {!isUnassigned(booking) &&
+            booking.bookingStatus !== "SERVICE_COMPLETED" &&
+            booking.bookingStatus !== "CANCELLED" && (
+              <button
+                onClick={onAssign}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-300"
+              >
+                <Repeat className="h-4 w-4" />
+                Reassign
+              </button>
+            )}
 
           {booking.bookingStatus === "TECHNICIAN_ASSIGNED" && (
             <button
@@ -1068,6 +1423,18 @@ function BookingDetailsModal({ booking, onClose, onAssign, onStatus }) {
               Assign Technician
             </button>
           )}
+
+          {!isUnassigned(booking) &&
+            booking.bookingStatus !== "SERVICE_COMPLETED" &&
+            booking.bookingStatus !== "CANCELLED" && (
+              <button
+                onClick={onAssign}
+                className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 py-4 font-black text-cyan-300"
+              >
+                <Repeat className="h-5 w-5" />
+                Reassign Technician
+              </button>
+            )}
 
           {booking.bookingStatus === "TECHNICIAN_ASSIGNED" && (
             <button

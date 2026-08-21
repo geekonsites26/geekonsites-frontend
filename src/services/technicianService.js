@@ -1,4 +1,6 @@
-import { apiRequest } from "./api"
+import { apiRequest, getToken } from "./api"
+
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "").replace(/\/api$/, "")
 
 export const getAllTechnicians = async () => {
   return apiRequest("/api/technicians", {
@@ -111,4 +113,44 @@ export const markTechnicianArrived = async (bookingId) => {
   return apiRequest(`/api/bookings/${bookingId}/technician/arrived`, {
     method: "PUT",
   })
+}
+
+export const getTechnicianProfile = async () => {
+  return apiRequest("/api/technicians/me", { method: "GET" })
+}
+
+export const getTechnicianProfilePhoto = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/technicians/me/photo`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!response.ok) throw new Error("Profile photo could not be loaded")
+  return URL.createObjectURL(await response.blob())
+}
+
+export const updateTechnicianAvailability = async (status) => {
+  return apiRequest("/api/technicians/me/availability", {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  })
+}
+
+export const openTechnicianVerificationEvidence = async (id, kind) => {
+  const preview = window.open("about:blank", "_blank")
+  if (!preview) throw new Error("Allow pop-ups to view technician documents")
+  preview.opener = null
+  preview.document.title = "Loading secure document"
+  preview.document.body.innerHTML = '<p style="font:600 15px Arial;padding:24px;color:#123">Loading secure technician document...</p>'
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/technicians/${id}/verification/${kind}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+    if (!response.ok) throw new Error("Verification evidence could not be opened")
+    const url = URL.createObjectURL(await response.blob())
+    preview.location.replace(url)
+    window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000)
+  } catch (error) {
+    preview.close()
+    throw error
+  }
 }

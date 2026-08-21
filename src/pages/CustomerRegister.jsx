@@ -1,427 +1,160 @@
-import { useState } from "react"
-import logo from "../assets/logo.png"
-import { useNavigate } from "react-router-dom"
-import {
-  User,
-  Mail,
-  Phone,
-  LockKeyhole,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  ShieldCheck,
-  CheckCircle2,
-  ArrowLeft,
-  Star,
-  ChevronDown,
-  Globe2,
-} from "lucide-react"
+import { useMemo, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, MapPin, Phone, ShieldCheck, User } from "lucide-react"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
+import { setLocation, useRegion } from "../utils/location"
+import BrandLogo from "../components/common/BrandLogo"
+
+const passwordRules = [
+  ["Uppercase letter", (value) => /[A-Z]/.test(value)],
+  ["Lowercase letter", (value) => /[a-z]/.test(value)],
+  ["Number", (value) => /\d/.test(value)],
+  ["Special character", (value) => /[^A-Za-z0-9]/.test(value)],
+]
 
 export default function CustomerRegister() {
   const navigate = useNavigate()
+  const region = useRegion()
   const { registerCustomer } = useCustomerAuth()
-
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    password: "",
-  })
-
-  const [countryCode, setCountryCode] = useState("+1")
-  const [countryOpen, setCountryOpen] = useState(false)
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirmPassword: "" })
   const [showPassword, setShowPassword] = useState(false)
-  const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState("")
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [accepted, setAccepted] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const hasUpper = /[A-Z]/.test(form.password)
-  const hasLower = /[a-z]/.test(form.password)
-  const hasSpecial = /[^A-Za-z0-9]/.test(form.password)
-  const hasLength = form.password.length >= 8
-  const passwordValid = hasUpper && hasLower && hasSpecial && hasLength
+  const checks = useMemo(() => passwordRules.map(([label, test]) => ({ label, valid: test(form.password) })), [form.password])
+  const passwordValid = form.password.length >= 8 && form.password.length <= 15 && checks.every(({ valid }) => valid)
+  const strength = useMemo(() => {
+    if (!form.password) return null
+    const score = checks.filter(({ valid }) => valid).length + (form.password.length >= 8 ? 1 : 0)
+    if (score >= 5) return { label: "Strong", level: 3, color: "bg-emerald-600", text: "text-emerald-700" }
+    if (score >= 3) return { label: "Weak", level: 2, color: "bg-amber-500", text: "text-amber-700" }
+    return { label: "Poor", level: 1, color: "bg-red-500", text: "text-red-700" }
+  }, [checks, form.password])
 
-  const country = countryCode === "+1" ? "US" : "UK"
+  const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }))
 
-  const sendOtp = () => {
-    setError("")
-
-    if (!form.name || !form.email || !form.phone || !form.password) {
-      setError("Please fill all fields before OTP verification")
-      return
-    }
-
-    if (!passwordValid) {
-      setError("Password must follow all rules")
-      return
-    }
-
-    if (form.phone.length !== 10) {
-      setError(`${country} mobile number must contain 10 digits`)
-      return
-    }
-
-    setOtpSent(true)
-    alert("Demo OTP sent: 123456")
+  const changeRegion = (code) => {
+    setLocation(code)
+    setForm((current) => ({ ...current, phone: "" }))
   }
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
+  const submit = async (event) => {
+    event.preventDefault()
     setError("")
 
-    if (!otpSent) {
-      setError("Please verify mobile number first")
-      return
-    }
+    const name = form.name.trim()
+    const email = form.email.trim().toLowerCase()
+    if (name.length < 2) return setError("Enter your full name.")
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid email address.")
+    if (form.phone.length !== 10) return setError(`Enter a valid 10-digit ${region.code} mobile number.`)
+    if (!passwordValid) return setError("Password must satisfy all five security requirements.")
+    if (form.password !== form.confirmPassword) return setError("Passwords do not match.")
+    if (!accepted) return setError("Accept the Terms and Privacy Policy to continue.")
 
-    if (otp !== "123456") {
-      setError("Invalid OTP. Use demo OTP 123456")
-      return
-    }
+    setLoading(true)
+    const result = await registerCustomer({
+      name,
+      email,
+      phone: `${region.dialCode}${form.phone}`,
+      password: form.password,
+      country: region.code,
+    })
+    setLoading(false)
 
-    const customerData = {
-      ...form,
-      phone: `${countryCode}${form.phone}`,
-    }
-
-    const result = await registerCustomer(customerData)
-
-if (!result.success) {
-  setError(result.message || "Registration failed")
-  return
-}
-
-navigate("/customer-login")
+    if (!result.success) return setError(result.message || "Registration failed. Please try again.")
+    navigate("/customer-login", { replace: true, state: { registered: true, email } })
   }
 
   return (
-    <div className="min-h-screen bg-[#050B12] text-white relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.12),transparent_35%)]" />
+    <main className="gos-register-page min-h-screen bg-[#edf2f5] text-gos-charcoal">
+      <header className="border-b border-gos-border bg-white px-4 py-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2 text-xs font-extrabold text-gos-blue"><ArrowLeft size={16} /> Home</Link>
+          <Link to="/" aria-label="GeekOnSites home"><BrandLogo className="h-auto w-36" /></Link>
+          <Link to="/customer-login" className="text-xs font-extrabold text-gos-blue">Log in</Link>
+        </div>
+      </header>
 
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-6">
-        <div className="w-full max-w-6xl rounded-[32px] overflow-hidden border border-white/10 bg-[#07111C]/95 shadow-2xl grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="hidden lg:flex flex-col justify-between p-10 xl:p-12 bg-gradient-to-br from-[#081827] via-[#07111C] to-[#050B12]">
-            <div>
-              <div className="flex items-center gap-4">
-                <img
-                  src={logo}
-                  alt="GeekOnSites Logo"
-                  className="h-16 w-auto object-contain"
-                />
-
-                <div>
-                  
-                </div>
-              </div>
-
-              <div className="mt-10 inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300">
-                <Globe2 className="w-4 h-4" />
-                US / UK Service Platform
-              </div>
-
-              <h2 className="mt-8 text-4xl xl:text-5xl font-bold leading-tight max-w-2xl">
-                Create your customer account in minutes.
-              </h2>
-
-              <p className="mt-5 text-slate-400 leading-7 max-w-xl">
-                Book tech services, track assigned technicians, join remote
-                sessions, download invoices and manage every service from one
-                secure dashboard.
-              </p>
-
-              <div className="mt-8 space-y-4">
-                {[
-                  "Book laptop, printer, WiFi and remote support",
-                  "Track technician assignment and arrival status",
-                  "Manage service history and invoices",
-                  "Secure mobile OTP verification",
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
-                    <span className="text-slate-300">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mt-10">
-              {[
-                ["4.9", "Customer Rating"],
-                ["US/UK", "Coverage"],
-                ["24/7", "Support"],
-              ].map(([value, label]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                >
-                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                  <h3 className="mt-3 text-xl font-bold text-cyan-300">
-                    {value}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-400">{label}</p>
-                </div>
-              ))}
-            </div>
+      <section className="mx-auto grid min-h-[calc(100dvh-3.5rem)] max-w-5xl items-stretch lg:grid-cols-[0.82fr_1.18fr]">
+        <aside className="hidden bg-gos-blue-deep px-8 py-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gos-turquoise text-gos-blue-deep"><ShieldCheck size={20} /></span>
+            <p className="mt-7 text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-gold">Customer account</p>
+            <h1 className="mt-3 font-['Cormorant_Garamond'] text-5xl font-bold leading-[0.95]">Support starts with a secure account.</h1>
+            <p className="mt-5 max-w-sm text-sm font-semibold leading-6 text-white/70">Book assistance, follow service progress, manage payments, and keep every visit in one place.</p>
           </div>
+          <div className="space-y-3 border-t border-white/15 pt-6">
+            {["Protected account access", `${region.country} service settings`, "Booking history and updates"].map((item) => <p key={item} className="flex items-center gap-3 text-xs font-bold text-white/80"><Check size={15} className="text-gos-turquoise" /> {item}</p>)}
+          </div>
+        </aside>
 
-          <form
-            onSubmit={handleRegister}
-            className="relative p-6 sm:p-8 lg:p-12 bg-[#07111C]"
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="absolute left-5 top-5 z-20 flex lg:hidden w-10 h-10 rounded-full border border-white/10 bg-[#0B1623] items-center justify-center text-cyan-300 hover:bg-cyan-500/10 transition"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+        <div className="flex items-center px-4 py-5 sm:px-8 sm:py-8 lg:bg-white lg:px-12">
+          <form onSubmit={submit} autoComplete="off" data-form-type="other" className="mx-auto w-full max-w-xl rounded-lg border border-gos-border bg-white p-5 shadow-[var(--gos-shadow-md)] sm:p-7 lg:border-0 lg:p-0 lg:shadow-none">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-turquoise">Create your account</p>
+            <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none text-gos-blue-deep">Join GeekOnSites.</h2>
+            <p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">Use accurate details so your technician and service updates reach you.</p>
 
-            <div className="hidden lg:flex mb-7 justify-end">
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#0B1623] px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/10 transition"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Website
-              </button>
+            {error && <div role="alert" className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <Field icon={User} label="Full name"><input value={form.name} onChange={update("name")} autoComplete="name" placeholder="Your full name" required /></Field>
+              <Field icon={Mail} label="Email address"><input type="email" value={form.email} onChange={update("email")} autoComplete="email" placeholder="you@example.com" required /></Field>
             </div>
 
-            <div className="lg:hidden pt-10 mb-7 text-center">
-              <img
-                src={logo}
-                alt="GeekOnSites Logo"
-                className="mx-auto h-20 w-auto object-contain"
-              />
-
-              <h1 className="mt-4 text-3xl font-black">
-                Geek<span className="text-cyan-300">OnSites</span>
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-400">
-                Customer Registration
-              </p>
-            </div>
-
-            <p className="text-sm font-semibold text-cyan-300">
-              CUSTOMER PORTAL
-            </p>
-
-            <h2 className="mt-3 text-3xl sm:text-4xl font-bold">
-              Create account
-            </h2>
-
-            <p className="mt-3 text-sm text-slate-400 leading-6">
-              Register with secure mobile OTP verification for US and UK
-              customers.
-            </p>
-
-            {error && (
-              <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {error}
+            <div className="mt-4">
+              <span className="mb-2 block text-xs font-extrabold text-gos-blue-deep">Service region</span>
+              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-gos-border" role="group" aria-label="Service region">
+                {["US", "UK"].map((code) => <button key={code} type="button" onClick={() => changeRegion(code)} aria-pressed={region.code === code} className={`flex min-h-14 min-w-0 items-center justify-center gap-2 px-2 text-left outline-none transition focus-visible:outline-none ${region.code === code ? "bg-gos-blue-deep text-white" : "bg-white text-gos-blue hover:bg-gos-off-white"}`}><MapPin size={15} className="shrink-0" /><span className="min-w-0"><strong className="block text-xs font-extrabold">{code}</strong><span className={`block text-[10px] font-bold leading-4 ${region.code === code ? "text-white/70" : "text-gos-muted"}`}>{code === "US" ? "United States" : "United Kingdom"}</span></span></button>)}
               </div>
-            )}
+            </div>
 
-            <div className="mt-7 space-y-5">
-              <InputBox icon={User} label="Full Name">
-                <input
-                  placeholder="Enter full name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
-                />
-              </InputBox>
-
-              <InputBox icon={Mail} label="Email Address">
-                <input
-                  type="email"
-                  placeholder="Enter email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  autoComplete="email"
-                  className="w-full bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
-                />
-              </InputBox>
-
-              <div>
-                <label className="text-sm text-slate-400">Mobile Number</label>
-
-                <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B1623] px-4 py-3 focus-within:border-cyan-400/50 relative">
-                  <Phone className="w-5 h-5 text-cyan-300 shrink-0" />
-
-                  <div className="relative shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setCountryOpen(!countryOpen)}
-                      className="flex items-center gap-2 text-sm text-white"
-                    >
-                      <span>{countryCode === "+1" ? "🇺🇸" : "🇬🇧"}</span>
-                      <span>{countryCode}</span>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    </button>
-
-                    {countryOpen && (
-                      <div className="absolute left-0 top-9 z-50 w-32 rounded-2xl border border-white/10 bg-[#0B1623] shadow-2xl overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCountryCode("+1")
-                            setCountryOpen(false)
-                            setForm({ ...form, phone: "" })
-                          }}
-                          className="w-full px-4 py-3 text-left text-sm hover:bg-cyan-500/10"
-                        >
-                          🇺🇸 +1 US
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCountryCode("+44")
-                            setCountryOpen(false)
-                            setForm({ ...form, phone: "" })
-                          }}
-                          className="w-full px-4 py-3 text-left text-sm hover:bg-cyan-500/10"
-                        >
-                          🇬🇧 +44 UK
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    placeholder={countryCode === "+1" ? "5551234567" : "7123456789"}
-                    value={form.phone}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        phone: e.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                    autoComplete="tel"
-                    maxLength={10}
-                    className="w-full bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
-                  />
-                </div>
-
-                <p className="mt-2 text-xs text-slate-500">
-                  {countryCode === "+1"
-                    ? "US format: +1 5551234567"
-                    : "UK format: +44 7123456789"}
-                </p>
+            <div className="mt-4">
+              <span className="mb-2 block text-xs font-extrabold text-gos-blue-deep">Mobile number</span>
+              <div className="flex min-h-12 items-center rounded-lg border border-gos-border bg-[#f8fafb] focus-within:border-gos-turquoise">
+                <span className="flex h-7 items-center gap-2 border-r border-gos-border px-3 text-sm font-extrabold text-gos-blue-deep"><Phone size={16} className="text-gos-turquoise" /> {region.dialCode}</span>
+                <input type="tel" inputMode="numeric" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value.replace(/\D/g, "").slice(0, 10) }))} autoComplete="tel-national" placeholder="10-digit mobile number" required className="min-w-0 flex-1 bg-transparent px-3 text-sm font-semibold outline-none focus-visible:outline-none" />
               </div>
-
-              <div>
-                <label className="text-sm text-slate-400">Password</label>
-
-                <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B1623] px-4 py-3 focus-within:border-cyan-400/50">
-                  <LockKeyhole className="w-5 h-5 text-cyan-300 shrink-0" />
-
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create password"
-                    value={form.password}
-                    onChange={(e) =>
-                      setForm({ ...form, password: e.target.value })
-                    }
-                    autoComplete="new-password"
-                    className="w-full bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-slate-400 hover:text-cyan-300"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-                  <Rule ok={hasLength} text="8+ characters" />
-                  <Rule ok={hasUpper} text="Uppercase letter" />
-                  <Rule ok={hasLower} text="Lowercase letter" />
-                  <Rule ok={hasSpecial} text="Special character" />
-                </div>
-              </div>
-
-              {otpSent && (
-                <InputBox icon={ShieldCheck} label="Enter OTP">
-                  <input
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    maxLength={6}
-                    inputMode="numeric"
-                    className="w-full bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
-                  />
-                </InputBox>
-              )}
-
-              {!otpSent ? (
-                <button
-                  type="button"
-                  onClick={sendOtp}
-                  className="w-full rounded-2xl border border-cyan-500/30 bg-cyan-500/10 py-3.5 text-sm font-bold text-cyan-300 hover:bg-cyan-500/20 transition"
-                >
-                  Send Mobile OTP
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="w-full rounded-2xl bg-cyan-400 py-3.5 text-sm font-bold text-[#041014] hover:bg-cyan-300 transition flex items-center justify-center gap-2"
-                >
-                  Verify OTP & Create Account
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
             </div>
 
-            <div className="mt-5 flex items-center justify-center gap-2 text-sm">
-              <span className="text-slate-400">Already have an account?</span>
-              <button
-                type="button"
-                onClick={() => navigate("/customer-login")}
-                className="text-cyan-300 hover:text-cyan-200 font-semibold"
-              >
-                Login
-              </button>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div><PasswordField label="Password" value={form.password} onChange={update("password")} visible={showPassword} toggle={() => setShowPassword((value) => !value)} />{strength && <div className="mt-2" aria-live="polite"><div className="grid grid-cols-3 gap-1">{[1, 2, 3].map((level) => <span key={level} className={`h-1 rounded-full ${level <= strength.level ? strength.color : "bg-gos-border"}`} />)}</div><p className={`mt-1.5 text-[10px] font-extrabold ${strength.text}`}>{strength.label} password</p></div>}</div>
+              <PasswordField label="Confirm password" value={form.confirmPassword} onChange={update("confirmPassword")} visible={showConfirmPassword} toggle={() => setShowConfirmPassword((value) => !value)} />
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
-              <ShieldCheck className="w-4 h-4 text-green-400" />
-              Secure registration for US and UK customers
+            <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
+              {checks.map(({ label, valid }) => <span key={label} className={`flex items-center gap-1.5 text-[10px] font-bold ${valid ? "text-emerald-700" : "text-gos-muted"}`}><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${valid ? "bg-emerald-100" : "bg-gos-off-white"}`}>{valid && <Check size={11} />}</span>{label}</span>)}
             </div>
+
+            <label className="mt-5 flex cursor-pointer items-start gap-3 text-xs font-semibold leading-5 text-gos-muted"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-gos-blue-deep" /><span>I agree to the GeekOnSites Terms and Privacy Policy.</span></label>
+
+            <button type="submit" disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-gos-blue-deep px-5 text-sm font-extrabold text-white transition hover:bg-gos-blue disabled:cursor-wait disabled:opacity-60">{loading ? "Creating account..." : <>Create secure account <ArrowRight size={17} /></>}</button>
+            <p className="mt-5 text-center text-xs font-semibold text-gos-muted">Already registered? <Link to="/customer-login" className="font-extrabold text-gos-blue">Log in</Link></p>
           </form>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }
 
-function InputBox({ icon: Icon, label, children }) {
-  return (
-    <div>
-      <label className="text-sm text-slate-400">{label}</label>
-      <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B1623] px-4 py-3 focus-within:border-cyan-400/50">
-        <Icon className="w-5 h-5 text-cyan-300 shrink-0" />
-        {children}
-      </div>
-    </div>
-  )
+function Field({ icon: Icon, label, children }) {
+  return <label className="block"><span className="mb-2 block text-xs font-extrabold text-gos-blue-deep">{label}</span><span className="flex min-h-12 items-center gap-3 rounded-lg border border-gos-border bg-[#f8fafb] px-3 focus-within:border-gos-turquoise"><Icon size={17} className="shrink-0 text-gos-turquoise" /><span className="min-w-0 flex-1 [&>input]:w-full [&>input]:bg-transparent [&>input]:text-sm [&>input]:font-semibold [&>input]:outline-none [&>input]:focus-visible:outline-none [&>input]:placeholder:text-gos-muted">{children}</span></span></label>
 }
 
-function Rule({ ok, text }) {
-  return (
-    <div className={ok ? "text-green-400" : "text-slate-500"}>
-      {ok ? "✓" : "○"} {text}
-    </div>
-  )
+function PasswordField({ label, value, onChange, visible, toggle }) {
+  const isConfirmation = label === "Confirm password"
+  const inputId = isConfirmation ? "gos-confirm-entry" : "gos-secure-entry"
+  const edit = (event) => {
+    const next = event.currentTarget.textContent.replace(/[\r\n]/g, "")
+    onChange({ target: { value: next } })
+  }
+  const preventOverflow = (event) => {
+    if (event.nativeEvent.inputType?.startsWith("delete")) return
+    const selection = window.getSelection()
+    const selectedLength = selection?.rangeCount ? selection.getRangeAt(0).toString().length : 0
+    const incomingLength = event.nativeEvent.data?.length || 0
+    if (value.length - selectedLength + incomingLength > 15) event.preventDefault()
+  }
+  return <div className="block"><span id={`${inputId}-label`} className="mb-2 block text-xs font-extrabold text-gos-blue-deep">{label}</span><div className="flex min-h-12 items-center gap-3 rounded-lg border border-gos-border bg-[#f8fafb] px-3 focus-within:border-gos-turquoise"><LockKeyhole size={17} className="pointer-events-none shrink-0 text-gos-turquoise" /><div id={inputId} role="textbox" aria-labelledby={`${inputId}-label`} aria-required="true" tabIndex={0} contentEditable suppressContentEditableWarning data-placeholder={label} data-masked={visible ? "false" : "true"} onBeforeInput={preventOverflow} onInput={edit} onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault() }} onPaste={(event) => { event.preventDefault(); const pasted = event.clipboardData.getData("text").replace(/[\r\n]/g, ""); const selection = window.getSelection(); const selectedLength = selection?.rangeCount ? selection.getRangeAt(0).toString().length : 0; document.execCommand("insertText", false, pasted.slice(0, Math.max(0, 15 - value.length + selectedLength))) }} spellCheck="false" className="gos-secure-editor min-w-0 flex-1 cursor-text bg-transparent text-sm font-semibold outline-none focus:outline-none focus-visible:outline-none" />{toggle && <button type="button" onClick={toggle} aria-label={visible ? "Hide password" : "Show password"} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gos-muted outline-none focus-visible:outline-none">{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button>}</div></div>
 }

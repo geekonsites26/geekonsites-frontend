@@ -1,820 +1,232 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
+import { ArrowLeft, Bell, CalendarDays, Check, ChevronRight, Circle, ClipboardList, FileText, Headphones, Home, Laptop, LogOut, MapPin, Monitor, Navigation, Phone, Plus, Printer, ReceiptText, RefreshCw, Search, ShieldCheck, User, Video, Wifi, X } from "lucide-react"
 import { getCustomerBookings } from "../services/bookingService"
-import logo from "../assets/logo.png"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
+import { useRegion } from "../utils/location"
+import MobileBottomNav from "../components/layout/MobileBottomNav"
+import DashboardReturnLink from "../components/customer/DashboardReturnLink"
+import BrandLogo from "../components/common/BrandLogo"
 
-import {
-  ArrowLeft,
-  Bell,
-  CheckCircle2,
-  Circle,
-  ClipboardList,
-  Headphones,
-  Home,
-  Laptop,
-  LogOut,
-  MapPin,
-  Phone,
-  Plus,
-  Printer,
-  Receipt,
-  Search,
-  ShieldCheck,
-  User,
-  Wifi,
-  Wrench,
-  Monitor,
-  Navigation,
-  FileText,
-} from "lucide-react"
-
-const statusLabel = {
+const STATUS_LABELS = {
   PENDING: "Pending",
-  PAYMENT_COMPLETED: "Payment Completed",
-  ASSIGNMENT_PENDING: "Assignment Pending",
-  TECHNICIAN_ASSIGNED: "Assigned",
-  TECHNICIAN_ON_THE_WAY: "On The Way",
-  SERVICE_STARTED: "Service Started",
-  REMOTE_SESSION_STARTED: "Remote Session Started",
-  SERVICE_COMPLETED: "Completed",
+  PAYMENT_COMPLETED: "Payment completed",
+  ASSIGNMENT_PENDING: "Awaiting technician",
+  TECHNICIAN_ASSIGNED: "Technician assigned",
+  TECHNICIAN_ACCEPTED: "Technician accepted",
+  TECHNICIAN_REJECTED: "Reassignment pending",
+  TECHNICIAN_ON_THE_WAY: "On the way",
+  TECHNICIAN_ARRIVED: "Technician arrived",
+  SERVICE_STARTED: "Service in progress",
+  REMOTE_SESSION_STARTED: "Remote session active",
+  SERVICE_COMPLETED: "Service completed",
+  REMAINING_PAYMENT_PENDING: "Final payment due",
+  FULLY_PAID: "Fully paid",
+  INVOICE_GENERATED: "Invoice ready",
+  BOOKING_CLOSED: "Closed",
   CANCELLED: "Cancelled",
 }
 
-const statusTabs = [
-  "All",
-  "Pending",
-  "Payment Completed",
-  "Assigned",
-  "On The Way",
-  "Completed",
-  "Cancelled",
-]
+const FILTERS = ["All", "Active", "Completed", "Cancelled"]
+const COMPLETED = new Set(["SERVICE_COMPLETED", "FULLY_PAID", "INVOICE_GENERATED", "BOOKING_CLOSED"])
 
-const getIcon = (serviceType = "") => {
-  const name = serviceType.toLowerCase()
-
-  if (name.includes("wifi") || name.includes("network") || name.includes("router")) return Wifi
-  if (name.includes("printer")) return Printer
-  if (name.includes("remote") || name.includes("virus") || name.includes("software")) return Monitor
-
+const serviceIcon = (name = "") => {
+  const value = name.toLowerCase()
+  if (value.includes("wifi") || value.includes("network") || value.includes("router")) return Wifi
+  if (value.includes("printer")) return Printer
+  if (value.includes("remote") || value.includes("software") || value.includes("virus")) return Monitor
   return Laptop
 }
 
-const getReadableStatus = (bookingStatus = "") => {
-  return statusLabel[bookingStatus] || bookingStatus || "Pending"
-}
-
-const getSchedule = (booking) => {
-  if (booking?.bookingDate && booking?.timeSlot) {
-    return `${booking.bookingDate} • ${booking.timeSlot}`
-  }
-
-  return "Schedule not selected"
-}
-
-const getLocation = (booking) => {
-  return [booking?.city, booking?.state, booking?.country]
-    .filter(Boolean)
-    .join(", ") || "Location not provided"
-}
+const statusText = (status) => STATUS_LABELS[status] || status?.replaceAll("_", " ") || "Pending"
+const scheduleText = (booking) => [booking?.bookingDate, booking?.timeSlot].filter(Boolean).join(" at ") || "Schedule pending"
+const locationText = (booking) => [booking?.city, booking?.state, booking?.country].filter(Boolean).join(", ") || "Location pending"
 
 export default function CustomerDashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const region = useRegion()
+  const { customer, logoutCustomer } = useCustomerAuth()
+  const [view, setView] = useState(() => new URLSearchParams(location.search).get("view") === "bookings" ? "Bookings" : "Home")
 
-  const [activeTab, setActiveTab] = useState("Home")
-  const [bookingFilter, setBookingFilter] = useState("All")
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("view") === "bookings") setView("Bookings")
+  }, [location.search])
+  const [filter, setFilter] = useState("All")
   const [search, setSearch] = useState("")
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
 
-  const { customer , logoutCustomer } = useCustomerAuth()
-
-const customerName = customer?.fullName || "Customer"
-const customerEmail = customer?.email || ""
-const customerPhone = customer?.phone || "Not added"
-
-  useEffect(() => {
-    const token = localStorage.getItem("gos_token")
-
-     if (!token) {
-      navigate("/customer-login")
-      return
-    }
-
-    loadBookings()
-  }, [navigate])
+  const name = customer?.fullName || customer?.name || customer?.email?.split("@")[0] || "Customer"
+  const email = customer?.email || ""
+  const phone = customer?.phone || "Not added"
 
   const loadBookings = async () => {
-  try {
     setLoading(true)
-
-    const data = await getCustomerBookings()
-
-    setBookings(Array.isArray(data) ? data : [])
-  } catch (error) {
-    console.error(error)
-
-    if (error.message?.includes("401")) {
-      logout()
-      return
+    setLoadError("")
+    try {
+      const data = await getCustomerBookings()
+      setBookings(Array.isArray(data) ? data : [])
+    } catch (error) {
+      if (String(error?.message).includes("401")) {
+        logoutCustomer()
+        navigate("/customer-login", { replace: true })
+        return
+      }
+      setLoadError(error?.message || "Bookings could not be loaded.")
+    } finally {
+      setLoading(false)
     }
-
-    setLoadError(error.message || "Failed to load customer dashboard bookings.")
-  } finally {
-    setLoading(false)
   }
-}
 
-  const filteredBookings = useMemo(() => {
-    const keyword = search.toLowerCase()
+  useEffect(() => {
+    loadBookings()
+    // Initial authenticated dashboard load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    return bookings.filter((item) => {
-      const readableStatus = getReadableStatus(item.bookingStatus)
+  const sortedBookings = useMemo(() => [...bookings].sort((a, b) => Number(b.id || 0) - Number(a.id || 0)), [bookings])
+  const activeBookings = sortedBookings.filter((booking) => !COMPLETED.has(booking.bookingStatus) && booking.bookingStatus !== "CANCELLED")
+  const currentBooking = activeBookings[0] || sortedBookings[0] || null
+  const stats = {
+    active: activeBookings.length,
+    completed: sortedBookings.filter((booking) => COMPLETED.has(booking.bookingStatus)).length,
+    total: sortedBookings.length,
+  }
 
-      const filterMatch =
-        bookingFilter === "All" || readableStatus === bookingFilter
-
-      const searchMatch =
-        String(item.id).toLowerCase().includes(keyword) ||
-        String(item.serviceType || "").toLowerCase().includes(keyword) ||
-        String(item.technicianName || "").toLowerCase().includes(keyword) ||
-        String(item.bookingStatus || "").toLowerCase().includes(keyword)
-
+  const visibleBookings = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    return sortedBookings.filter((booking) => {
+      const status = booking.bookingStatus
+      const filterMatch = filter === "All" || (filter === "Active" && !COMPLETED.has(status) && status !== "CANCELLED") || (filter === "Completed" && COMPLETED.has(status)) || (filter === "Cancelled" && status === "CANCELLED")
+      const searchMatch = !keyword || [`GOS-${booking.id}`, booking.serviceType, booking.technicianName, statusText(status)].some((value) => String(value || "").toLowerCase().includes(keyword))
       return filterMatch && searchMatch
     })
-  }, [bookings, bookingFilter, search])
-
-  const stats = useMemo(() => {
-    const completed = bookings.filter(
-      (item) => item.bookingStatus === "SERVICE_COMPLETED"
-    ).length
-
-    const cancelled = bookings.filter(
-      (item) => item.bookingStatus === "CANCELLED"
-    ).length
-
-    const active = bookings.filter(
-      (item) =>
-        item.bookingStatus !== "SERVICE_COMPLETED" &&
-        item.bookingStatus !== "CANCELLED"
-    ).length
-
-    return {
-      active,
-      completed,
-      cancelled,
-    }
-  }, [bookings])
-
-  const currentBooking = bookings[0] || null
+  }, [filter, search, sortedBookings])
 
   const logout = () => {
-  logoutCustomer()
-  navigate("/")
-}
-
-  const tabs = [
-    { title: "Home", icon: Home },
-    { title: "Bookings", icon: ClipboardList },
-    { title: "Notifications", icon: Bell },
-    { title: "Profile", icon: User },
-  ]
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#020817] pt-40 text-white">
-        <div className="mx-auto max-w-5xl rounded-[2rem] border border-white/10 bg-[#071122] p-8 text-center">
-          <p className="font-black text-cyan-300">Loading dashboard...</p>
-        </div>
-      </div>
-    )
+    logoutCustomer()
+    navigate("/", { replace: true })
   }
 
-  return (
-    <div className="min-h-screen bg-[#020817] text-white">
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-[292px] lg:flex-col lg:border-r lg:border-cyan-500/10 lg:bg-[#071122] lg:p-6">
-        <div className="border-b border-white/10 pb-6 text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-cyan-500/20 bg-cyan-500/10 text-3xl font-black text-cyan-300">
-            {customerName.charAt(0).toUpperCase()}
-          </div>
-
-          <h2 className="mt-4 font-black">{customerName}</h2>
-          <p className="mt-1 break-words text-xs text-slate-500">
-            {customerEmail}
-          </p>
-
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
-            <ShieldCheck size={13} />
-            Verified Customer
-          </div>
-        </div>
-
-        <div className="mt-7 space-y-2">
-          {tabs.map((item) => {
-            const Icon = item.icon
-            const active = activeTab === item.title
-
-            return (
-              <button
-                key={item.title}
-                onClick={() => setActiveTab(item.title)}
-                className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left transition ${
-                  active
-                    ? "border border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <Icon size={20} />
-                <span className="font-bold">{item.title}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        <button
-          onClick={logout}
-          className="mt-auto flex w-full items-center gap-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3.5 text-red-300"
-        >
-          <LogOut size={19} />
-          Logout
-        </button>
-      </aside>
-
-      <main className="lg:ml-[292px]">
-        <header className="sticky top-0 z-40 border-b border-cyan-500/10 bg-[#071122]/95 px-4 py-4 backdrop-blur-xl lg:px-7">
-          <div className="flex items-center justify-between gap-4">
-             <div className="flex items-center gap-3">
-  <img
-    src={logo}
-    alt="GeekOnSites Logo"
-    className="h-11 w-auto object-contain"
-  />
-
-  <div>
-    <button
-      onClick={() => navigate("/")}
-      className="mb-1 flex items-center gap-2 text-sm text-cyan-300"
-    >
-      <ArrowLeft size={15} />
-      Back
-    </button>
-
-    <h1 className="text-2xl font-black">{activeTab}</h1>
-  </div>
-</div>
-
-            <button
-              onClick={() => navigate("/book-service")}
-              className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-black"
-            >
-              Book
-            </button>
-          </div>
-        </header>
-
-        <div className="px-4 py-5 pb-28 lg:px-7 lg:pb-8">
-          {loadError && (
-            <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-              {loadError}
-            </div>
-          )}
-          {activeTab === "Home" && (
-            <HomeScreen
-              name={customerName}
-              currentBooking={currentBooking}
-              stats={stats}
-              onBookings={() => setActiveTab("Bookings")}
-            />
-          )}
-
-          {activeTab === "Bookings" && (
-            <BookingsScreen
-              bookings={filteredBookings}
-              filter={bookingFilter}
-              setFilter={setBookingFilter}
-              search={search}
-              setSearch={setSearch}
-              navigate={navigate}
-            />
-          )}
-
-          {activeTab === "Notifications" && (
-            <NotificationsScreen bookings={bookings} />
-          )}
-
-          {activeTab === "Profile" && (
-            <ProfileScreen
-              name={customerName}
-              email={customerEmail}
-              phone={customerPhone}
-              logout={logout}
-            />
-          )}
-        </div>
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-cyan-500/10 bg-[#071122]/95 px-2 py-2 backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-4 gap-1">
-          {tabs.map((item) => {
-            const Icon = item.icon
-            const active = activeTab === item.title
-
-            return (
-              <button
-                key={item.title}
-                onClick={() => setActiveTab(item.title)}
-                className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2.5 text-xs font-bold ${
-                  active
-                    ? "bg-cyan-500/10 text-cyan-300"
-                    : "text-slate-500"
-                }`}
-              >
-                <Icon size={20} />
-                {item.title === "Notifications" ? "Notify" : item.title}
-              </button>
-            )
-          })}
-        </div>
-      </nav>
-    </div>
-  )
-}
-
-function HomeScreen({ name, currentBooking, stats, onBookings }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm font-bold text-cyan-300">Welcome back</p>
-        <h2 className="mt-1 text-3xl font-black">{name}</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Track your service, technician and booking updates.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard value={stats.active} label="Active" />
-        <StatCard value={stats.completed} label="Completed" />
-        <StatCard value={stats.cancelled} label="Cancelled" />
-      </div>
-
-      {currentBooking ? (
-        <CurrentService booking={currentBooking} onBookings={onBookings} />
-      ) : (
-        <EmptyCurrentService />
-      )}
-
-      <div>
-        <h3 className="mb-3 text-lg font-black">Quick Actions</h3>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <QuickAction icon={Plus} title="Book Service" path="/book-service" />
-          <QuickAction icon={Headphones} title="Support" path="/contact" />
-          <QuickAction icon={Receipt} title="Invoices" path="/my-bookings" />
-          <QuickAction icon={Wrench} title="Remote Help" path="/remote-session" />
-        </div>
-      </div>
-
-      {currentBooking && (
-        <div>
-          <h3 className="mb-3 text-lg font-black">Recent Booking</h3>
-          <BookingPreview booking={currentBooking} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CurrentService({ booking, onBookings }) {
-  const Icon = getIcon(booking.serviceType)
-  const status = getReadableStatus(booking.bookingStatus)
+  const navigation = [
+    { label: "Home", icon: Home },
+    { label: "Bookings", icon: ClipboardList },
+    { label: "Updates", icon: Bell },
+    { label: "Profile", icon: User },
+  ]
 
   return (
-    <div className="overflow-hidden rounded-[2rem] border border-cyan-500/20 bg-gradient-to-br from-cyan-500/15 via-blue-500/10 to-[#071122] p-5 shadow-2xl">
-      <p className="text-sm font-bold text-cyan-300">Current Service</p>
-
-      <div className="mt-4 flex gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-cyan-500/10">
-          <Icon className="h-8 w-8 text-cyan-300" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <h3 className="text-2xl font-black">
-            {booking.serviceType || "Selected Service"}
-          </h3>
-          <p className="mt-1 text-xs font-bold text-cyan-300">
-            #GOS-{booking.id}
-          </p>
-
-          <span className="mt-3 inline-flex rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs font-black text-green-300">
-            {status}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-3xl border border-white/10 bg-black/20 p-4">
-        <p className="text-xs text-slate-500">Assigned Technician</p>
-
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div>
-            <h4 className="font-black">
-              {booking.technicianName || "Technician not assigned"}
-            </h4>
-            <p className="text-sm text-yellow-300">⭐ 4.9</p>
-          </div>
-
-          <p className="text-right text-sm text-slate-400">
-            {getSchedule(booking)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <button
-          onClick={onBookings}
-          className="rounded-2xl bg-cyan-400 py-3 text-sm font-black text-black"
-        >
-          Track Service
-        </button>
-
-        <a
-          href={booking.technicianPhone ? `tel:${booking.technicianPhone}` : undefined}
-          className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-black"
-        >
-          <Phone size={17} />
-          Call
-        </a>
-      </div>
-    </div>
-  )
-}
-
-function EmptyCurrentService() {
-  const navigate = useNavigate()
-
-  return (
-    <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-6 text-center">
-      <ClipboardList className="mx-auto h-10 w-10 text-slate-600" />
-      <h3 className="mt-4 text-xl font-black">No bookings yet</h3>
-      <p className="mt-2 text-sm text-slate-400">
-        Book your first GeekOnSites service to start tracking.
-      </p>
-      <button
-        onClick={() => navigate("/book-service")}
-        className="mt-5 rounded-2xl bg-cyan-400 px-6 py-3 font-black text-black"
-      >
-        Book Service
-      </button>
-    </div>
-  )
-}
-
-function BookingsScreen({
-  bookings,
-  filter,
-  setFilter,
-  search,
-  setSearch,
-  navigate,
-}) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-3xl font-black">My Bookings</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          View active and completed service bookings.
-        </p>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {statusTabs.map((item) => (
-          <button
-            key={item}
-            onClick={() => setFilter(item)}
-            className={`shrink-0 rounded-2xl px-4 py-3 text-xs font-black ${
-              filter === item
-                ? "bg-cyan-400 text-black"
-                : "border border-white/10 bg-white/[0.04] text-slate-400"
-            }`}
-          >
-            {item}
+    <div className="min-h-screen bg-[#edf2f5] text-gos-charcoal">
+      <header className="sticky top-0 z-40 border-b border-gos-border bg-white/95 backdrop-blur-xl" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
+          <button type="button" onClick={() => navigate("/")} className="flex min-w-0 items-center gap-2.5 text-left" aria-label="Return to GeekOnSites home">
+            <BrandLogo className="h-auto w-32 sm:w-40" />
           </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-        <Search size={18} className="text-slate-500" />
-
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search booking ID, service, technician..."
-          className="w-full bg-transparent text-sm outline-none placeholder:text-slate-500"
-        />
-      </div>
-
-      <div className="space-y-4">
-        {bookings.length ? (
-          bookings.map((booking) => (
-            <BookingCard key={booking.id} booking={booking} navigate={navigate} />
-          ))
-        ) : (
-          <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-8 text-center">
-            <ClipboardList className="mx-auto h-10 w-10 text-slate-600" />
-            <h3 className="mt-4 text-xl font-black">No bookings found</h3>
-            <p className="mt-2 text-sm text-slate-400">
-              Try another filter or book a new service.
-            </p>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => navigate("/notifications")} className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border bg-gos-off-white text-gos-blue" aria-label="View notifications"><Bell size={16} /></button>
+            <button type="button" onClick={() => navigate("/book-service")} className="flex min-h-9 items-center gap-2 rounded-md bg-gos-blue-deep px-3 text-[11px] font-extrabold text-white"><Plus size={15} /> <span className="hidden min-[380px]:inline">Book service</span><span className="min-[380px]:hidden">Book</span></button>
           </div>
-        )}
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-[1440px] lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="hidden min-h-[calc(100vh-4rem)] border-r border-gos-border bg-white px-4 py-6 lg:flex lg:flex-col">
+          <div className="flex items-center gap-3 border-b border-gos-border pb-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gos-blue-deep font-['Cormorant_Garamond'] text-xl font-bold text-white">{name.charAt(0).toUpperCase()}</span>
+            <span className="min-w-0"><strong className="block truncate text-sm font-extrabold text-gos-blue-deep">{name}</strong><span className="mt-0.5 block truncate text-[10px] font-semibold text-gos-muted">{email}</span></span>
+          </div>
+          <nav className="mt-5 space-y-1" aria-label="Customer workspace">
+            {navigation.map(({ label, icon: Icon }) => <button key={label} type="button" onClick={() => label === "Updates" ? navigate("/notifications") : setView(label)} className={`flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-xs font-extrabold transition ${view === label ? "bg-[#eaf7f5] text-gos-blue-deep" : "text-gos-muted hover:bg-gos-off-white hover:text-gos-blue"}`}><Icon size={16} className={view === label ? "text-gos-turquoise" : ""} /> {label}</button>)}
+          </nav>
+          <div className="mt-auto border-t border-gos-border pt-4">
+            <p className="mb-3 flex items-center gap-2 px-3 text-[9px] font-extrabold uppercase tracking-[0.1em] text-emerald-700"><ShieldCheck size={14} /> Active GOS account</p>
+            <button type="button" onClick={logout} className="flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-xs font-extrabold text-red-700 hover:bg-red-50"><LogOut size={16} /> Log out</button>
+          </div>
+        </aside>
+
+        <main className="relative min-w-0 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-7 lg:px-8 lg:pb-10">
+          {view !== "Home" && <DashboardReturnLink force onClick={() => { setView("Home"); navigate("/customer-dashboard", { replace: true }) }} className="-ml-2 mb-2" />}
+          {loadError && <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><span>{loadError}</span><button type="button" onClick={loadBookings} className="flex h-8 w-8 shrink-0 items-center justify-center" aria-label="Retry"><RefreshCw size={15} /></button></div>}
+          {loading ? <LoadingState /> : view === "Home" ? <HomeView name={name} stats={stats} booking={currentBooking} navigate={navigate} openBookings={() => setView("Bookings")} openProfile={() => setView("Profile")} /> : view === "Bookings" ? <BookingsView bookings={visibleBookings} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} navigate={navigate} onBack={() => setView("Home")} /> : <ProfileView name={name} email={email} phone={phone} region={region} logout={logout} navigate={navigate} onBack={() => setView("Home")} />}
+        </main>
       </div>
+
+      <MobileBottomNav />
     </div>
   )
 }
 
-function BookingCard({ booking, navigate }) {
-  const Icon = getIcon(booking.serviceType)
-  const status = getReadableStatus(booking.bookingStatus)
-
-  return (
-    <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-4 shadow-xl">
-      <div className="flex gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10">
-          <Icon className="h-7 w-7 text-cyan-300" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-black">
-                {booking.serviceType || "Selected Service"}
-              </h3>
-              <p className="mt-1 text-xs font-bold text-cyan-300">
-                #GOS-{booking.id}
-              </p>
-            </div>
-
-            <span className="h-fit rounded-full bg-green-500/10 px-3 py-1 text-[10px] font-black text-green-300">
-              {status}
-            </span>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-            <p className="text-xs text-slate-500">Technician</p>
-
-            <div className="mt-1 flex justify-between gap-3">
-              <p className="font-black">
-                {booking.technicianName || "Technician not assigned"}
-              </p>
-              <p className="text-sm text-yellow-300">⭐ 4.9</p>
-            </div>
-
-            <p className="mt-1 text-sm text-slate-400">
-              {getSchedule(booking)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <MiniTimeline booking={booking} />
-
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <button
-          onClick={() =>
-            navigate(`/track-technician/${booking.id}`, {
-              state: { booking },
-            })
-          }
-          className="flex items-center justify-center gap-1 rounded-2xl bg-cyan-400 py-3 text-xs font-black text-black"
-        >
-          <Navigation size={14} />
-          Track
-        </button>
-
-        <a
-          href={booking.technicianPhone ? `tel:${booking.technicianPhone}` : undefined}
-          className="flex items-center justify-center gap-1 rounded-2xl border border-white/10 py-3 text-xs font-black"
-        >
-          <Phone size={14} />
-          Call
-        </a>
-
-        <button
-          onClick={() =>
-            navigate("/invoice", {
-              state: { booking },
-            })
-          }
-          className="flex items-center justify-center gap-1 rounded-2xl border border-white/10 py-3 text-xs font-black"
-        >
-          <FileText size={14} />
-          Invoice
-        </button>
-      </div>
-    </div>
-  )
+function LoadingState() {
+  return <div className="mx-auto flex min-h-[65dvh] max-w-5xl items-center justify-center"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><BrandLogo className="mx-auto h-auto w-48" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold text-gos-blue-deep">Preparing your dashboard</p><p className="mt-1 text-xs font-semibold text-gos-muted">Loading bookings and account updates</p></div></div>
 }
 
-function MiniTimeline({ booking }) {
+function PageHeading({ eyebrow, title, text, onBack }) {
+  return <div><div className="flex items-center gap-1">{onBack && <button type="button" onClick={onBack} className="-ml-2 flex h-8 w-8 shrink-0 items-center justify-center text-gos-blue hover:text-gos-turquoise" aria-label="Back to dashboard"><ArrowLeft size={17} strokeWidth={1.8} /></button>}<p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-gos-turquoise">{eyebrow}</p></div><h1 className="mt-1 font-['Cormorant_Garamond'] text-3xl font-bold leading-none text-gos-blue-deep sm:text-4xl">{title}</h1>{text && <p className="mt-2 text-sm font-semibold leading-6 text-gos-muted">{text}</p>}</div>
+}
+
+function HomeView({ name, stats, booking, navigate, openBookings, openProfile }) {
+  return <div className="mx-auto max-w-6xl">
+    <div className="flex flex-wrap items-end justify-between gap-4"><PageHeading eyebrow="Customer dashboard" title={`Welcome back, ${name}.`} text="Your bookings, technician progress, and payments in one place." /><button type="button" onClick={() => navigate("/")} className="hidden items-center gap-2 text-xs font-extrabold text-gos-blue sm:flex"><ArrowLeft size={15} /> Website</button></div>
+    <div className="mt-5 grid grid-cols-3 overflow-hidden rounded-md border border-gos-border bg-white shadow-[var(--gos-shadow-sm)]"><Stat value={stats.active} label="Active" /><Stat value={stats.completed} label="Completed" /><Stat value={stats.total} label="All bookings" /></div>
+    <section className="mt-5"><SectionLabel label="Current service" action={booking ? "View all" : null} onAction={openBookings} />{booking ? <CurrentBooking booking={booking} navigate={navigate} /> : <EmptyBookings navigate={navigate} />}</section>
+    <section className="mt-6"><SectionLabel label="Quick actions" /><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><QuickAction icon={Plus} label="Book service" onClick={() => navigate("/book-service", { state: { fromCustomerDashboard: true } })} /><QuickAction icon={Headphones} label="Contact support" onClick={() => navigate("/contact", { state: { fromCustomerDashboard: true } })} /><QuickAction icon={ReceiptText} label="My invoices" onClick={openBookings} /><QuickAction icon={User} label="My profile" onClick={openProfile} /></div></section>
+  </div>
+}
+
+function Stat({ value, label }) {
+  return <div className="border-r border-gos-border px-2 py-4 text-center last:border-r-0 sm:px-5"><strong className="font-['Cormorant_Garamond'] text-3xl font-bold leading-none text-gos-blue-deep">{value}</strong><span className="mt-1 block text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-muted">{label}</span></div>
+}
+
+function SectionLabel({ label, action, onAction }) {
+  return <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-extrabold text-gos-blue-deep">{label}</h2>{action && <button type="button" onClick={onAction} className="flex items-center gap-1 text-[10px] font-extrabold text-gos-turquoise">{action}<ChevronRight size={14} /></button>}</div>
+}
+
+function CurrentBooking({ booking, navigate }) {
+  const Icon = serviceIcon(booking.serviceType)
+  const remote = Boolean(booking.remoteSessionRequired) || booking.serviceMode === "REMOTE"
+  return <article className="overflow-hidden rounded-md border border-gos-border bg-white shadow-[var(--gos-shadow-sm)]">
+    <div className="grid md:grid-cols-[1fr_0.72fr]">
+      <div className="p-4 sm:p-5"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#eaf7f5] text-gos-turquoise"><Icon size={21} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-base font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[10px] font-extrabold text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><p className="mt-4 flex items-center gap-2 text-xs font-bold text-gos-muted"><CalendarDays size={14} /> {scheduleText(booking)}</p><p className="mt-2 flex items-center gap-2 text-xs font-bold text-gos-muted"><MapPin size={14} /> {locationText(booking)}</p></div></div></div>
+      <div className="border-t border-gos-border bg-gos-off-white p-4 md:border-l md:border-t-0 sm:p-5"><p className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-gos-muted">{remote ? "Remote session" : "Assigned professional"}</p><p className="mt-2 text-sm font-extrabold text-gos-blue-deep">{remote ? (booking.remoteSessionStatus === "READY" ? "Secure meeting ready" : "Meeting preparation in progress") : (booking.technicianName || "Assignment in progress")}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => navigate(remote ? "/remote-session" : `/track-technician/${booking.id}`, { state: { booking } })} className="flex min-h-10 items-center justify-center gap-2 rounded-md bg-gos-blue-deep text-xs font-extrabold text-white">{remote ? <Video size={14} /> : <Navigation size={14} />} {remote ? "Session" : "Track"}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-10 items-center justify-center gap-2 rounded-md border border-gos-border bg-white text-xs font-extrabold text-gos-blue disabled:opacity-45"><FileText size={14} /> Invoice</button></div></div>
+    </div><Timeline booking={booking} />
+  </article>
+}
+
+function EmptyBookings({ navigate }) {
+  return <div className="rounded-md border border-dashed border-gos-border bg-white px-5 py-9 text-center"><ClipboardList size={27} className="mx-auto text-gos-turquoise" /><h3 className="mt-3 font-['Cormorant_Garamond'] text-2xl font-bold text-gos-blue-deep">No service booked yet.</h3><p className="mt-2 text-sm font-semibold text-gos-muted">Choose remote or on-site support when you are ready.</p><button type="button" onClick={() => navigate("/book-service")} className="mt-5 min-h-10 rounded-md bg-gos-blue-deep px-5 text-xs font-extrabold text-white">Book a service</button></div>
+}
+
+function QuickAction({ icon: Icon, label, onClick }) {
+  return <button type="button" onClick={onClick} className="flex min-h-20 items-center gap-3 rounded-md border border-gos-border bg-white px-3 text-left shadow-[var(--gos-shadow-sm)] transition hover:border-gos-turquoise"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gos-off-white text-gos-blue"><Icon size={17} /></span><span className="text-xs font-extrabold text-gos-blue-deep">{label}</span></button>
+}
+
+function BookingsView({ bookings, filter, setFilter, search, setSearch, navigate }) {
+  return <div className="mx-auto max-w-6xl"><PageHeading eyebrow="Service history" title="My bookings." text="Review active work, completed services, tracking, and invoices." /><div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex overflow-x-auto rounded-md border border-gos-border bg-white p-1">{FILTERS.map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`min-h-8 shrink-0 rounded px-3 text-[10px] font-extrabold ${filter === item ? "bg-gos-blue-deep text-white" : "text-gos-muted"}`}>{item}</button>)}</div><label className="flex min-h-10 items-center gap-2 rounded-md border border-gos-border bg-white px-3 sm:w-72"><Search size={15} className="shrink-0 text-gos-turquoise" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search bookings" className="min-w-0 flex-1 bg-transparent text-xs font-semibold outline-none" />{search && <button type="button" onClick={() => setSearch("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-gos-muted hover:text-gos-blue" aria-label="Clear search"><X size={15} /></button>}</label></div><div className="mt-4 space-y-3">{bookings.length ? bookings.map((booking) => <BookingRow key={booking.id} booking={booking} navigate={navigate} />) : <EmptyBookings navigate={navigate} />}</div></div>
+}
+
+function BookingRow({ booking, navigate }) {
+  const Icon = serviceIcon(booking.serviceType)
+  const remote = Boolean(booking.remoteSessionRequired) || booking.serviceMode === "REMOTE"
+  return <article className="rounded-md border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-sm)]"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gos-off-white text-gos-blue"><Icon size={19} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><div className="mt-3 grid gap-2 text-[11px] font-semibold text-gos-muted sm:grid-cols-3"><span className="flex items-center gap-1.5"><CalendarDays size={13} />{scheduleText(booking)}</span><span className="flex items-center gap-1.5"><User size={13} />{booking.technicianName || "Not assigned"}</span><span className="flex items-center gap-1.5"><MapPin size={13} />{remote ? (booking.remoteSessionStatus || "Meeting pending") : locationText(booking)}</span></div></div></div><Timeline booking={booking} compact /><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => navigate(remote ? "/remote-session" : `/track-technician/${booking.id}`, { state: { booking } })} className="flex min-h-9 items-center gap-2 rounded-md bg-gos-blue-deep px-3 text-[10px] font-extrabold text-white">{remote ? <Video size={13} /> : <Navigation size={13} />} {remote ? "Session" : "Track"}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-9 items-center gap-2 rounded-md border border-gos-border px-3 text-[10px] font-extrabold text-gos-blue disabled:opacity-45"><FileText size={13} /> Invoice</button></div></article>
+}
+
+function Status({ status }) {
+  const cancelled = status === "CANCELLED"
+  const done = COMPLETED.has(status)
+  return <span className={`inline-flex min-h-6 items-center rounded-full px-2.5 text-[9px] font-extrabold ${cancelled ? "bg-red-50 text-red-700" : done ? "bg-emerald-50 text-emerald-700" : "bg-[#eaf7f5] text-gos-blue"}`}>{statusText(status)}</span>
+}
+
+function Timeline({ booking, compact = false }) {
   const status = booking.bookingStatus
-
-  const steps = [
-    {
-      label: "Booked",
-      active: true,
-    },
-    {
-      label: "Paid",
-      active: ["PAID", "PARTIALLY_PAID"].includes(booking.paymentStatus),
-    },
-    {
-      label: "Assigned",
-      active: [
-        "TECHNICIAN_ASSIGNED",
-        "TECHNICIAN_ON_THE_WAY",
-        "SERVICE_STARTED",
-        "SERVICE_COMPLETED",
-      ].includes(status),
-    },
-    {
-      label: "On Way",
-      active: [
-        "TECHNICIAN_ON_THE_WAY",
-        "SERVICE_STARTED",
-        "SERVICE_COMPLETED",
-      ].includes(status),
-    },
-    {
-      label: "Done",
-      active: status === "SERVICE_COMPLETED",
-    },
-  ]
-
-  return (
-    <div className="mt-5 grid grid-cols-5 gap-1">
-      {steps.map((step) => (
-        <div key={step.label} className="text-center">
-          {step.active ? (
-            <CheckCircle2 className="mx-auto h-4 w-4 text-cyan-300" />
-          ) : (
-            <Circle className="mx-auto h-4 w-4 text-slate-600" />
-          )}
-
-          <p className="mt-1 text-[10px] text-slate-500">{step.label}</p>
-        </div>
-      ))}
-    </div>
-  )
+  const assigned = ["TECHNICIAN_ASSIGNED", "TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...COMPLETED].includes(status)
+  const started = ["SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...COMPLETED].includes(status)
+  const steps = [{ label: "Booked", active: true }, { label: "Paid", active: booking.paymentStatus !== "PENDING" || status !== "PENDING" }, { label: "Assigned", active: assigned }, { label: "Started", active: started }, { label: "Complete", active: COMPLETED.has(status) }]
+  return <div className={`border-t border-gos-border ${compact ? "mt-3 pt-3" : "px-4 py-3 sm:px-5"}`}><div className="grid grid-cols-5">{steps.map(({ label, active }, index) => <div key={label} className="relative text-center"><span className={`relative z-10 mx-auto flex h-5 w-5 items-center justify-center rounded-full border ${active ? "border-gos-turquoise bg-gos-turquoise text-white" : "border-gos-border bg-white text-gos-border"}`}>{active ? <Check size={11} /> : <Circle size={8} />}</span>{index < steps.length - 1 && <span className={`absolute left-1/2 top-2.5 h-px w-full ${steps[index + 1].active ? "bg-gos-turquoise" : "bg-gos-border"}`} />}<span className="mt-1.5 block text-[8px] font-bold text-gos-muted">{label}</span></div>)}</div></div>
 }
 
-function BookingPreview({ booking }) {
-  const status = getReadableStatus(booking.bookingStatus)
-
-  return (
-    <div className="rounded-3xl border border-white/10 bg-[#071122] p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="font-black">
-            {booking.serviceType || "Selected Service"}
-          </h4>
-          <p className="mt-1 text-xs text-cyan-300">#GOS-{booking.id}</p>
-        </div>
-
-        <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-black text-green-300">
-          {status}
-        </span>
-      </div>
-
-      <p className="mt-3 text-sm text-slate-400">
-        {booking.technicianName || "Technician not assigned"} •{" "}
-        {getSchedule(booking)}
-      </p>
-    </div>
-  )
-}
-
-function NotificationsScreen({ bookings }) {
-  const recentBookings = bookings.slice(0, 3)
-
-  if (!recentBookings.length) {
-    return (
-      <div className="space-y-5">
-        <div>
-          <h2 className="text-3xl font-black">Notifications</h2>
-          <p className="mt-1 text-sm text-slate-400">Latest service updates.</p>
-        </div>
-
-        <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-8 text-center">
-          <Bell className="mx-auto h-10 w-10 text-slate-600" />
-          <h3 className="mt-4 text-xl font-black">No notifications yet</h3>
-          <p className="mt-2 text-sm text-slate-400">
-            Booking updates will appear here.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-3xl font-black">Notifications</h2>
-        <p className="mt-1 text-sm text-slate-400">Latest service updates.</p>
-      </div>
-
-      {recentBookings.map((booking) => (
-        <div
-          key={booking.id}
-          className="rounded-[2rem] border border-white/10 bg-[#071122] p-4"
-        >
-          <Bell className="h-6 w-6 text-cyan-300" />
-          <h3 className="mt-3 font-black">
-            {getReadableStatus(booking.bookingStatus)}
-          </h3>
-          <p className="mt-1 text-sm text-slate-400">
-            {booking.serviceType} booking #GOS-{booking.id} was updated.
-          </p>
-          <p className="mt-2 text-xs text-slate-500">
-            {booking.updatedAt || booking.createdAt || "Recently"}
-          </p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ProfileScreen({ name, email, phone, logout }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-3xl font-black">Profile</h2>
-        <p className="mt-1 text-sm text-slate-400">Your account details.</p>
-      </div>
-
-      <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-5">
-        <div className="flex items-center gap-4">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-cyan-400 text-3xl font-black text-black">
-            {name.charAt(0).toUpperCase()}
-          </div>
-
-          <div className="min-w-0">
-            <h3 className="text-2xl font-black">{name}</h3>
-            <p className="break-words text-sm text-slate-400">{email}</p>
-            <p className="mt-1 text-sm font-bold text-cyan-300">
-              Verified Customer
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <InfoCard icon={Phone} label="Phone" value={phone} />
-      <InfoCard
-        icon={MapPin}
-        label="Service Region"
-        value={localStorage.getItem("gos_location") || "US"}
-      />
-      <InfoCard icon={ShieldCheck} label="Account Status" value="Active" />
-
-      <button
-        onClick={logout}
-        className="w-full rounded-2xl border border-red-500/20 bg-red-500/10 py-3 font-black text-red-300"
-      >
-        Logout
-      </button>
-    </div>
-  )
-}
-
-function QuickAction({ icon: Icon, title, path }) {
-  const navigate = useNavigate()
-
-  return (
-    <button
-      onClick={() => navigate(path)}
-      className="rounded-3xl border border-white/10 bg-[#071122] p-4 text-left"
-    >
-      <Icon className="h-6 w-6 text-cyan-300" />
-      <p className="mt-4 font-black">{title}</p>
-    </button>
-  )
-}
-
-function InfoCard({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-[#071122] p-5">
-      <Icon className="h-5 w-5 text-cyan-300" />
-      <p className="mt-3 text-xs text-slate-500">{label}</p>
-      <p className="mt-1 font-black">{value}</p>
-    </div>
-  )
-}
-
-function StatCard({ value, label }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-[#071122] p-4 text-center">
-      <h3 className="text-2xl font-black">{value}</h3>
-      <p className="mt-1 text-xs text-slate-500">{label}</p>
-    </div>
-  )
+function ProfileView({ name, email, phone, region, logout, navigate }) {
+  const details = [[Phone, "Phone", phone], [MapPin, "Service region", region.country], [ShieldCheck, "Account status", "Active and verified"]]
+  return <div className="mx-auto max-w-4xl"><PageHeading eyebrow="Customer account" title="Your profile." text="Review the account details used for bookings and service updates." /><section className="mt-5 overflow-hidden rounded-md border border-gos-border bg-white shadow-[var(--gos-shadow-sm)]"><div className="flex items-center gap-4 bg-gos-blue-deep p-5 text-white"><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white font-['Cormorant_Garamond'] text-2xl font-bold text-gos-blue-deep">{name.charAt(0).toUpperCase()}</span><div className="min-w-0"><h2 className="truncate font-['Cormorant_Garamond'] text-2xl font-bold">{name}</h2><p className="truncate text-xs font-semibold text-white/65">{email}</p></div></div><div className="grid sm:grid-cols-3">{details.map(([Icon, label, value]) => <div key={label} className="border-b border-gos-border p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><Icon size={16} className="text-gos-turquoise" /><p className="mt-3 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-muted">{label}</p><p className="mt-1 text-xs font-extrabold text-gos-blue-deep">{value}</p></div>)}</div></section><div className="mt-4 flex flex-col gap-2 sm:flex-row"><button type="button" onClick={() => navigate("/profile")} className="min-h-11 flex-1 rounded-md bg-gos-blue-deep text-xs font-extrabold text-white">Open profile settings</button><button type="button" onClick={logout} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-red-200 bg-white text-xs font-extrabold text-red-700"><LogOut size={15} /> Log out</button></div></div>
 }

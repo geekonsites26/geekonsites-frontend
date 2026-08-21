@@ -1,274 +1,149 @@
 import { motion } from "framer-motion"
-import {
-  Globe2,
-  Laptop,
-  Printer,
-  Camera,
-  Wifi,
-  Building2,
-  MapPin,
-} from "lucide-react"
+import { ArrowRight, BadgeCheck, Building2, Camera, Globe2, Headphones, Laptop, MapPin, Printer, ShieldCheck, Wifi } from "lucide-react"
+import SEO from "../components/common/SEO"
+import Container from "../components/layout/Container"
+import Section from "../components/layout/Section"
+import Button from "../components/ui/Button"
+import { fadeUp, staggerContainer, staggerItem, viewportOnce } from "../styles/motion"
+import { useRegion } from "../utils/location"
 
-const services = [
-  { title: "Laptop Repair", icon: Laptop, angle: 0 },
-  { title: "Printer Setup", icon: Printer, angle: 72 },
-  { title: "CCTV", icon: Camera, angle: 144 },
-  { title: "WiFi", icon: Wifi, angle: 216 },
-  { title: "Business IT", icon: Building2, angle: 288 },
+const capabilities = [
+  { title: "Remote support", icon: Headphones },
+  { title: "Laptop repair", icon: Laptop },
+  { title: "Printer setup", icon: Printer },
+  { title: "Wi-Fi support", icon: Wifi },
+  { title: "CCTV installation", icon: Camera },
+  { title: "Business IT", icon: Building2 },
+]
+
+const principles = [
+  { number: "01", title: "Clear from the start", text: "Customers see the service path, booking details, and next steps without unnecessary technical language." },
+  { number: "02", title: "Professional by design", text: "GOS connects each request with reviewed professionals and keeps important service information in one place." },
+  { number: "03", title: "Built around real needs", text: "Remote and on-site options make support practical for homes, individuals, and growing businesses." },
 ]
 
 export default function About() {
+  const region = useRegion()
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#070B12] pt-28 text-white md:pt-36">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(14,165,233,0.14),transparent_35%),linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100%_100%,56px_56px,56px_56px]" />
+    <main className="min-h-screen overflow-hidden bg-white pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-gos-charcoal lg:pb-0">
+      <SEO title="About GeekOnSites | Professional Technology Support" description="Learn how GeekOnSites connects homes and businesses across the US and UK with professional remote and on-site technology support." />
 
-      <div className="relative mx-auto max-w-7xl px-5 pb-24 sm:px-6">
-        <div className="mb-10 mt-5 text-center">
-          <p className="text-sm font-black tracking-[0.28em] text-cyan-400 md:text-lg">
-            ABOUT GOS
-          </p>
-
-          <h1 className="mt-4 text-2xl font-black leading-tight sm:text-4xl">
-            <TypewriterLoop />
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-400 md:text-base">
-            GeekOnSites connects customers with verified remote and onsite
-            technology experts across the United States and United Kingdom.
-          </p>
-        </div>
-
-        {/* MOBILE UI */}
-        <section className="md:hidden">
-          <div className="mx-auto max-w-sm rounded-[2rem] border border-cyan-500/20 bg-[#0A1020]/80 p-5 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
-            <motion.div
-              animate={{
-                y: [0, -8, 0],
-                boxShadow: [
-                  "0 0 30px rgba(14,165,233,0.25)",
-                  "0 0 70px rgba(14,165,233,0.45)",
-                  "0 0 30px rgba(14,165,233,0.25)",
-                ],
-              }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="mx-auto flex h-40 w-40 flex-col items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10"
-            >
-              <motion.div
-                animate={{ rotateY: [0, 360] }}
-                transition={{
-                  duration: 8,
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
-              >
-                <Globe2 size={70} className="text-cyan-300" />
-              </motion.div>
-
-              <h2 className="mt-3 bg-gradient-to-r from-[#D4AF37] to-[#F7E7A1] bg-clip-text text-2xl font-black text-transparent">
-                GOS
-              </h2>
+      <section className="border-b border-gos-border bg-gos-off-white pt-[calc(5.25rem+env(safe-area-inset-top))] sm:pt-[calc(6rem+env(safe-area-inset-top))]">
+        <Container className="grid gap-8 pb-10 sm:pb-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-16">
+          <motion.div variants={staggerContainer} initial="hidden" animate="visible">
+            <motion.p variants={staggerItem} className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-gold">A service by ASI TECH INC</motion.p>
+            <motion.h1 variants={fadeUp} className="mt-3 max-w-2xl font-['Cormorant_Garamond'] text-[3rem] font-bold leading-[0.9] text-gos-blue-deep sm:text-[clamp(3.6rem,6vw,5.8rem)]">
+              Technology support, made human.
+            </motion.h1>
+            <motion.p variants={staggerItem} className="mt-5 max-w-xl text-base font-semibold leading-7 text-gos-charcoal sm:text-lg sm:leading-8">
+              GeekOnSites connects customers with dependable remote and on-site support for the devices, networks, and systems they use every day.
+            </motion.p>
+            <motion.div variants={staggerItem} className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Button to="/book-service" className="group w-full sm:w-auto">Book a Service <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" /></Button>
+              <Button to="/services" variant="outline" className="w-full sm:w-auto">Explore Services</Button>
             </motion.div>
+          </motion.div>
 
-            <p className="mt-6 text-center text-xs font-bold tracking-[0.18em] text-slate-500">
-              US / UK SERVICE NETWORK
-            </p>
+          <motion.figure initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7 }} className="overflow-hidden rounded-lg border border-gos-border bg-white p-2 shadow-[var(--gos-shadow-sm)]">
+            <img src="/images/support/onsite-support.webp" alt="Professional GOS on-site technology support" className="aspect-[4/3] w-full rounded-md object-cover object-center sm:aspect-[16/10]" />
+            <figcaption className="flex items-center justify-between gap-4 px-2 py-3 sm:px-3">
+              <span className="text-xs font-extrabold text-gos-blue-deep">Professional support for home and business</span>
+              <span className="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.12em] text-gos-turquoise">{region.code}</span>
+            </figcaption>
+          </motion.figure>
+        </Container>
+      </section>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              {services.map((service) => {
-                const Icon = service.icon
-
-                return (
-                  <motion.div
-                    key={service.title}
-                    whileTap={{ scale: 0.97 }}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">
-                      <Icon size={18} className="text-cyan-300" />
-                    </div>
-
-                    <p className="mt-3 text-sm font-bold text-slate-200">
-                      {service.title}
-                    </p>
-                  </motion.div>
-                )
-              })}
+      <section className="border-b border-gos-border bg-white">
+        <Container className="grid grid-cols-3">
+          {[[Globe2, "2", "Service regions"], [BadgeCheck, "Verified", "Professional network"], [Headphones, "2 modes", "Remote and on-site"]].map(([Icon, value, label], index) => (
+            <div key={label} className={`flex min-h-24 flex-col items-center justify-center px-2 py-4 text-center sm:min-h-28 ${index ? "border-l border-gos-border" : ""}`}>
+              <Icon size={18} className="text-gos-turquoise" />
+              <strong className="mt-2 text-sm font-extrabold text-gos-blue-deep sm:text-lg">{value}</strong>
+              <span className="mt-0.5 text-[9px] font-bold uppercase leading-4 tracking-[0.05em] text-gos-muted sm:text-[10px]">{label}</span>
             </div>
+          ))}
+        </Container>
+      </section>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-center">
-                <p className="text-2xl">🇺🇸</p>
-                <p className="mt-1 text-sm font-black text-cyan-300">USA</p>
-                <p className="mt-1 text-xs text-slate-500">Available</p>
-              </div>
-
-              <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-center">
-                <p className="text-2xl">🇬🇧</p>
-                <p className="mt-1 text-sm font-black text-[#F7E7A1]">UK</p>
-                <p className="mt-1 text-xs text-slate-500">Available</p>
-              </div>
-            </div>
+      <Section className="bg-white py-9 sm:py-12 lg:py-16">
+        <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={viewportOnce} className="grid gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-14">
+          <motion.div variants={staggerItem} className="overflow-hidden rounded-lg border border-gos-border bg-gos-off-white p-2">
+            <img src="/images/support/remote-support.webp" alt="GOS remote support experience" className="aspect-[16/10] w-full rounded-md object-cover" loading="lazy" decoding="async" />
+          </motion.div>
+          <div>
+            <motion.p variants={staggerItem} className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-turquoise">Why GOS exists</motion.p>
+            <motion.h2 variants={staggerItem} className="mt-2 font-['Cormorant_Garamond'] text-[2.55rem] font-bold leading-[0.94] text-gos-blue-deep sm:text-5xl">One clear connection to capable support.</motion.h2>
+            <motion.p variants={staggerItem} className="mt-4 text-base font-semibold leading-7 text-gos-charcoal">Technology problems interrupt work, communication, and daily life. GOS creates a simpler route from the first request to professional assistance, whether the right solution is remote or at the customer’s location.</motion.p>
+            <motion.div variants={staggerItem} className="mt-5 flex items-center gap-3 border-y border-gos-border py-3">
+              <ShieldCheck size={21} className="shrink-0 text-gos-turquoise" />
+              <p className="text-sm font-extrabold text-gos-blue-deep">Clear booking, useful updates, and accountable service.</p>
+            </motion.div>
           </div>
-        </section>
+        </motion.div>
+      </Section>
 
-        {/* DESKTOP UI */}
-        <section className="relative mx-auto hidden min-h-[680px] max-w-5xl items-center justify-center md:flex">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-            className="absolute h-[620px] w-[620px] rounded-full border border-cyan-400/20"
-          />
+      <Section className="border-y border-gos-border bg-gos-off-white py-9 sm:py-12 lg:py-16">
+        <div className="max-w-3xl">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-gold">Our standard</p>
+          <h2 className="mt-2 font-['Cormorant_Garamond'] text-[2.55rem] font-bold leading-[0.94] text-gos-blue-deep sm:text-5xl">A better service experience at every step.</h2>
+        </div>
+        <div className="mt-7 grid border-y border-gos-border md:grid-cols-3">
+          {principles.map(({ number, title, text }, index) => (
+            <div key={number} className={`py-5 md:px-6 ${index ? "border-t border-gos-border md:border-l md:border-t-0" : ""} ${index === 0 ? "md:pl-0" : ""}`}>
+              <span className="text-[10px] font-extrabold tracking-[0.14em] text-gos-turquoise">{number}</span>
+              <h3 className="mt-2 font-['Cormorant_Garamond'] text-2xl font-bold text-gos-blue-deep">{title}</h3>
+              <p className="mt-2 text-sm font-semibold leading-6 text-gos-charcoal">{text}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
 
-          <motion.div
-            animate={{ rotate: -360 }}
-            transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
-            className="absolute h-[500px] w-[500px] rounded-full border border-[#D4AF37]/20"
-          />
+      <Section className="bg-white py-9 sm:py-12 lg:py-16">
+        <div className="grid gap-7 lg:grid-cols-[0.75fr_1.25fr] lg:items-end lg:gap-14">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-turquoise">What we support</p>
+            <h2 className="mt-2 font-['Cormorant_Garamond'] text-[2.55rem] font-bold leading-[0.94] text-gos-blue-deep sm:text-5xl">Practical help across essential technology.</h2>
+          </div>
+          <div className="grid grid-cols-2 border-y border-gos-border sm:grid-cols-3">
+            {capabilities.map(({ title, icon: Icon }, index) => (
+              <div key={title} className={`flex min-h-24 items-center gap-3 px-3 py-4 ${index % 2 ? "border-l border-gos-border" : ""} ${index > 1 ? "border-t border-gos-border" : ""} sm:border-l sm:[&:nth-child(3n+1)]:border-l-0 sm:[&:nth-child(3)]:border-t-0`}>
+                <Icon size={19} className="shrink-0 text-gos-turquoise" />
+                <span className="text-sm font-extrabold leading-5 text-gos-blue-deep">{title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
 
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 42, repeat: Infinity, ease: "linear" }}
-            className="absolute h-[620px] w-[620px]"
-          >
-            {services.map((service) => {
-              const Icon = service.icon
-              const radius = 310
-              const x = Math.cos((service.angle * Math.PI) / 180) * radius
-              const y = Math.sin((service.angle * Math.PI) / 180) * radius
+      <Section className="bg-gos-blue-deep py-9 text-white sm:py-12 lg:py-14">
+        <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-gold">Service coverage</p>
+            <h2 className="mt-2 font-['Cormorant_Garamond'] text-[2.5rem] font-bold leading-none text-white sm:text-5xl">Support across the {region.country}.</h2>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/75 sm:text-base">Service availability depends on location and support type. Booking confirms the options available for each request.</p>
+          </div>
+          <div className="border-y border-white/20 lg:min-w-80">
+            {[region.country].map((regionName) => (
+              <div key={regionName} className="flex min-h-24 flex-col items-center justify-center px-4 text-center">
+                <MapPin size={19} className="text-gos-turquoise" />
+                <span className="mt-2 text-sm font-extrabold text-white">{regionName}</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/55">Available</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
 
-              return (
-                <motion.div
-                  key={service.title}
-                  style={{
-                    left: `calc(50% + ${x}px)`,
-                    top: `calc(50% + ${y}px)`,
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                >
-                  <motion.div
-                    animate={{ rotate: -360 }}
-                    transition={{
-                      duration: 42,
-                      repeat: Infinity,
-                      ease: "linear",
-                    }}
-                    className="flex min-w-[155px] items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-xl"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15">
-                      <Icon size={19} className="text-cyan-300" />
-                    </div>
-
-                    <span className="text-sm font-medium text-gray-200">
-                      {service.title}
-                    </span>
-                  </motion.div>
-                </motion.div>
-              )
-            })}
-          </motion.div>
-
-          <motion.div
-            animate={{ scale: [1, 1.15, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="absolute left-[40%] top-[40%] z-40"
-          >
-            <MapPin
-              size={18}
-              className="text-cyan-300 drop-shadow-[0_0_10px_#22d3ee]"
-            />
-            <p className="mt-2 text-xs font-medium text-cyan-300">🇺🇸 US</p>
-          </motion.div>
-
-          <motion.div
-            animate={{ scale: [1, 1.15, 1] }}
-            transition={{ duration: 2.4, repeat: Infinity }}
-            className="absolute right-[40%] top-[34%] z-40"
-          >
-            <MapPin
-              size={18}
-              className="text-[#F7E7A1] drop-shadow-[0_0_10px_#F7E7A1]"
-            />
-            <p className="mt-2 text-xs font-medium text-[#F7E7A1]">🇬🇧 UK</p>
-          </motion.div>
-
-          <motion.div
-            animate={{
-              y: [0, -14, 0],
-              boxShadow: [
-                "0 0 40px rgba(14,165,233,0.25)",
-                "0 0 110px rgba(14,165,233,0.5)",
-                "0 0 40px rgba(14,165,233,0.25)",
-              ],
-            }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="relative z-20 flex h-[340px] w-[340px] flex-col items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10 backdrop-blur-xl"
-          >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-8 rounded-full border border-white/10"
-            />
-
-            <motion.div
-              animate={{ rotate: -360 }}
-              transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-16 rounded-full border border-[#D4AF37]/20"
-            />
-
-            <motion.div
-              animate={{ rotateY: [0, 360] }}
-              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-            >
-              <Globe2 size={120} className="text-cyan-300" />
-            </motion.div>
-
-            <h2 className="mt-5 bg-gradient-to-r from-[#D4AF37] to-[#F7E7A1] bg-clip-text text-4xl font-bold text-transparent">
-              GOS
-            </h2>
-
-            <p className="mt-2 text-xs tracking-[0.25em] text-gray-400">
-              SERVICE NETWORK
-            </p>
-          </motion.div>
-        </section>
-      </div>
+      <Section className="bg-white py-9 sm:py-12 lg:py-16">
+        <div className="flex flex-col gap-6 border-y border-gos-border py-7 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-gos-gold">Ready when you are</p>
+            <h2 className="mt-2 font-['Cormorant_Garamond'] text-[2.4rem] font-bold leading-none text-gos-blue-deep sm:text-5xl">Start with the support you need.</h2>
+          </div>
+          <Button to="/book-service" className="group w-full lg:w-auto">Book a Service <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" /></Button>
+        </div>
+      </Section>
     </main>
-  )
-}
-
-function TypewriterLoop() {
-  const text = "Service network for US & UK"
-
-  return (
-    <div className="flex items-center justify-center overflow-hidden">
-      {text.split("").map((char, index) => (
-        <motion.span
-          key={index}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 1, 1, 0] }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            times: [0, (index + 1) / text.length, 0.82, 1],
-            ease: "linear",
-          }}
-          className="inline-block bg-gradient-to-r from-white via-cyan-200 to-[#F7E7A1] bg-clip-text text-transparent"
-        >
-          {char === " " ? "\u00A0" : char}
-        </motion.span>
-      ))}
-
-      <motion.span
-        animate={{ opacity: [1, 0, 1] }}
-        transition={{ duration: 0.7, repeat: Infinity }}
-        className="ml-1 text-cyan-300"
-      >
-        |
-      </motion.span>
-    </div>
   )
 }

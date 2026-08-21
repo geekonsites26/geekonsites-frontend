@@ -1,8 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { loginUser, registerUser } from "../services/authService"
 import { clearAuth, getToken, getUser, setToken, setUser } from "../services/api"
+import { getLocation, setLocation } from "../utils/location"
+import { unregisterPushDevice } from "../services/notificationService"
 
 const CustomerAuthContext = createContext(null)
+
+const getDisplayName = (source = {}) => {
+  const user = source.user || source.customer || source
+  return user.fullName || user.name || user.username || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email?.split("@")[0] || ""
+}
 
 export function CustomerAuthProvider({ children }) {
   const [customer, setCustomer] = useState(null)
@@ -28,6 +35,7 @@ export function CustomerAuthProvider({ children }) {
         email: data.email,
         password: data.password,
         phone: data.phone,
+        country: data.country || getLocation().code,
         role: "CUSTOMER",
       }
 
@@ -74,18 +82,11 @@ export function CustomerAuthProvider({ children }) {
 
       const userData = {
         id: result?.id || result?.userId || result?.user?.id,
-        fullName:
-          result?.fullName ||
-          result?.name ||
-          result?.user?.fullName ||
-          result?.user?.name,
-        name:
-          result?.fullName ||
-          result?.name ||
-          result?.user?.fullName ||
-          result?.user?.name,
+        fullName: getDisplayName(result),
+        name: getDisplayName(result),
         email: result?.email || result?.user?.email,
         phone: result?.phone || result?.user?.phone,
+        country: result?.country || result?.user?.country || getLocation().code,
         role: userRole,
       }
 
@@ -102,6 +103,7 @@ export function CustomerAuthProvider({ children }) {
 
       localStorage.setItem("gos_user_id", userData.id)
       localStorage.setItem("gos_role", userRole)
+      setLocation(userData.country)
 
       setAuthToken(jwtToken)
       setCustomer(userData)
@@ -123,6 +125,11 @@ export function CustomerAuthProvider({ children }) {
   }
 
   const logoutCustomer = () => {
+    const pushToken = localStorage.getItem("gos_push_token")
+    if (pushToken) {
+      unregisterPushDevice(pushToken).catch(() => undefined)
+      localStorage.removeItem("gos_push_token")
+    }
     clearAuth()
 
     localStorage.removeItem("gos_user_id")
@@ -135,6 +142,15 @@ export function CustomerAuthProvider({ children }) {
     setAuthToken(null)
   }
 
+  const updateCustomerProfile = (updates) => {
+    setCustomer((current) => {
+      if (!current) return current
+      const updated = { ...current, ...updates }
+      setUser(updated)
+      return updated
+    })
+  }
+
   const value = useMemo(
     () => ({
       customer,
@@ -145,6 +161,7 @@ export function CustomerAuthProvider({ children }) {
       registerCustomer,
       loginCustomer,
       logoutCustomer,
+      updateCustomerProfile,
     }),
     [customer, token, authReady]
   )

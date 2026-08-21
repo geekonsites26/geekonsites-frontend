@@ -7,11 +7,18 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "validate:home": "node scripts/validate-home-responsive.mjs",
+    "preview": "vite preview",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "@react-google-maps/api": "^2.20.8",
-    "@stomp/stompjs": "^7.3.0",
     "axios": "^1.17.0",
     "framer-motion": "^12.39.0",
     "html2canvas": "^1.4.1",
@@ -23,7 +30,6 @@
     "react-icons": "^5.7.0",
     "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1",
-    "sockjs-client": "^1.6.1",
     "tailwindcss": "^4.3.0"
   },
   "devDependencies": {

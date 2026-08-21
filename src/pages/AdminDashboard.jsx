@@ -2,19 +2,25 @@ import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { getAllAgents, createAgent } from "../services/agentService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
+import BrandLogo from "../components/common/BrandLogo"
 import {
   getAdminDashboardStats,
   getAdminNotifications,
+  getAdminRemoteSessions,
+  provisionAdminRemoteSession,
+  getAdminCustomers,
 } from "../services/adminService"
 import {
   getAllTechnicians,
   approveTechnician,
   rejectTechnician,
+  openTechnicianVerificationEvidence,
 } from "../services/technicianService"
 import {
   getAllBookings,
   assignTechnicianToBooking,
 } from "../services/bookingService"
+import { deleteContactMessage, getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
 import {
   Activity,
   BarChart3,
@@ -35,8 +41,14 @@ import {
   Users,
   Wrench,
   X,
-  XCircle,
   PlusCircle,
+  Inbox,
+  Mail,
+  MessageSquare,
+  Trash2,
+  Video,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react"
 
 const statusLabel = {
@@ -59,6 +71,14 @@ const money = (currency, amount) => {
 const locationText = (item) =>
   [item.city, item.state, item.country].filter(Boolean).join(", ") || "N/A"
 
+const technicianSupportsBooking = (technician, booking) => {
+  const technicianMode = technician.serviceMode || "REMOTE_AND_ONSITE"
+  const bookingMode = booking.serviceMode || (booking.remoteSessionRequired ? "REMOTE" : "ONSITE")
+  if (bookingMode === "REMOTE") return technicianMode !== "ONSITE_ONLY"
+  if (bookingMode === "ONSITE") return technicianMode !== "REMOTE_ONLY"
+  return technicianMode === "REMOTE_AND_ONSITE"
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const { logoutCustomer } = useCustomerAuth()
@@ -70,7 +90,11 @@ export default function AdminDashboard() {
   const [technicians, setTechnicians] = useState([])
   const [selectedTechByBooking, setSelectedTechByBooking] = useState({})
   const [agents, setAgents] = useState([])
+  const [registeredCustomers, setRegisteredCustomers] = useState([])
   const [notifications, setNotifications] = useState([])
+  const [contactMessages, setContactMessages] = useState([])
+  const [remoteSessions, setRemoteSessions] = useState([])
+  const [selectedMessage, setSelectedMessage] = useState(null)
  const [dashboardStats, setDashboardStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -108,12 +132,18 @@ export default function AdminDashboard() {
   agentData,
   statsData,
   notificationData,
+  contactData,
+  remoteSessionData,
+  customerData,
 ] = await Promise.all([
   getAllBookings(),
   getAllTechnicians(),
   getAllAgents(),
   getAdminDashboardStats(),
   getAdminNotifications(),
+  getAllContactMessages(),
+  getAdminRemoteSessions(),
+  getAdminCustomers(),
 ])
 
       setBookings(Array.isArray(bookingData) ? bookingData : [])
@@ -126,6 +156,9 @@ setNotifications(
     ? notificationData
     : []
 )
+      setContactMessages(Array.isArray(contactData) ? contactData : [])
+      setRemoteSessions(Array.isArray(remoteSessionData) ? remoteSessionData : [])
+      setRegisteredCustomers(Array.isArray(customerData) ? customerData : [])
 
     } catch (error) {
       console.error(error)
@@ -269,8 +302,10 @@ setNotifications(
     { title: "Agents", icon: Users },
     { title: "Customers", icon: UserCheck },
     { title: "Payments", icon: CreditCard },
+    { title: "Remote Sessions", icon: Video },
     { title: "Reports", icon: BarChart3 },
     { title: "Notifications", icon: Bell },
+    { title: "Support", icon: Inbox },
     { title: "Audit Logs", icon: FileText },
     { title: "Settings", icon: Settings },
   ]
@@ -280,12 +315,12 @@ setNotifications(
     { title: "Bookings", icon: CalendarCheck },
     { title: "Technicians", icon: Wrench },
     { title: "Agents", icon: Users },
-    { title: "Payments", icon: CreditCard },
+    { title: "Support", icon: Inbox },
   ]
 
   const q = search.toLowerCase().trim()
 
-  const customers = useMemo(() => {
+  const bookingCustomers = useMemo(() => {
     const map = new Map()
 
     bookings.forEach((booking) => {
@@ -312,6 +347,11 @@ setNotifications(
 
     return Array.from(map.values())
   }, [bookings])
+
+  const customers = useMemo(() => registeredCustomers.map((customer) => {
+    const activity = bookingCustomers.find((entry) => String(entry.id) === String(customer.id))
+    return { ...customer, name: customer.fullName, bookings: activity?.bookings || 0, spent: activity?.spent || 0, currency: activity?.currency || (customer.country === "UK" ? "GBP" : "USD"), city: activity?.city || "" }
+  }), [registeredCustomers, bookingCustomers])
 
   const filteredTechnicians = useMemo(() => {
     return technicians.filter((tech) => {
@@ -382,6 +422,8 @@ setNotifications(
       (sum, booking) => sum + Number(booking.paidAmount || 0),
       0
     )
+    const usRevenue = bookings.filter((booking) => booking.country === "US" || booking.currency === "USD").reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
+    const ukRevenue = bookings.filter((booking) => booking.country === "UK" || booking.currency === "GBP").reduce((sum, booking) => sum + Number(booking.paidAmount || 0), 0)
 
   return {
   customers: dashboardStats?.totalCustomers ?? customers.length,
@@ -422,6 +464,8 @@ setNotifications(
 
   revenue:
     dashboardStats?.totalRevenue ?? revenue,
+  usRevenue,
+  ukRevenue,
 }
   }, [dashboardStats, bookings, technicians, agents, customers])
 
@@ -473,15 +517,8 @@ setNotifications(
               label="Pending Bookings"
               value={metrics.pendingBookings}
             />
-            <OverviewTile
-              icon={DollarSign}
-              label="Revenue"
-              value={
-                bookings.length
-               ? money(bookings[0].currency, metrics.revenue)
-               : `$${metrics.revenue.toFixed(2)}`
-              }
-            />
+            <OverviewTile icon={DollarSign} label="United States Revenue" value={`$${metrics.usRevenue.toFixed(2)}`} />
+            <OverviewTile icon={DollarSign} label="United Kingdom Revenue" value={`£${metrics.ukRevenue.toFixed(2)}`} />
             <OverviewTile
               icon={CheckCircle2}
               label="Completed Bookings"
@@ -574,7 +611,8 @@ setNotifications(
                       .filter(
                         (t) =>
                           t.verificationStatus === "APPROVED" &&
-                          t.availabilityStatus === "AVAILABLE"
+                          t.availabilityStatus === "AVAILABLE" &&
+                          technicianSupportsBooking(t, booking)
                       )
                       .map((t) => (
                         <option key={t.id} value={t.id}>
@@ -666,15 +704,28 @@ setNotifications(
                 label="Rating"
                 value={tech.rating ? `${tech.rating} / 5` : "N/A"}
               />
+              <MiniInfo label="Citizenship" value={tech.citizenshipStatus?.replaceAll("_", " ") || "Not submitted"} />
+              <MiniInfo label="Identity document" value={tech.identityDocumentType?.replaceAll("_", " ") || "Not submitted"} />
+              <MiniInfo label="Engagement" value={tech.employmentType?.replaceAll("_", " ") || "Not submitted"} />
+              <MiniInfo label="Service mode" value={tech.serviceMode?.replaceAll("_", " ") || "Not submitted"} />
+              <MiniInfo label="Right to work" value={tech.workAuthorizationType?.replaceAll("_", " ") || "Not submitted"} />
+              <MiniInfo label="Work permission expiry" value={tech.workAuthorizationExpiry || "Not applicable"} />
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
+              {tech.identityDocumentType && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "identity-document").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">View ID</button>}
+              {tech.identityDocumentType && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "live-photo").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">View live photo</button>}
+              {tech.workAuthorizationDocumentName && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "work-authorization").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">Work authorisation</button>}
+              {tech.addressProofName && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "address-proof").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">Address proof</button>}
+              {tech.drivingLicenseName && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "driving-license").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">Driving licence</button>}
+              {tech.vehicleInsuranceName && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "vehicle-insurance").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">Vehicle insurance</button>}
+              {tech.publicLiabilityName && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "public-liability").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">Liability insurance</button>}
               {tech.verificationStatus !== "APPROVED" && (
                 <button
                   onClick={() => handleApproveTech(tech.id)}
                   className="rounded-2xl bg-green-400 px-5 py-3 text-sm font-black text-black hover:bg-green-300"
                 >
-                  Approve
+                  {tech.verificationStatus === "REJECTED" ? "Approve again" : "Approve"}
                 </button>
               )}
 
@@ -842,18 +893,52 @@ setNotifications(
     </Panel>
   )
 
+  const retryRemoteSession = async (bookingId) => {
+    try {
+      await provisionAdminRemoteSession(bookingId)
+      showPopup("Remote session provisioning refreshed")
+      await loadDashboard()
+    } catch (error) {
+      console.error(error)
+      showPopup(error.message || "Could not provision remote session")
+    }
+  }
+
+  const RemoteSessionsSection = () => {
+    const visible = remoteSessions.filter((session) => !q || [
+      `GOS-${session.id}`,
+      session.customerName,
+      session.customerEmail,
+      session.serviceType,
+      session.remoteSessionStatus,
+      session.technicianName,
+    ].some((value) => String(value || "").toLowerCase().includes(q)))
+
+    return <Panel title="Remote Sessions" subtitle="Paid bookings, Google Meet provisioning, and session activity">
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MiniInfo label="All remote" value={remoteSessions.length} />
+        <MiniInfo label="Meeting ready" value={remoteSessions.filter((item) => item.remoteSessionStatus === "READY").length} />
+        <MiniInfo label="In progress" value={remoteSessions.filter((item) => item.bookingStatus === "REMOTE_SESSION_STARTED").length} />
+        <MiniInfo label="Completed" value={remoteSessions.filter((item) => item.bookingStatus === "SERVICE_COMPLETED").length} />
+      </div>
+      <div className="space-y-3">
+        {visible.length ? visible.map((session) => <article key={session.id} className="rounded-lg border border-white/10 bg-[#0b1628] p-4 md:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-['Cormorant_Garamond'] text-2xl font-bold">GOS-{session.id}</h3><StatusBadge status={session.remoteSessionStatus || "PAYMENT_PENDING"} /><StatusBadge status={session.bookingStatus} /></div><p className="mt-2 text-sm font-bold text-cyan-100/80">{session.customerName || "Customer"} · {session.serviceType || "Remote support"}</p><p className="mt-1 break-all text-xs text-cyan-100/45">{session.customerEmail || "No customer email"}</p></div>
+            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[460px]"><MiniInfo label="Payment" value={session.paymentStatus} /><MiniInfo label="Scheduled" value={session.remoteSessionScheduledStart ? new Date(session.remoteSessionScheduledStart).toLocaleString() : "Pending"} /><MiniInfo label="Technician" value={session.technicianName || "Unassigned"} /></div>
+          </div>
+          {session.remoteSessionProvisioningError && <p className="mt-3 rounded-md border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200">{session.remoteSessionProvisioningError}</p>}
+          <div className="mt-4 flex flex-wrap gap-2">{session.remoteSessionLink && <a href={session.remoteSessionLink} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cyan-400 px-4 text-xs font-black text-black"><ExternalLink size={14} /> Open Google Meet</a>}<button type="button" onClick={() => retryRemoteSession(session.id)} disabled={session.paymentStatus !== "PAID"} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 px-4 text-xs font-black text-cyan-100 disabled:opacity-40"><RefreshCw size={14} /> {session.remoteSessionLink ? "Refresh status" : "Provision meeting"}</button></div>
+        </article>) : <EmptyState title="No remote sessions found" />}
+      </div>
+    </Panel>
+  }
+
   const PaymentSection = () => (
     <Panel title="Payments & Payouts" subtitle="Payment data from bookings">
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard
-  title="Paid Revenue"
-  value={
-    bookings.length
-      ? money(bookings[0].currency, metrics.revenue)
-      : `$${metrics.revenue.toFixed(2)}`
-  }
-  icon={DollarSign}
-/>
+      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard title="US Revenue" value={`$${metrics.usRevenue.toFixed(2)}`} icon={DollarSign} />
+        <StatCard title="UK Revenue" value={`£${metrics.ukRevenue.toFixed(2)}`} icon={DollarSign} />
         <StatCard title="Paid Bookings" value={bookings.filter((b) => b.paymentStatus === "PAID").length} icon={CreditCard} />
         <StatCard title="Partial Payments" value={bookings.filter((b) => b.paymentStatus === "PARTIALLY_PAID").length} icon={Activity} />
       </div>
@@ -883,14 +968,8 @@ setNotifications(
   const ReportsSection = () => (
     <Panel title="Reports & Analytics" subtitle="Calculated from backend data">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <ReportCard
-  title="Total Revenue"
-  value={
-    bookings.length
-      ? money(bookings[0].currency, metrics.revenue)
-      : `$${metrics.revenue.toFixed(2)}`
-  }
-/>
+        <ReportCard title="US Revenue" value={`$${metrics.usRevenue.toFixed(2)}`} />
+        <ReportCard title="UK Revenue" value={`£${metrics.ukRevenue.toFixed(2)}`} />
         <ReportCard title="Completed" value={metrics.completedBookings} />
         <ReportCard title="Pending" value={metrics.pendingBookings} />
         <ReportCard title="Customers" value={metrics.customers} />
@@ -965,6 +1044,68 @@ setNotifications(
     </Panel>
   )
 
+  const openSupportMessage = async (message) => {
+    setSelectedMessage(message)
+    if (message.status !== "NEW") return
+    try {
+      const updated = await updateContactMessageStatus(message.id, "READ")
+      setSelectedMessage(updated)
+      setContactMessages((current) => current.map((item) => item.id === updated.id ? updated : item))
+    } catch (error) {
+      console.error(error)
+      showPopup("Could not update support message")
+    }
+  }
+
+  const resolveSupportMessage = async (message) => {
+    try {
+      const updated = await updateContactMessageStatus(message.id, "RESOLVED")
+      setSelectedMessage(updated)
+      setContactMessages((current) => current.map((item) => item.id === updated.id ? updated : item))
+      showPopup("Support request resolved")
+    } catch (error) {
+      console.error(error)
+      showPopup("Could not resolve support request")
+    }
+  }
+
+  const removeSupportMessage = async (message) => {
+    if (!window.confirm(`Delete support request GOS-S-${message.id}?`)) return
+    try {
+      await deleteContactMessage(message.id)
+      setContactMessages((current) => current.filter((item) => item.id !== message.id))
+      setSelectedMessage(null)
+      showPopup("Support request deleted")
+    } catch (error) {
+      console.error(error)
+      showPopup("Could not delete support request")
+    }
+  }
+
+  const SupportSection = () => {
+    const visibleMessages = contactMessages.filter((message) => !q || [message.fullName, message.email, message.subject, message.message, `GOS-S-${message.id}`].some((value) => String(value || "").toLowerCase().includes(q)))
+    const unread = contactMessages.filter((message) => message.status === "NEW").length
+
+    return <Panel title="Support Inbox" subtitle={`${unread} unread request${unread === 1 ? "" : "s"} | ${contactMessages.length} total`}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)]">
+        <div className="max-h-[62vh] space-y-2 overflow-y-auto pr-1">
+          {visibleMessages.length ? visibleMessages.map((message) => <button key={message.id} type="button" onClick={() => openSupportMessage(message)} className={`w-full rounded-2xl border p-4 text-left transition ${selectedMessage?.id === message.id ? "border-cyan-400 bg-cyan-500/10" : "border-white/10 bg-[#0b1628] hover:border-cyan-500/30"}`}>
+            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-black text-white">{message.subject}</p><p className="mt-1 truncate text-xs text-cyan-100/50">{message.fullName} | {message.email}</p></div><SupportStatus status={message.status} /></div>
+            <p className="mt-3 line-clamp-2 text-xs leading-5 text-cyan-100/60">{message.message}</p><p className="mt-2 text-[10px] font-bold text-cyan-300">GOS-S-{message.id}</p>
+          </button>) : <EmptyState title="No support messages" />}
+        </div>
+
+        <div className="min-h-72 rounded-2xl border border-white/10 bg-[#0b1628] p-4 md:p-5">
+          {selectedMessage ? <><div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4"><div><p className="text-xs font-bold text-cyan-300">GOS-S-{selectedMessage.id}</p><h3 className="mt-2 text-xl font-black">{selectedMessage.subject}</h3></div><SupportStatus status={selectedMessage.status} /></div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2"><MiniInfo label="Customer" value={selectedMessage.fullName} /><MiniInfo label="Account ID" value={selectedMessage.customerId ? `#${selectedMessage.customerId}` : "Guest"} /><MiniInfo label="Email" value={selectedMessage.email} /><MiniInfo label="Phone" value={selectedMessage.phone} /><MiniInfo label="Region" value={selectedMessage.country} /><MiniInfo label="Received" value={selectedMessage.createdAt ? new Date(selectedMessage.createdAt).toLocaleString() : "N/A"} /></div>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-[#071122] p-4"><p className="text-xs font-bold text-cyan-100/40">Customer message</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-cyan-100/80">{selectedMessage.message}</p></div>
+            <div className="mt-4 flex flex-wrap gap-2"><a href={`mailto:${selectedMessage.email}?subject=${encodeURIComponent(`Re: ${selectedMessage.subject} [GOS-S-${selectedMessage.id}]`)}`} className="flex min-h-10 items-center gap-2 rounded-xl bg-cyan-400 px-4 text-xs font-black text-black"><Mail size={14} /> Reply</a>{selectedMessage.status !== "RESOLVED" && <button type="button" onClick={() => resolveSupportMessage(selectedMessage)} className="flex min-h-10 items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 text-xs font-black text-emerald-300"><CheckCircle2 size={14} /> Resolve</button>}<button type="button" onClick={() => removeSupportMessage(selectedMessage)} className="flex min-h-10 items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 text-xs font-black text-red-300"><Trash2 size={14} /> Delete</button></div>
+          </> : <div className="flex min-h-64 flex-col items-center justify-center text-center"><MessageSquare className="h-9 w-9 text-cyan-300/50" /><h3 className="mt-4 text-lg font-black">Select a support request</h3><p className="mt-2 max-w-xs text-sm text-cyan-100/45">Customer details and the complete message will appear here.</p></div>}
+        </div>
+      </div>
+    </Panel>
+  }
+
   const SettingsSection = () => (
     <Panel title="Settings" subtitle="Backend-connected admin portal">
       <Info label="Admin Auth" value="JWT role-based access enabled" />
@@ -987,8 +1128,10 @@ setNotifications(
   if (activeTab === "Agents") return AgentSection()
   if (activeTab === "Customers") return CustomerSection()
   if (activeTab === "Payments") return PaymentSection()
+  if (activeTab === "Remote Sessions") return RemoteSessionsSection()
   if (activeTab === "Reports") return ReportsSection()
   if (activeTab === "Notifications") return NotificationsSection()
+  if (activeTab === "Support") return SupportSection()
   if (activeTab === "Audit Logs") return AuditLogsSection()
   if (activeTab === "Settings") return SettingsSection()
   return OverviewSection()
@@ -996,14 +1139,12 @@ setNotifications(
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#020817] text-white">
-        <p className="font-black text-cyan-300">Loading Admin Dashboard...</p>
-      </div>
+      <DashboardLoader label="Preparing admin operations" />
     )
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#020817] text-white">
+    <div className="gos-admin-portal flex h-screen w-full overflow-hidden bg-[#020817] text-white">
       {popup && (
         <div className="fixed bottom-24 right-4 z-[80] rounded-2xl border border-cyan-500/20 bg-[#071122] px-5 py-4 shadow-2xl md:bottom-6 md:right-6">
           <p className="text-sm font-semibold text-cyan-100">{popup}</p>
@@ -1012,7 +1153,7 @@ setNotifications(
 
       <aside className="hidden h-screen w-[310px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
         <div className="mb-8">
-          <h1 className="text-4xl font-black text-cyan-300">GOS</h1>
+          <BrandLogo className="h-auto w-48" />
           <p className="mt-2 text-sm text-cyan-100/45">
             Admin Operations Portal
           </p>
@@ -1051,7 +1192,7 @@ setNotifications(
         <div className="fixed inset-0 z-[90] overflow-y-auto bg-[#020817]/95 p-5 backdrop-blur-xl lg:hidden">
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black text-cyan-300">GOS</h1>
+              <BrandLogo className="h-auto w-40" />
               <p className="text-sm text-cyan-100/45">Admin Menu</p>
             </div>
 
@@ -1097,11 +1238,13 @@ setNotifications(
           <div className="hidden w-full max-w-[420px] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-5 py-3 md:flex">
             <Search className="h-5 w-5 text-cyan-100/40" />
             <input
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search bookings, techs, agents..."
-              className="w-full bg-transparent outline-none placeholder:text-cyan-100/30"
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-cyan-100/30"
             />
+            {search && <button type="button" onClick={() => setSearch("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-cyan-100/50 hover:text-white" aria-label="Clear search"><X size={16} /></button>}
           </div>
 
           <button
@@ -1116,11 +1259,13 @@ setNotifications(
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-4 py-3">
             <Search className="h-5 w-5 text-cyan-100/40" />
             <input
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
-              className="w-full bg-transparent outline-none placeholder:text-cyan-100/30"
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-cyan-100/30"
             />
+            {search && <button type="button" onClick={() => setSearch("")} className="flex h-8 w-8 shrink-0 items-center justify-center text-cyan-100/50" aria-label="Clear search"><X size={16} /></button>}
           </div>
         </div>
 
@@ -1231,6 +1376,13 @@ function EmptyState({ title }) {
       <h3 className="mt-4 text-xl font-black">{title}</h3>
     </div>
   )
+}
+
+function DashboardLoader({ label }) { return <div className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><BrandLogo className="mx-auto h-auto w-48" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">{label}</p><p className="mt-1 text-xs font-semibold text-gos-muted">Secure workspace loading</p></div></div> }
+
+function SupportStatus({ status }) {
+  const styles = status === "NEW" ? "border-amber-400/30 bg-amber-500/10 text-amber-300" : status === "RESOLVED" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" : "border-cyan-400/20 bg-cyan-500/10 text-cyan-300"
+  return <span className={`shrink-0 rounded-lg border px-2 py-1 text-[9px] font-black ${styles}`}>{status || "NEW"}</span>
 }
 
 function Badge({ children }) {

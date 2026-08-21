@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import logo from "../assets/logo.png"
 import { createTechnician } from "../services/technicianService"
+import { getLocation } from "../utils/location"
+import BrandLogo from "../components/common/BrandLogo"
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,7 +26,6 @@ import {
   Router,
   ShieldCheck,
   Star,
-  UploadCloud,
   User,
   Wrench,
   X,
@@ -35,7 +35,8 @@ const steps = [
   "Personal Info",
   "Professional Info",
   "Service Skills",
-  "HR Verification",
+  "Identity Verification",
+  "Compliance",
   "Review",
 ]
 
@@ -53,11 +54,13 @@ const serviceSkills = [
 
 export default function TechnicianRegister() {
   const navigate = useNavigate()
+  const initialRegion = getLocation()
 
   const [step, setStep] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [submitError, setSubmitError] = useState("")
 
   const [form, setForm] = useState({
     fullName: "",
@@ -66,22 +69,35 @@ export default function TechnicianRegister() {
     password: "",
     confirmPassword: "",
 
-    country: "UK",
-    countryCode: "+44",
+    country: initialRegion.code,
+    countryCode: initialRegion.dialCode,
     state: "",
     city: "",
     experience: "",
     availability: "",
     remoteSupport: "",
+    employmentType: "INDEPENDENT_CONTRACTOR",
+    serviceMode: "",
+    citizenshipStatus: "",
+    identityDocumentType: "",
+    identityDocumentName: "",
+    identityDocumentData: "",
+    livePhotoData: "",
+    workAuthorizationType: "",
+    workAuthorizationExpiry: "",
+    workAuthorizationDocumentName: "",
+    workAuthorizationDocumentData: "",
+    addressHistory: "",
+    addressProofName: "",
+    addressProofData: "",
+    drivingLicenseName: "",
+    drivingLicenseData: "",
+    vehicleInsuranceName: "",
+    vehicleInsuranceData: "",
+    publicLiabilityName: "",
+    publicLiabilityData: "",
 
     skills: [],
-
-    nationalInsurance: "",
-    ssn: "",
-    drivingLicense: "",
-    profilePhoto: "",
-    governmentId: "",
-    drivingLicenseFile: "",
 
     backgroundConsent: false,
     contractorAgreement: false,
@@ -114,6 +130,9 @@ export default function TechnicianRegister() {
           : type === "file"
           ? files?.[0]?.name || ""
           : value,
+      ...(name === "country"
+        ? { countryCode: value === "US" ? "+1" : "+44", phone: "" }
+        : {}),
     }))
   }
 
@@ -124,6 +143,42 @@ export default function TechnicianRegister() {
         ? prev.skills.filter((item) => item !== skill)
         : [...prev.skills, skill],
     }))
+  }
+
+  const handleIdentityDocument = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      alert("Upload a JPG, PNG, or PDF identity document.")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Identity document must be 5 MB or smaller.")
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => setForm((current) => ({
+      ...current,
+      identityDocumentName: file.name,
+      identityDocumentData: String(reader.result || ""),
+    }))
+    reader.readAsDataURL(file)
+  }
+
+  const handleEvidenceFile = (event, nameField, dataField) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      alert("Upload a JPG, PNG, or PDF document.")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Document must be 5 MB or smaller.")
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => setForm((current) => ({ ...current, [nameField]: file.name, [dataField]: String(reader.result || "") }))
+    reader.readAsDataURL(file)
   }
 
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -162,7 +217,8 @@ export default function TechnicianRegister() {
         !form.city ||
         !form.experience ||
         !form.availability ||
-        !form.remoteSupport
+        !form.remoteSupport ||
+        !form.serviceMode
       ) {
         alert("Please complete professional information.")
         return false
@@ -175,26 +231,24 @@ export default function TechnicianRegister() {
     }
 
     if (step === 3) {
-      if (form.country === "UK" && !form.nationalInsurance) {
-        alert("Please enter National Insurance Number.")
-        return false
-      }
-
-      if (form.country === "US" && !form.ssn) {
-        alert("Please enter SSN.")
-        return false
-      }
-
       if (
-        !form.drivingLicense ||
-        !form.profilePhoto ||
-        !form.governmentId ||
-        !form.drivingLicenseFile ||
-        !form.backgroundConsent ||
-        !form.contractorAgreement ||
-        !form.terms
+        !form.citizenshipStatus ||
+        !form.identityDocumentType ||
+        !form.identityDocumentData ||
+        !form.livePhotoData
       ) {
         alert("Please complete all HR verification requirements.")
+        return false
+      }
+    }
+
+    if (step === 4) {
+      const onsiteRequired = form.serviceMode !== "REMOTE_ONLY"
+      if (!form.workAuthorizationType || !form.addressHistory || !form.addressProofData ||
+          (form.citizenshipStatus === "FOREIGN_NATIONAL" && !form.workAuthorizationDocumentData) ||
+          (onsiteRequired && (!form.drivingLicenseData || !form.vehicleInsuranceData || !form.publicLiabilityData)) ||
+          !form.backgroundConsent || !form.contractorAgreement || !form.terms) {
+        alert("Please complete all compliance requirements.")
         return false
       }
     }
@@ -215,16 +269,38 @@ export default function TechnicianRegister() {
 
   const handleSubmit = async (e) => {
   e.preventDefault()
+  setSubmitError("")
 
   try {
     const technicianData = {
       name: form.fullName,
       email: form.personalEmail,
+      password: form.password,
       phone: `${form.countryCode}${form.phone}`,
       country: form.country,
       city: form.city,
       specialization: form.skills.join(", "),
       experienceYears: Number(form.experience.split("-")[0]) || 0,
+      citizenshipStatus: form.citizenshipStatus,
+      identityDocumentType: form.identityDocumentType,
+      identityDocumentName: form.identityDocumentName,
+      identityDocumentData: form.identityDocumentData,
+      livePhotoData: form.livePhotoData,
+      employmentType: form.employmentType,
+      serviceMode: form.serviceMode,
+      workAuthorizationType: form.workAuthorizationType,
+      workAuthorizationExpiry: form.workAuthorizationExpiry,
+      workAuthorizationDocumentName: form.workAuthorizationDocumentName,
+      workAuthorizationDocumentData: form.workAuthorizationDocumentData,
+      addressHistory: form.addressHistory,
+      addressProofName: form.addressProofName,
+      addressProofData: form.addressProofData,
+      drivingLicenseName: form.drivingLicenseName,
+      drivingLicenseData: form.drivingLicenseData,
+      vehicleInsuranceName: form.vehicleInsuranceName,
+      vehicleInsuranceData: form.vehicleInsuranceData,
+      publicLiabilityName: form.publicLiabilityName,
+      publicLiabilityData: form.publicLiabilityData,
     }
 
     await createTechnician(technicianData)
@@ -235,26 +311,23 @@ export default function TechnicianRegister() {
       navigate("/technician-login")
     }, 1200)
   } catch (error) {
-    alert("Technician application failed. Please try again.")
+    setSubmitError(error.message || "Technician application could not be submitted.")
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })
   }
 }
 
   return (
-    <div className="min-h-screen bg-[#020817] text-white relative overflow-hidden">
+    <div className="gos-technician-auth gos-technician-register min-h-screen bg-[#020817] text-white relative overflow-hidden">
+      <header className="relative z-40 border-b border-gos-border bg-white px-4 py-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <Link to="/" className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border text-gos-blue" aria-label="Back to website"><ArrowLeft size={17} /></Link>
+          <Link to="/" aria-label="GeekOnSites home"><BrandLogo className="h-auto w-36" /></Link>
+        </div>
+      </header>
       <div className="absolute top-20 left-5 md:left-20 w-72 h-72 bg-cyan-500/20 blur-[130px] rounded-full" />
       <div className="absolute bottom-10 right-5 md:right-20 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full" />
 
-      <button
-        onClick={() => navigate("/")}
-        className="fixed top-4 left-4 z-50 w-11 h-11 md:w-auto md:px-4 md:py-3 rounded-2xl bg-[#071122]/90 border border-cyan-500/20 flex items-center justify-center gap-2 text-cyan-300 hover:bg-cyan-500/10 transition"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        <span className="hidden md:block text-sm font-semibold">
-          Back to Website
-        </span>
-      </button>
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-10 min-h-screen grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 lg:gap-10 items-center">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-10 min-h-[calc(100dvh-3.75rem)] grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 lg:gap-10 items-center">
         <motion.section
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
@@ -307,36 +380,21 @@ export default function TechnicianRegister() {
           transition={{ duration: 0.55, delay: 0.08 }}
           className="w-full"
         >
-          <div className="lg:hidden mb-8 text-center">
-            <img
-              src={logo}
-              alt="GeekOnSites Logo"
-              className="mx-auto h-20 w-auto object-contain"
-            />
-
-            <h1 className="mt-4 text-3xl font-black">GeekOnSites</h1>
-            <p className="text-cyan-300 mt-1">Technician Application</p>
-          </div>
-
           <div className="rounded-[32px] md:rounded-[38px] bg-[#071122]/95 border border-cyan-500/20 p-5 sm:p-7 md:p-9 shadow-2xl">
             <div className="flex items-start justify-between gap-5">
               <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-cyan-300">Technician portal</p>
                 <h2 className="text-3xl md:text-4xl font-black">
-                  Apply as Technician
+                  Apply as technician.
                 </h2>
                 <p className="mt-2 text-cyan-100/50 text-sm md:text-base">
                   Personal email now. Company mail after approval.
                 </p>
               </div>
 
-              <img
-                src={logo}
-                alt="GeekOnSites Logo"
-                className="hidden sm:block h-14 w-auto object-contain"
-              />
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-3 gap-0 border-y border-gos-border">
               <SmallInfo label="Status" value="Pending" />
               <SmallInfo label="Region" value="US/UK" />
               <SmallInfo label="Mail" value="After HR" />
@@ -370,7 +428,7 @@ export default function TechnicianRegister() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-7">
+            <form onSubmit={handleSubmit} autoComplete="off" className="mt-7">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={step}
@@ -396,7 +454,7 @@ export default function TechnicianRegister() {
                           Mobile Number
                         </label>
 
-                        <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-4 py-4">
+                        <div className="tech-phone-field mt-2 flex items-center rounded-2xl border border-white/10 bg-[#0b1628]">
                           <Phone className="w-5 h-5 text-cyan-300/70 shrink-0" />
 
                           <select
@@ -409,10 +467,11 @@ export default function TechnicianRegister() {
                                 phone: "",
                               })
                             }
-                            className="bg-[#0b1628] text-white outline-none"
+                            aria-label="Country calling code"
+                            className="tech-dial-code bg-[#0b1628] text-white outline-none"
                           >
-                            <option value="+1">🇺🇸 +1</option>
-                            <option value="+44">🇬🇧 +44</option>
+                            <option value="+1">+1</option>
+                            <option value="+44">+44</option>
                           </select>
 
                           <input
@@ -426,20 +485,12 @@ export default function TechnicianRegister() {
                                 phone: e.target.value.replace(/\D/g, ""),
                               })
                             }
-                            placeholder={
-                              form.countryCode === "+1"
-                                ? "5551234567"
-                                : "7123456789"
-                            }
-                            className="w-full bg-transparent text-white outline-none placeholder:text-cyan-100/25"
+                            placeholder="Mobile number"
+                            aria-label="Mobile number"
+                            className="tech-phone-number min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-cyan-100/25"
                           />
                         </div>
 
-                        <p className="mt-2 text-xs text-cyan-100/35">
-                          {form.countryCode === "+1"
-                            ? "US format: +1 5551234567"
-                            : "UK format: +44 7123456789"}
-                        </p>
                       </div>
 
                       <InputField
@@ -449,7 +500,7 @@ export default function TechnicianRegister() {
                         name="personalEmail"
                         value={form.personalEmail}
                         onChange={update}
-                        placeholder="example@gmail.com"
+                        placeholder="Enter personal email"
                       />
 
                       <div className="rounded-2xl bg-cyan-500/10 border border-cyan-500/20 p-4 flex gap-3">
@@ -478,8 +529,8 @@ export default function TechnicianRegister() {
                         setShow={setShowConfirmPassword}
                       />
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-2xl bg-[#0b1628] border border-white/10 p-4">
-                        <Rule ok={passwordRules.length} text="8+ characters" />
+                      <div className="tech-password-rules grid grid-cols-2 gap-x-3 gap-y-2 px-1">
+                        <Rule ok={passwordRules.length} text="8 or more characters" />
                         <Rule ok={passwordRules.upper} text="Uppercase letter" />
                         <Rule ok={passwordRules.lower} text="Lowercase letter" />
                         <Rule ok={passwordRules.number} text="Number" />
@@ -497,16 +548,21 @@ export default function TechnicianRegister() {
                           name="country"
                           value={form.country}
                           onChange={update}
-                          options={["UK", "US"]}
+                          options={[
+                            { value: "UK", label: "United Kingdom" },
+                            { value: "US", label: "United States" },
+                          ]}
                         />
 
                         <InputField
                           icon={MapPin}
                           label={form.country === "UK" ? "County / Region" : "State"}
                           name="state"
+                          autoComplete="off"
+                          data-form-type="other"
                           value={form.state}
                           onChange={update}
-                          placeholder={form.country === "UK" ? "England" : "Texas"}
+                          placeholder={form.country === "UK" ? "Enter county or region" : "Enter state"}
                         />
                       </div>
 
@@ -514,6 +570,8 @@ export default function TechnicianRegister() {
                         icon={MapPin}
                         label="City / Service Area"
                         name="city"
+                        autoComplete="off"
+                        data-form-type="other"
                         value={form.city}
                         onChange={update}
                         placeholder="Enter city"
@@ -543,6 +601,18 @@ export default function TechnicianRegister() {
                         value={form.remoteSupport}
                         onChange={update}
                         options={["Yes", "No"]}
+                      />
+
+                      <SelectField
+                        label="Service delivery"
+                        name="serviceMode"
+                        value={form.serviceMode}
+                        onChange={update}
+                        options={[
+                          { value: "REMOTE_ONLY", label: "Remote support only" },
+                          { value: "ONSITE_ONLY", label: "On-site service only" },
+                          { value: "REMOTE_AND_ONSITE", label: "Remote and on-site service" },
+                        ]}
                       />
                     </>
                   )}
@@ -586,65 +656,98 @@ export default function TechnicianRegister() {
 
                   {step === 3 && (
                     <>
-                      {form.country === "UK" ? (
-                        <InputField
-                          icon={FileBadge2}
-                          label="National Insurance Number"
-                          name="nationalInsurance"
-                          value={form.nationalInsurance}
+                      <SelectField
+                        label="Citizenship status"
+                        name="citizenshipStatus"
+                        value={form.citizenshipStatus}
+                        onChange={(event) => setForm((current) => ({
+                          ...current,
+                          citizenshipStatus: event.target.value,
+                          identityDocumentType: event.target.value === "FOREIGN_NATIONAL" ? "PASSPORT" : "",
+                          identityDocumentName: "",
+                          identityDocumentData: "",
+                        }))}
+                        options={[
+                          { value: "LOCAL_CITIZEN", label: `Citizen of ${form.country === "US" ? "the United States" : "the United Kingdom"}` },
+                          { value: "FOREIGN_NATIONAL", label: "Foreign national" },
+                        ]}
+                      />
+
+                      {form.citizenshipStatus && (
+                        <SelectField
+                          label="Identity document"
+                          name="identityDocumentType"
+                          value={form.identityDocumentType}
                           onChange={update}
-                          placeholder="Enter NI number"
-                        />
-                      ) : (
-                        <InputField
-                          icon={FileBadge2}
-                          label="SSN"
-                          name="ssn"
-                          value={form.ssn}
-                          onChange={update}
-                          placeholder="Enter SSN"
+                          options={form.citizenshipStatus === "FOREIGN_NATIONAL"
+                            ? [{ value: "PASSPORT", label: "Passport" }]
+                            : [
+                                { value: "DRIVING_LICENSE", label: "Driving licence" },
+                                { value: "STATE_ID", label: "State or government identity card" },
+                                { value: "PASSPORT", label: "Passport" },
+                              ]}
                         />
                       )}
 
-                      <InputField
-                        icon={FileBadge2}
-                        label="Driving License Number"
-                        name="drivingLicense"
-                        value={form.drivingLicense}
-                        onChange={update}
-                        placeholder="Enter license number"
+                      {form.identityDocumentType && (
+                        <label className="tech-verification-upload block cursor-pointer rounded-lg border border-dashed border-gos-border bg-white p-4">
+                          <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={handleIdentityDocument} className="hidden" />
+                          <span className="flex items-center gap-3">
+                            <FileBadge2 className="h-5 w-5 text-gos-turquoise" />
+                            <span><strong className="block text-sm text-gos-blue-deep">Upload {form.identityDocumentType === "PASSPORT" ? "passport" : "government ID"}</strong><span className="text-xs text-gos-muted">{form.identityDocumentName || "JPG, PNG, or PDF up to 5 MB"}</span></span>
+                          </span>
+                        </label>
+                      )}
+
+                      <LivePhotoCapture
+                        value={form.livePhotoData}
+                        onCapture={(photo) => setForm((current) => ({ ...current, livePhotoData: photo }))}
                       />
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <UploadBox label="Profile Photo" name="profilePhoto" value={form.profilePhoto} onChange={update} />
-                        <UploadBox label="Government ID" name="governmentId" value={form.governmentId} onChange={update} />
-                        <UploadBox label="Driving License" name="drivingLicenseFile" value={form.drivingLicenseFile} onChange={update} />
-                      </div>
-
-                      <CheckBox
-                        name="backgroundConsent"
-                        checked={form.backgroundConsent}
-                        onChange={update}
-                        label="I consent to GeekOnSites background check and identity verification."
-                      />
-
-                      <CheckBox
-                        name="contractorAgreement"
-                        checked={form.contractorAgreement}
-                        onChange={update}
-                        label="I accept the GeekOnSites contractor agreement."
-                      />
-
-                      <CheckBox
-                        name="terms"
-                        checked={form.terms}
-                        onChange={update}
-                        label="I agree to technician onboarding terms and conditions."
-                      />
                     </>
                   )}
 
                   {step === 4 && (
+                    <>
+                      <SelectField
+                        label="Engagement type"
+                        name="employmentType"
+                        value={form.employmentType}
+                        onChange={update}
+                        options={[{ value: "INDEPENDENT_CONTRACTOR", label: "Independent contractor" }, { value: "EMPLOYEE", label: "Employee" }]}
+                      />
+                      <SelectField
+                        label="Right to work verification"
+                        name="workAuthorizationType"
+                        value={form.workAuthorizationType}
+                        onChange={update}
+                        options={form.country === "US"
+                          ? (form.citizenshipStatus === "LOCAL_CITIZEN"
+                              ? [{ value: "US_CITIZEN_I9", label: "US citizen - I-9 verification" }]
+                              : [{ value: "PERMANENT_RESIDENT", label: "Permanent Resident Card" }, { value: "EMPLOYMENT_AUTHORIZATION", label: "Employment Authorization Document" }, { value: "FOREIGN_PASSPORT_I94", label: "Foreign passport with valid I-94/status" }])
+                          : (form.citizenshipStatus === "LOCAL_CITIZEN"
+                              ? [{ value: "BRITISH_IRISH_DOCUMENT", label: "British or Irish passport/document check" }]
+                              : [{ value: "HOME_OFFICE_SHARE_CODE", label: "Home Office share code / eVisa" }, { value: "EMPLOYER_CHECKING_SERVICE", label: "Employer Checking Service verification" }])}
+                      />
+                      {form.citizenshipStatus === "FOREIGN_NATIONAL" && <>
+                        <InputField label="Work permission expiry" name="workAuthorizationExpiry" type="date" value={form.workAuthorizationExpiry} onChange={update} />
+                        <EvidenceUpload label="Work authorisation evidence" value={form.workAuthorizationDocumentName} onChange={(event) => handleEvidenceFile(event, "workAuthorizationDocumentName", "workAuthorizationDocumentData")} />
+                      </>}
+                      <div><label className="text-sm text-cyan-100/70">Address history for the last 5 years</label><textarea name="addressHistory" value={form.addressHistory} onChange={update} rows={4} placeholder="Enter each address and the dates lived there" className="mt-2 w-full rounded-lg border border-gos-border bg-white p-3 text-sm text-gos-charcoal outline-none" /></div>
+                      <EvidenceUpload label="Proof of current address" value={form.addressProofName} onChange={(event) => handleEvidenceFile(event, "addressProofName", "addressProofData")} />
+                      {form.serviceMode !== "REMOTE_ONLY" && <>
+                        <p className="text-xs font-bold uppercase text-gos-turquoise">Required for on-site service</p>
+                        <EvidenceUpload label="Driving licence" value={form.drivingLicenseName} onChange={(event) => handleEvidenceFile(event, "drivingLicenseName", "drivingLicenseData")} />
+                        <EvidenceUpload label="Vehicle insurance with business use" value={form.vehicleInsuranceName} onChange={(event) => handleEvidenceFile(event, "vehicleInsuranceName", "vehicleInsuranceData")} />
+                        <EvidenceUpload label="Public liability insurance" value={form.publicLiabilityName} onChange={(event) => handleEvidenceFile(event, "publicLiabilityName", "publicLiabilityData")} />
+                      </>}
+                      <CheckBox name="backgroundConsent" checked={form.backgroundConsent} onChange={update} label="I consent to identity and legally permitted background checks." />
+                      <CheckBox name="contractorAgreement" checked={form.contractorAgreement} onChange={update} label="I accept the applicable technician services agreement." />
+                      <CheckBox name="terms" checked={form.terms} onChange={update} label="I agree to the technician onboarding terms and privacy notice." />
+                    </>
+                  )}
+
+                  {step === 5 && (
                     <>
                       <ReviewBlock title="Personal Information">
                         <Review label="Name" value={form.fullName} />
@@ -672,6 +775,20 @@ export default function TechnicianRegister() {
                         </div>
                       </ReviewBlock>
 
+                      <ReviewBlock title="Identity Verification">
+                        <Review label="Citizenship" value={form.citizenshipStatus?.replaceAll("_", " ")} />
+                        <Review label="Document" value={form.identityDocumentType?.replaceAll("_", " ")} />
+                        <Review label="Document upload" value={form.identityDocumentName} />
+                        <Review label="Live photo" value={form.livePhotoData ? "Captured" : "Required"} />
+                      </ReviewBlock>
+
+                      <ReviewBlock title="Compliance">
+                        <Review label="Engagement" value={form.employmentType?.replaceAll("_", " ")} />
+                        <Review label="Service delivery" value={form.serviceMode?.replaceAll("_", " ")} />
+                        <Review label="Right to work" value={form.workAuthorizationType?.replaceAll("_", " ")} />
+                        <Review label="Address proof" value={form.addressProofName} />
+                      </ReviewBlock>
+
                       <div className="rounded-2xl bg-cyan-500/10 border border-cyan-500/20 p-4 flex gap-3">
                         <ShieldCheck className="w-5 h-5 text-cyan-300 shrink-0 mt-0.5" />
                         <p className="text-sm text-cyan-100/60 leading-relaxed">
@@ -685,7 +802,14 @@ export default function TechnicianRegister() {
                 </motion.div>
               </AnimatePresence>
 
-              <div className="mt-8 flex gap-3">
+              <div className="mt-8 flex flex-wrap gap-3">
+                {submitError && (
+                  <div className="w-full basis-full rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+                    {submitError === "An account already exists for this email"
+                      ? "This email is already registered. Use a different technician email or sign in to the existing account."
+                      : submitError}
+                  </div>
+                )}
                 {step > 0 && (
                   <button
                     type="button"
@@ -797,58 +921,146 @@ function PasswordField({ label, show, setShow, ...props }) {
   )
 }
 
-function SelectField({ label, options, ...props }) {
+function SelectField({ label, options, name, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const selectRef = useRef(null)
+  const normalizedOptions = options.map((option) =>
+    typeof option === "string" ? { value: option, label: option } : option
+  )
+  const selected = normalizedOptions.find((option) => option.value === value)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const closeOnOutsidePress = (event) => {
+      if (!selectRef.current?.contains(event.target)) setOpen(false)
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePress)
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePress)
+  }, [open])
+
+  const chooseOption = (nextValue) => {
+    onChange({ target: { name, value: nextValue, type: "select-one" } })
+    setOpen(false)
+  }
+
   return (
-    <div>
+    <div ref={selectRef} className="tech-custom-select">
       <label className="text-sm text-cyan-100/70">{label}</label>
 
       <div className="relative mt-2">
-        <select
-          {...props}
-          required
-          className="w-full appearance-none bg-[#0b1628] border border-white/10 focus:border-cyan-400/60 rounded-2xl px-4 py-4 text-white outline-none"
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border bg-[#0b1628] px-4 py-3 text-left ${open ? "border-cyan-400" : "border-white/10"}`}
         >
-        <option
-  value=""
-  style={{
-    backgroundColor: "#0b1628",
-    color: "#ffffff",
-  }}
->
-  Select
-</option>
+          <span className={selected ? "text-gos-charcoal" : "text-gos-muted"}>
+            {selected?.label || `Select ${label.toLowerCase()}`}
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-gos-turquoise transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
 
-{options.map((option) => (
-  <option
-    key={option}
-    value={option}
-    style={{
-      backgroundColor: "#0b1628",
-      color: "#ffffff",
-    }}
-  >
-    {option}
-  </option>
-))}
-        </select>
-
-        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-300/70" />
+        {open && (
+          <div role="listbox" className="tech-select-menu absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-56 overflow-y-auto rounded-lg border border-gos-border bg-white p-1 shadow-xl">
+            {normalizedOptions.map((option) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                key={option.value}
+                onClick={() => chooseOption(option.value)}
+                className={`flex min-h-11 w-full items-center rounded-md px-3 py-2 text-left text-sm font-semibold ${option.value === value ? "bg-gos-blue-deep text-white" : "text-gos-charcoal hover:bg-gos-off-white"}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function UploadBox({ label, name, value, onChange }) {
+function EvidenceUpload({ label, value, onChange }) {
   return (
-    <label className="cursor-pointer rounded-2xl bg-[#0b1628] border border-dashed border-cyan-500/20 p-4 text-center hover:border-cyan-400/50 transition">
-      <input type="file" name={name} onChange={onChange} className="hidden" />
-
-      <UploadCloud className="w-7 h-7 text-cyan-300 mx-auto" />
-      <p className="mt-3 text-sm font-bold text-cyan-100/80">{label}</p>
-      <p className="mt-1 text-xs text-cyan-100/35 truncate">
-        {value || "Upload file"}
-      </p>
+    <label className="tech-verification-upload block cursor-pointer rounded-lg border border-dashed border-gos-border bg-white p-4">
+      <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={onChange} className="hidden" />
+      <span className="flex items-center gap-3"><FileBadge2 className="h-5 w-5 text-gos-turquoise" /><span><strong className="block text-sm text-gos-blue-deep">{label}</strong><span className="text-xs text-gos-muted">{value || "JPG, PNG, or PDF up to 5 MB"}</span></span>{value && <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-600" />}</span>
     </label>
+  )
+}
+
+function LivePhotoCapture({ value, onCapture }) {
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraError, setCameraError] = useState("")
+  const [cameraReady, setCameraReady] = useState(false)
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    setCameraOpen(false)
+    setCameraReady(false)
+  }
+
+  useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), [])
+
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return
+    videoRef.current.srcObject = streamRef.current
+    videoRef.current.play().catch(() => setCameraError("Camera opened but the preview could not start. Tap retry."))
+  }, [cameraOpen])
+
+  const openCamera = async () => {
+    try {
+      setCameraError("")
+      setCameraReady(false)
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setCameraError("Camera access requires the installed app or a secure HTTPS website. It is blocked on an unsecured network address.")
+        return
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+      streamRef.current = stream
+      setCameraOpen(true)
+    } catch (error) {
+      if (error?.name === "NotAllowedError") setCameraError("Camera permission is blocked. Allow Camera for this site or app in device settings, then retry.")
+      else if (error?.name === "NotFoundError") setCameraError("No front camera was found on this device.")
+      else if (error?.name === "NotReadableError") setCameraError("The camera is being used by another app. Close it there and retry.")
+      else setCameraError("The camera could not start. Check camera permission and retry.")
+    }
+  }
+
+  const capturePhoto = () => {
+    const video = videoRef.current
+    if (!video?.videoWidth) {
+      setCameraError("Wait for the camera preview to become ready, then capture.")
+      return
+    }
+    const canvas = document.createElement("canvas")
+    const width = 640
+    canvas.width = width
+    canvas.height = Math.round((video.videoHeight / video.videoWidth) * width)
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height)
+    onCapture(canvas.toDataURL("image/jpeg", 0.82))
+    stopCamera()
+  }
+
+  return (
+    <div className="tech-live-photo rounded-lg border border-gos-border bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-sm font-bold text-gos-blue-deep">Live photo verification</p><p className="mt-1 text-xs text-gos-muted">Use the front camera. Gallery uploads are not accepted.</p></div>
+        {value && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />}
+      </div>
+      {cameraOpen && <video ref={videoRef} playsInline muted onLoadedMetadata={() => setCameraReady(true)} className="mt-3 aspect-[4/3] w-full rounded-md bg-slate-950 object-cover" />}
+      {value && !cameraOpen && <img src={value} alt="Captured live verification" className="mt-3 h-28 w-28 rounded-md object-cover" />}
+      {cameraError && <p className="mt-2 text-xs font-semibold leading-5 text-red-700">{cameraError}</p>}
+      <div className="mt-3 flex gap-2">
+        {!cameraOpen ? <button type="button" onClick={openCamera} className="tech-camera-button flex min-h-10 items-center gap-2 rounded-md bg-gos-blue-deep px-4 text-xs font-bold text-white"><Camera className="h-4 w-4" />{cameraError ? "Retry camera" : value ? "Retake live photo" : "Open camera"}</button> : <><button type="button" onClick={capturePhoto} disabled={!cameraReady} className="min-h-10 rounded-md bg-gos-turquoise px-4 text-xs font-bold text-gos-blue-deep disabled:cursor-wait disabled:opacity-50">{cameraReady ? "Capture photo" : "Starting camera..."}</button><button type="button" onClick={stopCamera} className="min-h-10 rounded-md border border-gos-border px-4 text-xs font-bold text-gos-blue-deep">Cancel</button></>}
+      </div>
+    </div>
   )
 }
 
@@ -863,17 +1075,19 @@ function CheckBox({ label, ...props }) {
 
 function Rule({ ok, text }) {
   return (
-    <div className={`flex items-center gap-2 text-xs ${ok ? "text-cyan-300" : "text-cyan-100/35"}`}>
-      {ok ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-      {text}
+    <div className={`flex min-w-0 items-center gap-2 text-[11px] ${ok ? "text-emerald-700" : "text-cyan-100/35"}`}>
+      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${ok ? "border-emerald-600 bg-emerald-50" : "border-slate-300 bg-white"}`}>
+        {ok ? <Check className="h-2.5 w-2.5" /> : null}
+      </span>
+      <span className="leading-4">{text}</span>
     </div>
   )
 }
 
 function ReviewBlock({ title, children }) {
   return (
-    <div className="rounded-2xl bg-[#0b1628] border border-white/10 p-4">
-      <h3 className="font-bold text-cyan-100 mb-3">{title}</h3>
+    <div className="tech-review-block rounded-2xl bg-[#0b1628] border border-white/10 p-4">
+      <h3 className="mb-3 font-bold text-gos-blue-deep">{title}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
     </div>
   )
@@ -882,7 +1096,7 @@ function ReviewBlock({ title, children }) {
 function Review({ label, value }) {
   return (
     <div>
-      <p className="text-xs text-cyan-100/35">{label}</p>
+      <p className="text-xs font-bold text-gos-muted">{label}</p>
       <p className="mt-1 text-sm font-semibold text-cyan-100/80">
         {value || "Not provided"}
       </p>
@@ -913,7 +1127,7 @@ function StatCard({ title, value }) {
 
 function SmallInfo({ label, value }) {
   return (
-    <div className="rounded-2xl bg-[#0b1628] border border-white/10 p-3 text-center">
+    <div className="border-l border-gos-border p-3 text-center first:border-l-0">
       <p className="text-[11px] text-cyan-100/35">{label}</p>
       <h3 className="text-sm font-bold mt-1">{value}</h3>
     </div>

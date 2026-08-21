@@ -1,20 +1,20 @@
-import SEO from "./components/common/SEO"
+import { useCallback, useState } from "react"
+import { AnimatePresence } from "framer-motion"
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom"
 
 import Navbar from "./components/layout/Navbar"
 import Footer from "./components/layout/Footer"
 import MobileBottomNav from "./components/layout/MobileBottomNav"
+import SplashScreen from "./components/ui/SplashScreen"
+import ScrollToTop from "./components/ui/ScrollToTop"
+import RegionInitializer from "./components/RegionInitializer"
+import PushNotificationInitializer from "./components/PushNotificationInitializer"
 
-import HeroSection from "./components/home/HeroSection"
-import ServicesSection from "./components/home/ServicesSection"
-import WhyChooseSection from "./components/home/WhyChooseSection"
-import HowItWorksSection from "./components/home/HowItWorksSection"
-import BookingFlowSection from "./components/home/BookingFlowSection"
-import TestimonialsSection from "./components/home/TestimonialsSection"
-import CTASection from "./components/home/CTASection"
-
+import Home from "./pages/Home"
 import About from "./pages/About"
 import Contact from "./pages/Contact"
+import PrivacyPolicy from "./pages/PrivacyPolicy"
+import TermsConditions from "./pages/TermsConditions"
 import Services from "./pages/Services"
 import BookService from "./pages/BookService"
 import Payment from "./pages/Payment"
@@ -24,7 +24,6 @@ import BookingSuccess from "./pages/BookingSuccess"
 import TechnicianAssigned from "./pages/TechnicianAssigned"
 import RemoteSession from "./pages/RemoteSession"
 import SessionSummary from "./pages/SessionSummary"
-import MyBookings from "./pages/MyBookings"
 import RateBooking from "./pages/RateBooking"
 import Profile from "./pages/Profile"
 import Notifications from "./pages/Notifications"
@@ -34,6 +33,8 @@ import TrackTechnician from "./pages/TrackTechnician"
 import CustomerLogin from "./pages/CustomerLogin"
 import CustomerRegister from "./pages/CustomerRegister"
 import CustomerDashboard from "./pages/CustomerDashboard"
+import ForgotPassword from "./pages/ForgotPassword"
+import ResetPassword from "./pages/ResetPassword"
 
 import TechnicianLogin from "./pages/TechnicianLogin"
 import TechnicianRegister from "./pages/TechnicianRegister"
@@ -45,28 +46,16 @@ import AgentDashboard from "./pages/AgentDashboard"
 
 import AdminLogin from "./pages/AdminLogin"
 import AdminDashboard from "./pages/AdminDashboard"
+import AdminProtectedRoute from "./components/auth/AdminProtectedRoute"
 
 import { useCustomerAuth } from "./context/CustomerAuthContext"
 
-function HomePage() {
-  return (
-    <>
-      <SEO
-        title="GeekOnSites | Remote & On-Site Tech Support in US & UK"
-        description="GeekOnSites provides premium remote and on-site tech support across the United States and United Kingdom. Laptop repair, printer setup, WiFi troubleshooting, CCTV installation, virus removal and business IT support."
-        keywords="GeekOnSites,laptop repair,computer repair,printer setup,wifi troubleshooting,CCTV installation,remote tech support,business IT support"
-        url="https://geekonsites.com/"
-      />
-
-      <HeroSection />
-      <ServicesSection />
-      <WhyChooseSection />
-      <HowItWorksSection />
-      <BookingFlowSection />
-      <TestimonialsSection />
-      <CTASection />
-    </>
-  )
+const shouldShowLaunchSplash = () => {
+  try {
+    return sessionStorage.getItem("gos_splash_seen") !== "true"
+  } catch {
+    return true
+  }
 }
 
 function ProtectedRoute({ children, allowedRoles, redirectTo = "/customer-login" }) {
@@ -100,6 +89,8 @@ function AppContent() {
     [
       "/customer-login",
       "/customer-register",
+      "/forgot-password",
+      "/reset-password",
       "/customer-dashboard",
       "/technician-login",
       "/technician-register",
@@ -115,26 +106,32 @@ function AppContent() {
     location.pathname.startsWith("/invoice")
 
   return (
-    <div className="min-h-screen bg-[#020817] text-white overflow-x-hidden">
+    <div className={`${hideLayout ? "" : "gos-app-shell "}min-h-screen overflow-x-hidden bg-gos-off-white text-gos-charcoal`}>
       {!hideLayout && <Navbar />}
 
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<Home />} />
         <Route path="/services" element={<Services />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/support" element={<Contact />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsConditions />} />
 
-        <Route path="/book-service" element={<BookService />} />
-        <Route path="/payment" element={<Payment />} />
-        <Route path="/payment-details" element={<PaymentDetails />} />
-        <Route path="/remaining-payment" element={<RemainingPayment />} />
-        <Route path="/booking-success" element={<BookingSuccess />} />
-        <Route path="/technician-assigned" element={<TechnicianAssigned />} />
-        <Route path="/remote-session" element={<RemoteSession />} />
-        <Route path="/session-summary" element={<SessionSummary />} />
+        <Route path="/book-service" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><BookService /></ProtectedRoute>} />
+        <Route path="/payment" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><Payment /></ProtectedRoute>} />
+        <Route path="/payment-details" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><PaymentDetails /></ProtectedRoute>} />
+        <Route path="/payment-success" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><PaymentDetails /></ProtectedRoute>} />
+        <Route path="/remaining-payment" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><RemainingPayment /></ProtectedRoute>} />
+        <Route path="/booking-success" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><BookingSuccess /></ProtectedRoute>} />
+        <Route path="/technician-assigned" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><TechnicianAssigned /></ProtectedRoute>} />
+        <Route path="/remote-session" element={<ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"]}><RemoteSession /></ProtectedRoute>} />
+        <Route path="/session-summary" element={<ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"]}><SessionSummary /></ProtectedRoute>} />
 
         <Route path="/customer-login" element={<CustomerLogin />} />
         <Route path="/customer-register" element={<CustomerRegister />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route
           path="/customer-dashboard"
@@ -149,7 +146,7 @@ function AppContent() {
           path="/my-bookings"
           element={
             <ProtectedRoute allowedRoles={["CUSTOMER"]} redirectTo="/customer-login">
-              <MyBookings />
+              <Navigate to="/customer-dashboard?view=bookings" replace />
             </ProtectedRoute>
           }
         />
@@ -169,7 +166,7 @@ function AppContent() {
         <Route
           path="/profile"
           element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]} redirectTo="/customer-login">
+            <ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN", "AGENT"]} redirectTo="/customer-login">
               <Profile />
             </ProtectedRoute>
           }
@@ -213,9 +210,9 @@ function AppContent() {
         <Route
           path="/admin-dashboard"
           element={
-            <ProtectedRoute allowedRoles={["ADMIN"]} redirectTo="/admin-login">
+            <AdminProtectedRoute>
               <AdminDashboard />
-            </ProtectedRoute>
+            </AdminProtectedRoute>
           }
         />
 
@@ -245,6 +242,7 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
       {!hideLayout && <MobileBottomNav />}
@@ -254,9 +252,28 @@ function AppContent() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(shouldShowLaunchSplash)
+  const finishSplash = useCallback(() => {
+    try {
+      sessionStorage.setItem("gos_splash_seen", "true")
+    } catch {
+      // Storage can be unavailable in restricted browser contexts; the splash
+      // must still finish and reveal the application.
+    }
+    setShowSplash(false)
+  }, [])
+
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <>
+      <BrowserRouter>
+        <ScrollToTop />
+        <RegionInitializer />
+        <PushNotificationInitializer />
+        <AppContent />
+      </BrowserRouter>
+      <AnimatePresence>
+        {showSplash && <SplashScreen onComplete={finishSplash} />}
+      </AnimatePresence>
+    </>
   )
 }

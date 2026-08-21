@@ -1,128 +1,56 @@
-import { motion } from "framer-motion"
-import { Star, Quote } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ArrowLeft, ArrowRight, Quote, Star } from "lucide-react"
+import { motion, useReducedMotion } from "framer-motion"
+import Section from "../layout/Section"
+import SectionHeading from "../content/SectionHeading"
+import { fadeUp, staggerContainer, staggerItem, viewportOnce } from "../../styles/motion"
 
 const reviews = [
-  {
-    name: "Emily Carter",
-    role: "Laptop Repair Customer",
-    text: "The technician arrived on time and fixed my laptop screen professionally. Smooth booking and clear updates.",
-  },
-  {
-    name: "James Wilson",
-    role: "Printer Setup Customer",
-    text: "GOS helped me set up my wireless printer quickly. Very clean and professional service experience.",
-  },
-  {
-    name: "Sophia Brown",
-    role: "CCTV Installation Customer",
-    text: "The CCTV setup was handled perfectly. I could track the service and technician status easily.",
-  },
-  {
-    name: "Daniel Smith",
-    role: "Business IT Client",
-    text: "Reliable support for our office network and IT setup. The process felt premium and organized.",
-  },
-  {
-    name: "Olivia Taylor",
-    role: "WiFi Support Customer",
-    text: "My WiFi issue was solved the same day. The technician was friendly and skilled.",
-  },
-  {
-    name: "Michael Johnson",
-    role: "Software Support Customer",
-    text: "They optimized my PC and installed all required drivers. Excellent doorstep tech support.",
-  },
+  { name: "Emily Carter", role: "Laptop Repair Customer", text: "The technician arrived on time and fixed my laptop screen professionally. Smooth booking and clear updates." },
+  { name: "James Wilson", role: "Printer Setup Customer", text: "GOS helped me set up my wireless printer quickly. Very clean and professional service experience." },
+  { name: "Sophia Brown", role: "CCTV Installation Customer", text: "The CCTV setup was handled perfectly. I could track the service and technician status easily." },
+  { name: "Daniel Smith", role: "Business IT Client", text: "Reliable support for our office network and IT setup. The process felt premium and organized." },
 ]
 
 export default function TestimonialsSection() {
+  const trackRef = useRef(null)
+  const reduceMotion = useReducedMotion()
+  const [timerKey, setTimerKey] = useState(0)
+  const move = (direction, manual = true) => {
+    const track = trackRef.current
+    if (!track) return
+    const step = Math.min(track.clientWidth * 0.86, 430)
+    const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - step * 0.45
+    const atStart = track.scrollLeft <= step * 0.15
+    if (direction > 0 && atEnd) track.scrollTo({ left: 0, behavior: "smooth" })
+    else if (direction < 0 && atStart) track.scrollTo({ left: track.scrollWidth, behavior: "smooth" })
+    else track.scrollBy({ left: direction * step, behavior: "smooth" })
+    if (manual) setTimerKey((current) => current + 1)
+  }
+
+  useEffect(() => {
+    if (reduceMotion) return undefined
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") move(1, false)
+    }, 4200)
+    return () => window.clearInterval(timer)
+  }, [reduceMotion, timerKey])
+
   return (
-    <section className="relative overflow-hidden bg-[#070B12] py-20 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_left,rgba(14,165,233,0.12),transparent_35%),radial-gradient(circle_at_right,rgba(212,175,55,0.1),transparent_35%)]" />
-
-      <div className="relative mx-auto max-w-7xl px-5 sm:px-6">
-        <div className="mx-auto mb-14 max-w-3xl text-center">
-          <motion.p
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.2 }}
-            className="mb-3 text-lg font-bold text-cyan-400 sm:text-xl"
-          >
-            CUSTOMER REVIEWS
-          </motion.p>
-
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.2 }}
-            className="text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl"
-          >
-            Trusted By Customers For Doorstep Tech Support
-          </motion.h2>
-
-          <motion.p
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.2 }}
-            className="mt-5 text-sm text-gray-400 sm:text-base"
-          >
-            Real service-style feedback cards designed for both website and
-            mobile app experience.
-          </motion.p>
-        </div>
-
-        <div className="relative overflow-hidden">
-          <motion.div
-            animate={{ x: ["0%", "-50%"] }}
-            transition={{
-              duration: 28,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-            className="flex w-max gap-5"
-          >
-            {[...reviews, ...reviews].map((review, index) => (
-              <ReviewCard key={index} review={review} />
-            ))}
-          </motion.div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function ReviewCard({ review }) {
-  return (
-    <motion.div
-      whileHover={{ y: -8, scale: 1.02 }}
-      className="w-[310px] sm:w-[370px] rounded-[1.75rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl"
-    >
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex gap-1 text-[#D4AF37]">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <Star key={star} size={16} fill="currentColor" />
-          ))}
-        </div>
-
-        <Quote className="text-cyan-400" size={26} />
-      </div>
-
-      <p className="min-h-[96px] text-sm leading-relaxed text-gray-300">
-        “{review.text}”
-      </p>
-
-      <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-5">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 font-bold">
-          {review.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")}
-        </div>
-
-        <div>
-          <h4 className="font-semibold text-white">{review.name}</h4>
-          <p className="text-xs text-gray-400">{review.role}</p>
-        </div>
-      </div>
-    </motion.div>
+    <Section className="overflow-hidden bg-white pb-10 pt-4 sm:pb-14 sm:pt-5 lg:pb-16 lg:pt-6">
+      <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={viewportOnce} className="flex flex-col justify-between gap-7 md:flex-row md:items-end">
+        <SectionHeading eyebrow="Customer experiences" title="Support people can feel good about." description="Straightforward service, professional technicians, and useful updates throughout the process." />
+        <div className="flex gap-2" aria-label="Testimonial controls"><button type="button" onClick={() => move(-1)} aria-label="Previous testimonial" className="flex h-12 w-12 items-center justify-center rounded-md border border-gos-border text-gos-blue transition hover:border-gos-turquoise hover:text-gos-turquoise active:scale-[0.98]"><ArrowLeft size={19} /></button><button type="button" onClick={() => move(1)} aria-label="Next testimonial" className="flex h-12 w-12 items-center justify-center rounded-md bg-gos-blue text-white transition hover:bg-gos-blue-deep active:scale-[0.98]"><ArrowRight size={19} /></button></div>
+      </motion.div>
+      <motion.div ref={trackRef} onPointerDown={() => setTimerKey((current) => current + 1)} variants={staggerContainer} initial="hidden" whileInView="visible" viewport={viewportOnce} className="-mx-5 mt-7 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-3 [scrollbar-width:none] sm:-mx-8 sm:mt-9 sm:px-8 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
+        {reviews.map((review) => (
+          <motion.figure variants={staggerItem} key={review.name} className="relative w-[78vw] max-w-[21rem] shrink-0 snap-start rounded-lg border border-gos-border bg-gos-off-white p-5 transition-colors hover:border-gos-turquoise sm:w-[20rem]">
+            <div className="flex items-center justify-between"><div className="flex gap-1 text-gos-gold">{[1,2,3,4,5].map((star) => <Star key={star} size={14} fill="currentColor" />)}</div><Quote size={21} className="text-gos-turquoise" /></div>
+            <blockquote className="mt-4 min-h-24 text-sm leading-6 text-gos-charcoal">“{review.text}”</blockquote>
+            <figcaption className="mt-5 border-t border-gos-border pt-4"><p className="font-bold text-gos-blue-deep">{review.name}</p><p className="mt-1 text-xs text-gos-muted">{review.role}</p></figcaption>
+          </motion.figure>
+        ))}
+      </motion.div>
+    </Section>
   )
 }

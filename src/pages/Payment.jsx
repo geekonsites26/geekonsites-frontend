@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { createStripeCheckoutSession } from "../services/paymentService"
+import { getLocation } from "../utils/location"
 import {
   ArrowRight,
   BadgeCheck,
@@ -38,25 +39,23 @@ useEffect(() => {
 }, [])
 
   const booking = useMemo(() => {
+    if (location.state?.booking) return location.state.booking
     try {
       return JSON.parse(localStorage.getItem("currentBooking"))
     } catch {
       return null
     }
-  }, [])
+  }, [location.state])
 
- const selectedLocation = localStorage.getItem("gos_location") || "UK"
-
-const country = booking?.country || selectedLocation
+ const selectedLocation = getLocation().code
 
 const currency =
   booking?.currency ||
   (selectedLocation === "US" ? "USD" : "GBP")
 
-const symbol =
-  selectedLocation === "US"
-    ? "$"
-    : "£"
+const symbol = currency === "USD" ? "$" : "\u00A3"
+
+  const selectedServices = Array.isArray(booking?.selectedServices) ? booking.selectedServices : []
 
   const isRemote = Boolean(booking?.remoteSessionRequired)
 
@@ -146,7 +145,7 @@ window.location.href = session.checkoutUrl
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#07111F] pb-32 pt-28 text-white lg:pt-40">
+    <main className="gos-service-flow relative min-h-screen overflow-hidden bg-[#07111F] pb-32 pt-28 text-white lg:pt-32">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.12),transparent_35%)]" />
 
       <section className="relative mx-auto max-w-7xl px-4 pb-36 sm:px-6 lg:px-8">
@@ -241,7 +240,10 @@ window.location.href = session.checkoutUrl
               </div>
 
               <div className="mt-6 space-y-4">
-                <PriceRow label="Service Fee" value={`${symbol}${serviceFee.toFixed(2)}`} />
+                {selectedServices.map((item) => (
+                  <PriceRow key={`${item.category}-${item.name}`} label={item.name} value={`${symbol}${Number(item.price || 0).toFixed(2)}`} />
+                ))}
+                <PriceRow label={selectedServices.length > 1 ? "Services Subtotal" : "Service Fee"} value={`${symbol}${serviceFee.toFixed(2)}`} />
                 <PriceRow label="Add-ons" value={`${symbol}${addonsAmount.toFixed(2)}`} />
                 <PriceRow label="Protection Plan" value={`${symbol}${protectionAmount.toFixed(2)}`} />
                 <PriceRow label="Platform Fee" value={`${symbol}${platformFee.toFixed(2)}`} />

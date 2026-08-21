@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import gosVan from "../assets/map/gos-van.webp"
 import customerHome from "../assets/map/customer-home.webp"
-import SockJS from "sockjs-client"
-import { Client } from "@stomp/stompjs"
 import {
   GoogleMap,
 Marker,
@@ -36,10 +34,7 @@ const mapContainerStyle = {
   height: "100%",
 }
 
-const defaultCenter = {
-  lat: 51.5072,
-  lng: -0.1276,
-}
+const regionCenter = (country) => country === "UK" ? { lat: 54.5, lng: -3.2 } : { lat: 39.8, lng: -98.5 }
 
 const mapOptions = {
   disableDefaultUI: true,
@@ -102,12 +97,11 @@ export default function TrackTechnician() {
   const animationDuration = 6000
   const [directions, setDirections] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [distanceText, setDistanceText] = useState("Calculating...")
-  const [etaText, setEtaText] = useState("Calculating...")
+  const [distanceText, setDistanceText] = useState("Not started")
+  const [etaText, setEtaText] = useState("Not started")
   const [lastUpdated, setLastUpdated] = useState(null)
   const mapRef = useRef(null)
   const lastRoutePointRef = useRef(null)
-  const stompClientRef = useRef(null)
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
   })
@@ -122,7 +116,7 @@ export default function TrackTechnician() {
       }
     }
 
-    return defaultCenter
+    return regionCenter(booking?.country)
   }, [booking])
 
   const technicianPosition = useMemo(() => {
@@ -178,30 +172,26 @@ export default function TrackTechnician() {
     booking?.status ||
     "Tracking Booking"
 
+  const journeyActive = [
+    "TECHNICIAN_ON_THE_WAY",
+    "TECHNICIAN_ARRIVED",
+    "SERVICE_STARTED",
+  ].includes(booking?.bookingStatus)
+
+  const displayedEta = journeyActive && technicianPosition ? etaText : "Not started"
+  const displayedDistance = journeyActive && technicianPosition ? distanceText : "Not started"
+
   useEffect(() => {
   if (!trackingId) return
 
   loadTracking()
 
-const socket = new SockJS(`${import.meta.env.VITE_API_BASE_URL}/ws`)
-
-  const client = new Client({
-    webSocketFactory: () => socket,
-    reconnectDelay: 5000,
-    onConnect: () => {
-      client.subscribe(`/topic/tracking/${trackingId}`, (message) => {
-        const liveBooking = JSON.parse(message.body)
-        setBooking(liveBooking)
-        setLastUpdated(new Date())
-      })
-    },
-  })
-
-  client.activate()
-  stompClientRef.current = client
-
+  const timer = window.setInterval(() => loadTracking(false), 5000)
+  const refreshWhenVisible = () => document.visibilityState === "visible" && loadTracking(false)
+  document.addEventListener("visibilitychange", refreshWhenVisible)
   return () => {
-    client.deactivate()
+    window.clearInterval(timer)
+    document.removeEventListener("visibilitychange", refreshWhenVisible)
   }
 }, [trackingId])
 
@@ -307,22 +297,41 @@ useEffect(() => {
 
     window.open(url, "_blank")
   }
+
+  const technicianPhone = booking?.technicianPhone || booking?.technicianMobile
+
+  const callTechnician = () => {
+    if (!technicianPhone) return
+    window.location.href = `tel:${technicianPhone}`
+  }
+
+  const messageTechnician = () => {
+    if (!technicianPhone) return
+    const text = encodeURIComponent(`Hello, I am contacting you about GeekOnSites booking GOS-${trackingId}.`)
+    window.location.href = `sms:${technicianPhone}?body=${text}`
+  }
   
   const progressPercent = isRemote
-  ? booking?.bookingStatus === "SERVICE_COMPLETED"
-    ? 100
-    : 65
-  : booking?.bookingStatus === "TECHNICIAN_ACCEPTED"
-  ? 40
-  : booking?.bookingStatus === "TECHNICIAN_ON_THE_WAY"
-  ? 65
-  : booking?.bookingStatus === "TECHNICIAN_ARRIVED"
-  ? 80
-  : booking?.bookingStatus === "SERVICE_STARTED"
-  ? 90
-  : booking?.bookingStatus === "SERVICE_COMPLETED"
-  ? 100
-  : 45
+    ? booking?.bookingStatus === "SERVICE_COMPLETED"
+      ? 100
+      : 65
+    : {
+        TECHNICIAN_ASSIGNED: 28,
+        TECHNICIAN_ACCEPTED: 42,
+        TECHNICIAN_ON_THE_WAY: 62,
+        TECHNICIAN_ARRIVED: 78,
+        SERVICE_STARTED: 90,
+        SERVICE_COMPLETED: 100,
+      }[booking?.bookingStatus] || 15
+
+const journeyStatusText = {
+  TECHNICIAN_ASSIGNED: "Technician assigned",
+  TECHNICIAN_ACCEPTED: "Technician accepted your booking",
+  TECHNICIAN_ON_THE_WAY: "Technician is on the way",
+  TECHNICIAN_ARRIVED: "Technician has arrived",
+  SERVICE_STARTED: "Service has started",
+  SERVICE_COMPLETED: "Service completed",
+}[booking?.bookingStatus] || "Booking confirmed"
 
 const liveMessage = isRemote
   ? "Remote technician is preparing your session"
@@ -353,9 +362,10 @@ const shareTracking = async () => {
 
   if (loading && !booking) {
     return (
-      <main className="min-h-screen bg-[#020817] px-4 pt-36 text-white">
-        <div className="mx-auto max-w-4xl rounded-[2rem] border border-white/10 bg-[#071122] p-8 text-center">
-          <p className="font-black text-cyan-300">Loading live tracking...</p>
+      <main className="min-h-screen bg-gos-off-white px-4 pt-24 text-gos-blue-deep">
+        <div className="mx-auto max-w-md rounded-xl border border-gos-border bg-white p-6 text-center shadow-sm">
+          <RefreshCcw className="mx-auto mb-3 animate-spin text-gos-turquoise" size={22} />
+          <p className="font-bold">Loading live tracking...</p>
         </div>
       </main>
     )
@@ -363,21 +373,22 @@ const shareTracking = async () => {
 
   if (loadError) {
     return (
-      <main className="min-h-screen bg-[#020817] px-4 pt-36 text-white">
-        <div className="mx-auto max-w-4xl rounded-[2rem] border border-red-500/20 bg-red-500/10 p-8 text-center">
-          <p className="font-black text-red-300">Google Maps failed to load.</p>
+      <main className="min-h-screen bg-gos-off-white px-4 pt-24 text-gos-blue-deep">
+        <div className="mx-auto max-w-md rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <p className="font-bold text-red-700">Google Maps failed to load.</p>
         </div>
       </main>
     )
   }
 
   return (
-  <main className="relative min-h-screen max-w-full overflow-x-hidden bg-[#020817] pb-28 text-white lg:pb-8">
-      <header className="sticky top-0 z-50 border-b border-cyan-500/10 bg-[#071122]/95 px-4 py-4 backdrop-blur-xl">
+  <main className="gos-service-flow tracking-page relative min-h-screen max-w-full overflow-x-hidden bg-gos-off-white pb-28 text-gos-blue-deep lg:pb-8">
+      <header className="sticky top-0 z-50 border-b border-gos-border bg-white/95 px-3 py-2.5 text-gos-blue-deep backdrop-blur-xl sm:px-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gos-border bg-gos-off-white text-gos-blue-deep"
+            aria-label="Go back"
           >
             <ArrowLeft size={20} />
           </button>
@@ -402,16 +413,18 @@ const shareTracking = async () => {
 
           <button
             onClick={() => loadTracking()}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5"
+            disabled={loading}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gos-border bg-gos-off-white text-gos-blue-deep disabled:opacity-60"
+            aria-label="Refresh tracking"
           >
-            <RefreshCcw size={18} />
+            <RefreshCcw size={18} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="overflow-hidden rounded-[2rem] border border-cyan-500/20 bg-[#071122] shadow-2xl shadow-cyan-500/10">
-        <div className="relative h-[72vh] min-h-[600px] lg:h-[calc(100vh-120px)]">
+      <section className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[1.25fr_0.75fr] lg:gap-5 lg:px-4 lg:py-5">
+        <div className="overflow-hidden border-y border-gos-border bg-white shadow-sm lg:rounded-2xl lg:border">
+        <div className="relative h-[52vh] min-h-[340px] max-h-[560px] lg:h-[calc(100vh-120px)] lg:max-h-none">
            {isLoaded ? (
   <>
     <GoogleMap
@@ -443,8 +456,8 @@ const shareTracking = async () => {
   src={gosVan}
   alt="GOS"
   style={{
-    width: "120px",
-    height: "120px",
+    width: "68px",
+    height: "68px",
     transform: `translate(-50%, -50%) rotate(${booking?.technicianHeading || 0}deg)`,
   }}
 />
@@ -467,25 +480,25 @@ const shareTracking = async () => {
       )}
     </GoogleMap>
 
-   <div className="absolute left-5 top-5 z-30 rounded-[1.5rem] border border-white/10 bg-[#071122]/95 px-5 py-4 shadow-2xl backdrop-blur-xl">
-  <div className="flex items-center gap-3">
-    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400 text-black">
-      <Zap size={20} />
+   <div className="absolute left-3 top-3 z-30 rounded-lg border border-white/10 bg-[#071122]/95 px-3 py-2 shadow-lg backdrop-blur-xl">
+  <div className="flex items-center gap-2">
+    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-cyan-400 text-black">
+      <Zap size={16} />
     </div>
 
     <div>
       <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
-        {isRemote ? "Remote Ready" : "Arriving In"}
+        {isRemote ? "Remote Ready" : journeyActive ? "Arriving In" : "Journey"}
       </p>
 
-      <h3 className="text-2xl font-black">
-        {isRemote ? "Now" : etaText}
+      <h3 className="text-base font-black">
+        {isRemote ? "Now" : displayedEta}
       </h3>
     </div>
   </div>
 </div>
 
-<div className="absolute left-5 top-28 z-30 animate-bounce rounded-2xl bg-green-500 px-4 py-3 shadow-xl">
+<div className="hidden">
   <p className="text-xs font-black text-black">
   {
     booking?.bookingStatus === "TECHNICIAN_ASSIGNED"
@@ -503,36 +516,37 @@ const shareTracking = async () => {
 </p>
 </div>
     
+    <div className="absolute bottom-3 left-3 right-3 z-30 max-w-fit rounded-lg border border-green-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur sm:bottom-4 sm:left-4 sm:right-auto">
+      <p className="text-xs font-bold text-green-800">{journeyStatusText}</p>
+    </div>
+
     {/* Floating Actions */}
 
-    <div className="absolute right-5 top-24 z-30 flex flex-col gap-3">
-
-      <a
-        href={
-  booking?.technicianPhone
-    ? `tel:${booking.technicianPhone}`
-    : booking?.technicianMobile
-    ? `tel:${booking.technicianMobile}`
-    : undefined
-}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500 shadow-2xl transition hover:scale-110"
-      >
-        <Phone className="h-6 w-6 text-black" />
-      </a>
+    <div className="absolute right-3 top-3 z-30 flex flex-col gap-2">
 
       <button
-        onClick={() =>
-          alert("Secure chat will open here. For urgent help, please call the technician.")
-        }
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-cyan-400 shadow-2xl transition hover:scale-110"
+        type="button"
+        onClick={callTechnician}
+        disabled={!technicianPhone}
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-green-500 shadow-lg transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-slate-300"
+        aria-label="Call technician"
       >
-        <MessageCircle className="h-6 w-6 text-black" />
+        <Phone className="h-5 w-5 text-black" />
+      </button>
+
+      <button
+        onClick={messageTechnician}
+        disabled={!technicianPhone}
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-400 shadow-lg transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-slate-300"
+        aria-label="Message technician"
+      >
+        <MessageCircle className="h-5 w-5 text-black" />
       </button>
 
       {!isRemote && (
   <button
     onClick={openGoogleNavigation}
-    className="rounded-2xl bg-white py-3 text-sm font-black text-black"
+    className="min-h-10 rounded-lg bg-white px-2 text-xs font-black text-black"
   >
     Route
   </button>
@@ -549,13 +563,13 @@ const shareTracking = async () => {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-[2.5rem] border border-cyan-500/20 bg-[#071122]/95 p-6 shadow-2xl backdrop-blur-xl">
+        <div className="relative z-30 -mt-5 space-y-3 rounded-t-2xl bg-gos-off-white px-3 pt-3 lg:mt-0 lg:rounded-none lg:bg-transparent lg:px-0 lg:pt-0">
+          <div className="rounded-xl border border-gos-border bg-white p-4 shadow-lg">
 
   <div className="flex items-center gap-4">
 
     <div className="relative">
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-cyan-500/10 text-3xl font-black text-cyan-300">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/10 text-xl font-black text-cyan-300">
         {booking?.technicianName?.charAt(0) || "T"}
       </div>
 
@@ -568,7 +582,7 @@ const shareTracking = async () => {
         TECHNICIAN
       </p>
 
-      <h2 className="text-2xl font-black">
+      <h2 className="text-xl font-black">
         {booking?.technicianName || "Assigning..."}
       </h2>
 
@@ -595,23 +609,23 @@ const shareTracking = async () => {
 
   </div>
 
-  <div className="mt-6 grid grid-cols-2 gap-4">
+  <div className="mt-4 grid grid-cols-2 gap-2">
 
     <Info
       icon={Clock3}
       label="ETA"
-      value={isRemote ? "Ready" : etaText}
+      value={isRemote ? "Ready" : displayedEta}
     />
 
     <Info
       icon={Navigation}
       label="Distance"
-      value={isRemote ? "Remote" : distanceText}
+      value={isRemote ? "Remote" : displayedDistance}
     />
 
   </div>
 
-  <div className="mt-6 rounded-3xl bg-cyan-500/10 p-5">
+  <div className="mt-4 rounded-lg bg-cyan-500/10 p-3">
 
     <p className="text-xs font-black tracking-[0.18em] uppercase text-cyan-300">
       LIVE STATUS
@@ -652,31 +666,36 @@ const shareTracking = async () => {
 
   </div>
 
-  <div className="mt-6 grid grid-cols-4 gap-3">
-
-    <a
-      href={booking?.technicianPhone ? `tel:${booking.technicianPhone}` : undefined}
-      className="rounded-2xl bg-green-500 py-3 text-center text-sm font-black text-black"
-    >
-      Call
-    </a>
+  <div className="mt-4 grid grid-cols-4 gap-2">
 
     <button
-      className="rounded-2xl bg-cyan-400 py-3 text-sm font-black text-black"
+      type="button"
+      onClick={callTechnician}
+      disabled={!technicianPhone}
+      className="flex min-h-10 items-center justify-center rounded-lg bg-green-500 px-1 text-xs font-black text-black disabled:bg-slate-200 disabled:text-slate-500"
+    >
+      Call
+    </button>
+
+    <button
+      type="button"
+      onClick={messageTechnician}
+      disabled={!technicianPhone}
+      className="min-h-10 rounded-lg bg-cyan-400 px-1 text-xs font-black text-black"
     >
       Chat
     </button>
 
     <button
       onClick={shareTracking}
-      className="rounded-2xl border border-white/10 py-3 text-sm font-black"
+      className="min-h-10 rounded-lg border border-gos-border px-1 text-xs font-black"
     >
       Share
     </button>
 
     <button
       onClick={openGoogleNavigation}
-      className="rounded-2xl bg-white py-3 text-sm font-black text-black"
+      className="min-h-10 rounded-lg border border-gos-border bg-white px-1 text-xs font-black text-gos-blue-deep"
     >
       Route
     </button>
@@ -685,14 +704,13 @@ const shareTracking = async () => {
 
 </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-[#071122] p-5">
+          <div className="rounded-xl border border-gos-border bg-white p-4">
             <h3 className="text-lg font-black">Live Status</h3>
 
             <div className="mt-4 space-y-3">
               <Step active title="Booking Confirmed" />
               <Step
                 active={[
-                 [
                   "PAYMENT_COMPLETED",
                   "ASSIGNMENT_PENDING",
                   "TECHNICIAN_ASSIGNED",
@@ -702,13 +720,11 @@ const shareTracking = async () => {
                  "SERVICE_STARTED",
                  "REMOTE_SESSION_STARTED",
                  "SERVICE_COMPLETED",
-                ]
                 ].includes(booking?.bookingStatus)}
                 title="Payment Verified"
               />
               <Step
                 active={[
-                  [
                     "TECHNICIAN_ASSIGNED",
                     "TECHNICIAN_ACCEPTED",
                     "TECHNICIAN_ON_THE_WAY",
@@ -716,43 +732,36 @@ const shareTracking = async () => {
                     "SERVICE_STARTED",
                     "REMOTE_SESSION_STARTED",
                     "SERVICE_COMPLETED",
-                  ]
                 ].includes(booking?.bookingStatus)}
                 title="Technician Assigned"
               />
               <Step
                 active={[
-                  [
                    "TECHNICIAN_ACCEPTED",
                    "TECHNICIAN_ON_THE_WAY",
                    "TECHNICIAN_ARRIVED",
                    "SERVICE_STARTED",
                    "REMOTE_SESSION_STARTED",
                    "SERVICE_COMPLETED",
-                  ]
                 ].includes(booking?.bookingStatus)}
                 title="Technician Accepted"
               />
               <Step
                 active={[
-                  [
                   "TECHNICIAN_ON_THE_WAY",
                   "TECHNICIAN_ARRIVED",
                   "SERVICE_STARTED",
                   "REMOTE_SESSION_STARTED",
                   "SERVICE_COMPLETED",
-                ]
                 ].includes(booking?.bookingStatus)}
                 title={isRemote ? "Remote Session Ready" : "Technician On The Way"}
               />
               <Step
                 active={[
-                  [
                     "TECHNICIAN_ARRIVED",
                     "SERVICE_STARTED",
                     "REMOTE_SESSION_STARTED",
                     "SERVICE_COMPLETED",
-                  ]
                 ].includes(booking?.bookingStatus)}
                 title="Technician Arrived"
               />
@@ -791,10 +800,11 @@ const shareTracking = async () => {
 
           <button
             onClick={() => loadTracking()}
+            disabled={loading}
             className="flex items-center justify-center gap-1 rounded-2xl border border-white/10 py-3 text-xs font-black"
           >
-            <RefreshCcw size={15} />
-            Refresh
+            <RefreshCcw size={15} className={loading ? "animate-spin" : ""} />
+            {loading ? "Updating" : "Refresh"}
           </button>
 
           <button
@@ -812,7 +822,7 @@ const shareTracking = async () => {
 
 function Info({ icon: Icon, label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="rounded-lg border border-gos-border bg-gos-off-white p-3">
       <Icon className="mb-2 h-5 w-5 text-cyan-300" />
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-sm font-black">{value}</p>
@@ -822,7 +832,7 @@ function Info({ icon: Icon, label, value }) {
 
 function Step({ active, title }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+    <div className="flex items-center gap-3 border-b border-gos-border py-2.5 last:border-b-0">
       <div
         className={`flex h-6 w-6 items-center justify-center rounded-full ${
           active ? "bg-green-400 text-black" : "bg-white/10 text-slate-500"

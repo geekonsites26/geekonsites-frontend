@@ -1,19 +1,359 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
+@import "./styles/tokens.css";
 
 html {
   scroll-behavior: smooth;
   width: 100%;
   overflow-x: hidden;
+  background: var(--gos-off-white);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Shared operational flow theme: checkout, receipts, invoices, and sessions. */
+.gos-service-flow {
+  background: #edf2f5 !important;
+  color: #10283f !important;
+}
+
+.gos-service-flow > .pointer-events-none,
+.gos-service-flow > .absolute.inset-0 {
+  display: none;
+}
+
+.gos-service-flow [class*="bg-[#0D1B2A]"],
+.gos-service-flow [class*="bg-[#071122]"],
+.gos-service-flow [class*="bg-[#070B12]"],
+.gos-service-flow [class*="bg-black/20"],
+.gos-service-flow [class*="bg-white/5"] {
+  background: #ffffff !important;
+}
+
+.gos-service-flow [class*="border-white/10"] {
+  border-color: #d6e0e7 !important;
+}
+
+.gos-service-flow .text-white,
+.gos-service-flow [class*="text-slate-100"],
+.gos-service-flow [class*="text-slate-300"] {
+  color: #10283f !important;
+}
+
+.gos-service-flow [class*="text-slate-4"],
+.gos-service-flow [class*="text-slate-5"] {
+  color: #52687a !important;
+}
+
+.gos-service-flow [class*="text-cyan-300"] {
+  color: #0b8f91 !important;
+}
+
+.gos-service-flow [class*="rounded-[2rem]"],
+.gos-service-flow [class*="rounded-[1.4rem]"],
+.gos-service-flow .rounded-3xl,
+.gos-service-flow .rounded-2xl {
+  border-radius: 8px !important;
+}
+
+.gos-service-flow [class*="bg-gradient-to-r"],
+.gos-service-flow button[class*="bg-cyan-400"] {
+  background: #102f50 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* Remote session was designed dark originally; normalize every interactive state. */
+.remote-session-page [class*="bg-[#06101f]"],
+.remote-session-page [class*="bg-[#0b1628]"],
+.remote-session-page [class*="bg-black/25"],
+.remote-session-page [class*="bg-black/30"] {
+  background: #ffffff !important;
+}
+
+.remote-session-page [class*="bg-cyan-500/10"],
+.remote-session-page [class*="bg-cyan-400/10"] {
+  background: #e8f7f6 !important;
+}
+
+.remote-session-page [class*="bg-green-400/10"],
+.remote-session-page [class*="bg-green-500/10"] {
+  background: #eaf7f0 !important;
+}
+
+.remote-session-page [class*="bg-yellow-500/10"] {
+  background: #fff7df !important;
+}
+
+.remote-session-page [class*="bg-red-500/15"] {
+  background: #fff0f1 !important;
+}
+
+.remote-session-page [class*="text-cyan-100"],
+.remote-session-page [class*="text-cyan-300"] {
+  color: #087d80 !important;
+}
+
+.remote-session-page [class*="text-green-100"],
+.remote-session-page [class*="text-green-300"],
+.remote-session-page [class*="text-green-400"] {
+  color: #167348 !important;
+}
+
+.remote-session-page [class*="text-yellow-100"],
+.remote-session-page [class*="text-yellow-300"] {
+  color: #875900 !important;
+}
+
+.remote-session-page [class*="text-red-300"] {
+  color: #a42a38 !important;
+}
+
+.remote-session-page button:not([class*="bg-gradient-to-r"]):hover,
+.remote-session-page a:hover {
+  color: #082743 !important;
+}
+
+.remote-session-page button[class*="bg-gradient-to-r"]:hover,
+.remote-session-page button[class*="bg-cyan-400"]:hover {
+  background: #174c75 !important;
+  color: #ffffff !important;
+}
+
+.remote-session-page button:focus-visible,
+.remote-session-page a:focus-visible,
+.remote-session-page input:focus-visible {
+  outline: 3px solid rgba(21, 179, 175, 0.32) !important;
+  outline-offset: 2px;
+}
+
+.remote-session-page input {
+  background: #ffffff !important;
+  color: #10283f !important;
+}
+
+.remote-session-page input::placeholder {
+  color: #607485 !important;
+}
+
+.remote-session-page .remote-meeting-retry {
+  background: #102f50 !important;
+  color: #ffffff !important;
+}
+
+.remote-session-page .remote-copy-link {
+  background: #ffffff !important;
+  border-color: #9eb1c0 !important;
+  color: #102f50 !important;
+}
+
+.remote-session-page .remote-copy-link:hover:not(:disabled) {
+  background: #e8f7f6 !important;
+  border-color: #15b3af !important;
+  color: #102f50 !important;
+}
+
+.remote-session-page .remote-copy-link:disabled {
+  background: #eef2f5 !important;
+  border-color: #cbd6de !important;
+  color: #607485 !important;
+  opacity: 1 !important;
+}
+
+.payment-confirmation-page [class*="bg-emerald-400/10"] {
+  background: #e8f7ef !important;
+  border-color: #a9ddc1 !important;
+}
+
+.payment-confirmation-page [class*="text-emerald-100"] {
+  color: #126a43 !important;
+}
+
+.payment-confirmation-page [class*="bg-amber-400/10"] {
+  background: #fff7df !important;
+  border-color: #ead38f !important;
+}
+
+.payment-confirmation-page [class*="text-amber-100"] {
+  color: #795300 !important;
+}
+
+.payment-confirmation-page [class*="bg-cyan-400/10"] {
+  background: #e6f7f8 !important;
+}
+
+.payment-confirmation-page [class*="text-cyan-300"] {
+  color: #087f83 !important;
+}
+
+.payment-confirmation-page button[class*="bg-cyan-400"],
+.payment-confirmation-bar button {
+  background: #102f50 !important;
+  color: #ffffff !important;
+}
+
+.payment-confirmation-bar {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: #d6e0e7 !important;
+  color: #10283f !important;
+  box-shadow: 0 -8px 24px rgba(16, 47, 80, 0.1);
+}
+
+.booking-success-page .booking-success-card {
+  background: #ffffff !important;
+  border-color: #d6e0e7 !important;
+  color: #10283f !important;
+  box-shadow: 0 10px 30px rgba(16, 47, 80, 0.1) !important;
+}
+
+.booking-success-page .booking-status-banner {
+  background: #103658 !important;
+  color: #ffffff !important;
+  border-color: #1a577d !important;
+  box-shadow: none !important;
+}
+
+.booking-success-page .booking-status-banner h2,
+.booking-success-page .booking-status-banner p {
+  color: #ffffff !important;
+}
+
+.booking-success-page [class*="bg-green-500/10"] {
+  background: #eaf7f0 !important;
+}
+
+.booking-success-page [class*="text-green-300"],
+.booking-success-page [class*="text-green-400"] {
+  color: #167348 !important;
+}
+
+.booking-success-page [class*="bg-cyan-500/10"] {
+  background: #e8f7f6 !important;
+}
+
+.booking-success-page [class*="text-cyan-300"] {
+  color: #087d80 !important;
+}
+
+.booking-success-page [class*="text-gray-2"],
+.booking-success-page [class*="text-gray-4"] {
+  color: #52687a !important;
+}
+
+.booking-success-page [class*="text-gray-5"] {
+  color: #617687 !important;
+}
+
+.booking-success-page button[class*="bg-gradient-to-r"] {
+  background: #102f50 !important;
+  color: #ffffff !important;
+}
+
+/* Invoice is displayed in-app as well as exported, so keep its screen contrast explicit. */
+.invoice-details-page .invoice-document,
+.invoice-details-page .invoice-document [class*="bg-black/20"],
+.invoice-details-page .invoice-document [class*="bg-[#0b1628]"] {
+  background: #ffffff !important;
+  color: #10283f !important;
+}
+
+.invoice-details-page .invoice-document h1,
+.invoice-details-page .invoice-document h2,
+.invoice-details-page .invoice-document h3,
+.invoice-details-page .invoice-document p,
+.invoice-details-page .invoice-document span {
+  color: #10283f !important;
+}
+
+.invoice-details-page .invoice-document [class*="text-slate-4"],
+.invoice-details-page .invoice-document [class*="text-slate-5"] {
+  color: #4a6174 !important;
+}
+
+.invoice-details-page .invoice-document [class*="bg-green-400/10"],
+.invoice-details-page .invoice-document [class*="bg-green-500/10"] {
+  background: #e9f8ef !important;
+  border-color: #a9dfbf !important;
+}
+
+.invoice-details-page .invoice-document [class*="text-green-3"],
+.invoice-details-page .invoice-document [class*="text-green-4"] {
+  color: #126c43 !important;
+}
+
+.invoice-details-page .invoice-document [class*="bg-cyan-500/10"] {
+  background: #e8f7f8 !important;
+  border-color: #a9dfe1 !important;
+}
+
+.invoice-details-page .invoice-document [class*="text-cyan-3"] {
+  color: #08777b !important;
+}
+
+.invoice-details-page .invoice-document [class~="bg-green-400"] {
+  background: #137a4c !important;
+}
+
+.invoice-details-page .invoice-document [class~="bg-green-400"] span,
+.invoice-details-page .invoice-document [class~="bg-green-400"] {
+  color: #ffffff !important;
+}
+
+.invoice-details-page .invoice-actions button {
+  background: #102f50 !important;
+  border-color: #102f50 !important;
+  color: #ffffff !important;
+}
+
+.invoice-details-page .invoice-actions button svg {
+  color: #ffffff !important;
+}
+
+@media (max-width: 480px) {
+  .booking-success-page .booking-success-card h2 {
+    font-size: 1.2rem;
+  }
+
+  .booking-success-page [class*="tracking-[0.18em]"] {
+    letter-spacing: 0.08em !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .payment-confirmation-page > section {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .payment-confirmation-page [class*="tracking-[0.2em]"] {
+    letter-spacing: 0.08em !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .gos-service-flow section {
+    min-width: 0;
+  }
+
+  .gos-service-flow [class*="p-6"],
+  .gos-service-flow [class*="p-7"] {
+    padding: 1rem;
+  }
 }
 
 body {
-  background: #070B12;
-  color: white;
+  background: var(--gos-off-white);
+  color: var(--gos-charcoal);
   margin: 0;
   min-height: 100vh;
   width: 100%;
   overflow-x: hidden;
-  font-family: Inter, sans-serif;
+  font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 #root {
@@ -21,6 +361,1436 @@ body {
   overflow-x: hidden;
 }
 
+@media (max-width: 1023px) {
+  .gos-app-shell {
+    padding-bottom: calc(4.625rem + env(safe-area-inset-bottom));
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--gos-turquoise) 65%, white);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--gos-turquoise) 24%, white);
+  color: var(--gos-blue-deep);
+}
+
+.gos-display {
+  font-size: clamp(2.35rem, 6vw, 5.75rem);
+  line-height: 0.92;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.gos-section-title {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 0.98;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.gos-v2-home h3 {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+}
+
+.gos-v2-home a,
+.gos-v2-home button,
+.gos-v2-home span {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.gos-v2-home p,
+.gos-v2-home blockquote,
+.gos-v2-home figcaption {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 600;
+  text-rendering: optimizeLegibility;
+}
+
+.gos-v2-home p[class*="text-gos-muted"],
+.gos-v2-home blockquote[class*="text-gos-charcoal"] {
+  color: #4f5e6b;
+}
+
+.gos-v2-home p:not([class*="uppercase"]):not([class*="text-xs"]),
+.gos-v2-home blockquote {
+  font-size: clamp(1.05rem, 2vw, 1.2rem);
+  line-height: 1.65;
+}
+
+.gos-v2-home p[class*="uppercase"],
+.gos-v2-home p[class*="tracking-"] {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.gos-v2-home .gos-display,
+.gos-v2-home .gos-section-title {
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+/* Services: light operational layout shared by desktop and Capacitor views. */
+.gos-services-page > section:not(:first-of-type) {
+  background: #f3f6f8;
+  color: var(--gos-charcoal);
+}
+
+.gos-services-page > .gos-catalog-intro {
+  background: white;
+}
+
+.gos-services-page [class*="bg-white/"] {
+  background: white !important;
+}
+
+.gos-services-page [class*="border-white/"] {
+  border-color: var(--gos-border) !important;
+}
+
+.gos-services-page [class*="text-slate-3"],
+.gos-services-page [class*="text-slate-4"] {
+  color: #4f5e6b !important;
+}
+
+.gos-services-page [class*="text-slate-5"] {
+  color: #687786 !important;
+}
+
+.gos-services-page [class*="rounded-["] {
+  border-radius: 6px !important;
+}
+
+.gos-services-page #service-tabs > div > div,
+.gos-services-page section:not(:first-of-type) button[class*="border"] {
+  box-shadow: none;
+}
+
+.gos-services-page section:not(:first-of-type) h3,
+.gos-services-page section:not(:first-of-type) :not(button)[class*="font-black"] {
+  color: var(--gos-blue-deep);
+}
+
+.gos-services-page section:not(:first-of-type) [class*="text-cyan-3"] {
+  color: var(--gos-turquoise) !important;
+}
+
+.gos-services-page .gos-services-title {
+  border-top: 1px solid var(--gos-border);
+}
+
+.gos-services-page #service-tabs > div > div {
+  border-radius: 6px !important;
+  background: #f8fafb !important;
+}
+
+.gos-services-page section:not(:first-of-type) button,
+.gos-services-page section:not(:first-of-type) > div > div[class*="border"] {
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.gos-services-page section:not(:first-of-type) button:hover {
+  transform: none !important;
+}
+
+.gos-services-page .gos-services-title + section {
+  padding-top: 0;
+}
+
+.gos-services-page[data-catalog-view="services"] .gos-catalog-panel:not(.catalog-services),
+.gos-services-page[data-catalog-view="bundles"] .gos-catalog-panel:not(.catalog-bundles),
+.gos-services-page[data-catalog-view="products"] .gos-catalog-panel:not(.catalog-products),
+.gos-services-page[data-catalog-view="info"] .gos-catalog-panel:not(.catalog-info) {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .gos-services-page section:not(:first-of-type) [class*="p-5"],
+  .gos-services-page section:not(:first-of-type) [class*="p-6"] {
+    padding: 1rem;
+  }
+}
+
+/* Flatten the booking workspace: hierarchy comes from type and dividers, not cards. */
+.gos-booking-page main,
+.gos-booking-page section {
+  box-shadow: none;
+}
+
+.gos-booking-page > section > div > div > div > section button[class*="border"],
+.gos-booking-page > section > div > div > div > section div[class*="border"] {
+  box-shadow: none !important;
+}
+
+.gos-booking-page > section > div > div > div > section button[class*="bg-gos-off-white"],
+.gos-booking-page > section > div > div > div > section div[class*="bg-gos-off-white"] {
+  background: white !important;
+}
+
+.gos-booking-page > section > div > div > div > section button[class*="border-gos-border"],
+.gos-booking-page > section > div > div > div > section div[class*="border-gos-border"] {
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+  border-top-color: transparent !important;
+  border-radius: 0 !important;
+}
+
+.gos-booking-page > section > div > div > div > section button[class*="border-cyan"],
+.gos-booking-page > section > div > div > div > section div[class*="border-cyan"] {
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+  border-top-color: transparent !important;
+  border-bottom-color: var(--gos-turquoise) !important;
+  border-radius: 0 !important;
+}
+
+.gos-booking-page input,
+.gos-booking-page textarea {
+  border-radius: 0 !important;
+}
+
+.gos-booking-page .booking-workspace input:focus,
+.gos-booking-page .booking-workspace textarea:focus {
+  border-color: var(--gos-turquoise) !important;
+}
+
+.gos-booking-page .booking-workspace fieldset button,
+.gos-booking-page .booking-workspace button[aria-pressed] {
+  border-radius: 7px 7px 14px 7px !important;
+}
+
+.gos-booking-page .booking-workspace button[aria-pressed="true"] {
+  box-shadow: inset 0 -2px 0 var(--gos-gold);
+}
+
+.gos-booking-page .booking-workspace > div:first-child {
+  position: relative;
+}
+
+.gos-booking-page .booking-workspace > div:first-child::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: 3rem;
+  height: 2px;
+  background: var(--gos-gold);
+  content: "";
+}
+
+.gos-booking-page aside > div[class*="rounded"],
+.gos-booking-page aside [class*="space-y"] > div {
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-top: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.gos-booking-page aside [class*="space-y"] {
+  gap: 0;
+}
+
+/* Booking: a single light service wizard across web and Capacitor. */
+.gos-booking-page .booking-hero {
+  position: relative;
+  border-radius: 8px 8px 32px 8px;
+}
+
+.gos-booking-page .booking-hero::after {
+  position: absolute;
+  right: -2.5rem;
+  bottom: -3.5rem;
+  width: 9rem;
+  height: 9rem;
+  border: 1px solid rgba(49, 194, 184, 0.28);
+  border-radius: 50%;
+  content: "";
+}
+
+.gos-booking-page .booking-workspace {
+  border-radius: 8px 8px 28px 8px;
+}
+
+.gos-booking-page .booking-calendar {
+  border-radius: 8px 8px 22px 8px;
+}
+
+/* The service catalog keeps its own compact app-style controls. */
+.gos-booking-page .booking-service-tabs button,
+.gos-booking-page .booking-service-option,
+.gos-booking-page .booking-selection-confirm {
+  border-style: solid !important;
+  border-radius: 7px !important;
+}
+
+.gos-booking-page .booking-service-tabs button[class*="border-gos-border"],
+.gos-booking-page .booking-service-option[class*="border-gos-border"] {
+  border-color: var(--gos-border) !important;
+}
+
+.gos-booking-page .booking-service-option.is-selected,
+.gos-booking-page .booking-selection-confirm {
+  border-color: color-mix(in srgb, var(--gos-turquoise) 60%, white) !important;
+}
+
+.gos-booking-page h1,
+.gos-booking-page h2,
+.gos-booking-page h3 {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  letter-spacing: 0;
+}
+
+.gos-booking-page .booking-workspace p:not([class*="uppercase"]),
+.gos-booking-page aside p:not([class*="uppercase"]) {
+  font-weight: 600;
+}
+.gos-booking-page [class*="bg-black/"],
+.gos-booking-page [class*="bg-[#0A1020]"],
+.gos-booking-page [class*="bg-[#0B111D]"],
+.gos-booking-page [class*="bg-[#07111f]"] {
+  background: #f7f9fa !important;
+}
+
+.gos-booking-page [class*="border-white/"] {
+  border-color: var(--gos-border) !important;
+}
+
+.gos-booking-page [class*="text-gray-"],
+.gos-booking-page [class*="text-slate-3"],
+.gos-booking-page [class*="text-slate-4"],
+.gos-booking-page [class*="text-slate-5"] {
+  color: #586877 !important;
+}
+
+.gos-booking-page [class*="text-cyan-"],
+.gos-booking-page [class*="text-amber-3"] {
+  color: var(--gos-turquoise) !important;
+}
+
+.gos-booking-page [class*="bg-cyan-400"] {
+  background: var(--gos-blue-deep) !important;
+  color: white !important;
+}
+
+.gos-booking-page [class*="bg-cyan-400"] svg,
+.gos-booking-page button[class*="bg-cyan-400"] span {
+  color: white !important;
+}
+
+.gos-booking-page [class*="bg-cyan-500/10"],
+.gos-booking-page [class*="bg-amber-400/10"],
+.gos-booking-page [class*="bg-amber-400/15"] {
+  background: #eef8f7 !important;
+}
+
+.gos-booking-page [class*="border-cyan-"],
+.gos-booking-page [class*="border-amber-"] {
+  border-color: color-mix(in srgb, var(--gos-turquoise) 65%, white) !important;
+}
+
+.gos-booking-page [class*="rounded-["],
+.gos-booking-page .rounded-3xl,
+.gos-booking-page .rounded-2xl {
+  border-radius: 7px !important;
+}
+
+.gos-booking-page input,
+.gos-booking-page textarea,
+.gos-booking-page button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gos-booking-page input,
+.gos-booking-page textarea {
+  color: var(--gos-charcoal) !important;
+}
+
+.gos-booking-page input::placeholder,
+.gos-booking-page textarea::placeholder {
+  color: #71808e !important;
+}
+
+.gos-booking-page input[type="number"]::-webkit-inner-spin-button,
+.gos-booking-page input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.gos-booking-page input[type="number"] {
+  appearance: textfield;
+}
+
+.gos-booking-page input[type="date"] {
+  min-width: 0;
+  max-width: 100%;
+  -webkit-appearance: none;
+}
+
+.gos-booking-page input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0.35rem;
+}
+
+.gos-booking-page aside {
+  background: white !important;
+  border-color: var(--gos-border) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--gos-shadow-sm) !important;
+}
+
+.gos-booking-page .fixed.bottom-16:not(.gos-booking-mobile-bar) {
+  bottom: calc(4rem + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: var(--gos-border) !important;
+  color: var(--gos-blue-deep);
+}
+
+.gos-booking-page .fixed.bottom-16:not(.gos-booking-mobile-bar) button[class*="bg-cyan-400"] {
+  background: var(--gos-blue-deep) !important;
+  color: white !important;
+}
+
+@media (min-width: 1024px) {
+  .gos-booking-page .lg\:top-40 {
+    top: 7rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .gos-booking-page {
+    padding-top: calc(4.5rem + env(safe-area-inset-top));
+  }
+
+  .gos-booking-page .gos-booking-mobile-bar {
+    right: 0;
+    width: 100%;
+    bottom: calc(4.625rem + env(safe-area-inset-bottom));
+  }
+
+  .gos-booking-page > section {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .gos-booking-page .booking-hero {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem 0.875rem;
+    border-radius: 7px 7px 18px 7px;
+  }
+
+  .gos-booking-page .booking-hero h1 {
+    font-size: 1.45rem;
+    line-height: 1;
+  }
+
+  .gos-booking-page .booking-hero p {
+    margin-top: 0.35rem;
+    font-size: 0.68rem;
+    line-height: 1rem;
+  }
+
+  .gos-booking-page .booking-hero div[class*="uppercase"] {
+    margin-bottom: 0.35rem;
+  }
+
+  .gos-booking-page .booking-workspace {
+    padding: 0.5rem;
+    border-radius: 7px 7px 18px 7px;
+  }
+
+  .gos-booking-page .booking-workspace > div:first-child {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .gos-booking-page .booking-workspace section > div:first-child {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .gos-booking-page .booking-workspace section > div:first-child h2 {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
+  .gos-booking-page .booking-workspace section > div:first-child p {
+    margin-top: 0.25rem;
+    font-size: 0.68rem;
+    line-height: 1rem;
+  }
+
+  .gos-booking-page .booking-service-tabs button {
+    min-width: 0;
+    width: 100%;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    white-space: normal;
+  }
+
+  .gos-booking-page .booking-service-option {
+    min-height: 2.75rem;
+    padding: 0.375rem 0.5rem;
+  }
+
+  .gos-booking-page .booking-selection-confirm {
+    margin-top: 0.625rem;
+    padding: 0.5rem 0.625rem;
+  }
+
+  .gos-booking-page .booking-workspace input,
+  .gos-booking-page .booking-workspace textarea,
+  .gos-booking-page .booking-workspace button {
+    font-size: 0.75rem;
+  }
+
+  .gos-booking-page .booking-workspace button[class*="min-h-14"],
+  .gos-booking-page .booking-workspace div[class*="min-h-12"] {
+    min-height: 2.75rem;
+  }
+
+  .gos-booking-page .booking-workspace div[class*="gap-4"] {
+    gap: 0.625rem;
+  }
+
+  .gos-booking-page .booking-workspace div[class*="mt-5"],
+  .gos-booking-page .booking-workspace fieldset[class*="mt-5"] {
+    margin-top: 0.75rem;
+  }
+
+  .gos-booking-page .booking-review-price,
+  .gos-booking-page .booking-review-terms {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .gos-booking-page .gos-booking-mobile-bar {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+
+  .gos-booking-page .gos-booking-mobile-bar > div {
+    gap: 0.5rem;
+  }
+
+  .gos-booking-page button svg,
+  .gos-booking-page input + svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .gos-booking-page button[class*="p-5"],
+  .gos-booking-page div[class*="p-5"] {
+    padding: 0.875rem;
+  }
+
+  .gos-booking-page span[class*="h-10"] {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .gos-booking-page .booking-payment-button {
+    width: auto;
+    min-width: 9.25rem;
+    height: 2.75rem;
+    border-radius: 7px !important;
+  }
+}
+
+.gos-auth-page button,
+.gos-auth-page a,
+.gos-auth-page input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gos-auth-page button:focus,
+.gos-auth-page a:focus,
+.gos-auth-page input:focus {
+  outline: none;
+}
+
+.gos-auth-page button:focus-visible,
+.gos-auth-page a:focus-visible {
+  outline: 2px solid var(--gos-turquoise);
+  outline-offset: 2px;
+}
+
+.gos-register-page input,
+.gos-register-page button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gos-register-page input:focus,
+.gos-register-page input:focus-visible,
+.gos-register-page button:focus,
+.gos-register-page button:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+.gos-secure-editor:empty::before {
+  color: var(--gos-muted);
+  content: attr(data-placeholder);
+  pointer-events: none;
+  -webkit-text-security: none;
+}
+
+.gos-register-page .gos-secure-editor:focus,
+.gos-register-page .gos-secure-editor:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.gos-secure-editor[data-masked="true"] {
+  -webkit-text-security: disc;
+}
+
+.gos-auth-page input:-webkit-autofill,
+.gos-auth-page input:-webkit-autofill:hover,
+.gos-auth-page input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--gos-charcoal);
+  box-shadow: 0 0 0 1000px #f8fafb inset;
+  transition: background-color 9999s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Compact operational workspace shared by web and the Capacitor app. */
+.gos-technician-portal {
+  --tech-navy: #0c2b49;
+  --tech-navy-deep: #071f35;
+  --tech-ink: #102a43;
+  --tech-muted: #60758a;
+  --tech-line: #d8e2e8;
+  --tech-surface: #ffffff;
+  --tech-canvas: #edf3f5;
+  background: var(--tech-canvas) !important;
+  color: var(--tech-ink) !important;
+  font-family: var(--font-sans);
+}
+
+.gos-technician-portal > aside {
+  width: 260px !important;
+  background: #fff !important;
+  border-color: var(--tech-line) !important;
+  color: var(--tech-ink) !important;
+  box-shadow: 4px 0 18px rgba(12,43,73,.045) !important;
+}
+
+.gos-technician-portal main { background: var(--tech-canvas); }
+
+.gos-technician-portal [class*="bg-[#071122]"],
+.gos-technician-portal [class*="bg-[#0b1628]"],
+.gos-technician-portal [class*="bg-black/20"] {
+  background: var(--tech-surface) !important;
+  border-color: var(--tech-line) !important;
+  color: var(--tech-ink) !important;
+  box-shadow: 0 5px 18px rgba(12, 43, 73, 0.06);
+}
+
+.gos-technician-portal aside [class*="bg-[#071122]"],
+.gos-technician-portal aside [class*="bg-[#0b1628]"],
+.gos-technician-portal nav[class*="bg-[#071122]"],
+.gos-technician-portal div[class*="fixed inset-0"] {
+  background: var(--tech-navy-deep) !important;
+  color: #fff !important;
+}
+
+.gos-technician-portal > aside button:not([class*="bg-cyan-400"]) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: #405d72 !important;
+  box-shadow: none;
+}
+
+.gos-technician-portal > aside button:not([class*="bg-cyan-400"]):hover {
+  background: #edf7f7 !important;
+  color: #092f4b !important;
+}
+
+.gos-technician-portal > aside button[class*="bg-cyan-400"] {
+  background: #13bfd0 !important;
+  color: #06233a !important;
+}
+
+.gos-technician-portal > aside button:last-child {
+  background: #fff4f4 !important;
+  border-color: #f3d2d2 !important;
+  color: #a52b2b !important;
+}
+
+.gos-technician-portal > aside [class*="bg-[#0b1628]"] {
+  background: #f4f8f9 !important;
+  border-color: #d8e4e8 !important;
+  color: var(--tech-ink) !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-portal > aside > div:first-child h1 { color: #0ba4a8 !important; }
+.gos-technician-portal > aside > div:first-child > p { color: #607b8d !important; }
+.gos-technician-portal > aside > div:nth-child(2) { scrollbar-width: thin; scrollbar-color: #9babb5 transparent; }
+
+.gos-technician-portal [class*="rounded-[28px]"],
+.gos-technician-portal [class*="rounded-[32px]"],
+.gos-technician-portal .rounded-3xl,
+.gos-technician-portal .rounded-2xl,
+.gos-technician-portal .rounded-xl { border-radius: 8px !important; }
+
+.gos-technician-portal .text-white,
+.gos-technician-portal [class*="text-cyan-100/"],
+.gos-technician-portal .text-slate-400 { color: var(--tech-ink) !important; }
+
+.gos-technician-portal [class*="text-cyan-100/3"],
+.gos-technician-portal [class*="text-cyan-100/4"],
+.gos-technician-portal [class*="text-cyan-100/5"],
+.gos-technician-portal [class*="text-cyan-100/6"] { color: var(--tech-muted) !important; }
+
+.gos-technician-portal > aside [class*="text-cyan-100/"] { color: #607b8d !important; }
+.gos-technician-portal div[class*="fixed inset-0"] [class*="text-cyan-100/"],
+.gos-technician-portal nav [class*="text-cyan-100/"],
+.gos-technician-portal div[class*="fixed inset-0"] [class*="text-cyan-100/"] { color: #bcd0db !important; }
+
+.gos-technician-portal .text-cyan-300,
+.gos-technician-portal .text-cyan-200 { color: #008f95 !important; }
+
+.gos-technician-portal > aside .text-cyan-300,
+.gos-technician-portal > aside .text-cyan-200 { color: #079da2 !important; }
+.gos-technician-portal div[class*="fixed inset-0"] .text-cyan-300,
+.gos-technician-portal nav .text-cyan-300,
+.gos-technician-portal div[class*="fixed inset-0"] .text-cyan-300 { color: #4ed8d5 !important; }
+
+.gos-technician-portal button,
+.gos-technician-portal a,
+.gos-technician-portal input { -webkit-tap-highlight-color: transparent; }
+
+.gos-technician-portal button:focus-visible,
+.gos-technician-portal a:focus-visible,
+.gos-technician-portal input:focus-visible {
+  outline: 2px solid var(--gos-turquoise);
+  outline-offset: 2px;
+}
+
+.gos-technician-portal nav { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+
+.gos-technician-portal .tech-status-toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 100;
+  width: auto;
+  max-width: min(340px, calc(100vw - 28px));
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border: 1px solid #8cd9ca;
+  border-radius: 6px;
+  background: #f0fbf8 !important;
+  color: #126653 !important;
+  box-shadow: 0 10px 28px rgba(10, 54, 47, .14) !important;
+}
+
+.gos-technician-portal .tech-status-toast p {
+  margin: 0;
+  color: inherit !important;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.gos-technician-portal .tech-status-toast svg { flex: 0 0 auto; }
+
+@media (max-width: 767px) {
+  .gos-technician-portal .tech-status-toast {
+    top: calc(10px + env(safe-area-inset-top));
+    right: 10px;
+  }
+  .gos-technician-portal main > div:first-child {
+    height: calc(64px + env(safe-area-inset-top)) !important;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .gos-technician-portal #technician-main-content {
+    padding: 12px 12px calc(78px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .gos-technician-portal h1 { font-size: 1.1rem !important; }
+  .gos-technician-portal h2 { font-size: 1.05rem !important; }
+  .gos-technician-portal h3 { font-size: 0.95rem !important; }
+
+  .gos-technician-portal button,
+  .gos-technician-portal a { min-height: 42px; }
+
+  .gos-technician-portal nav button {
+    min-width: 0;
+    min-height: 50px;
+    padding: 5px 2px !important;
+    border-radius: 6px !important;
+  }
+}
+
+/* Technician authentication and onboarding. */
+.gos-technician-auth {
+  min-height: 100dvh !important;
+  background: #edf3f5 !important;
+  color: var(--gos-blue-deep) !important;
+  font-family: var(--font-sans);
+}
+
+.gos-technician-auth > div.absolute { display: none; }
+
+.gos-technician-auth > button:first-of-type {
+  top: max(12px, env(safe-area-inset-top)) !important;
+  left: 14px !important;
+  width: 42px !important;
+  height: 42px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  border-color: #d8e2e8 !important;
+  color: var(--gos-blue-deep) !important;
+  box-shadow: 0 3px 12px rgba(12, 43, 73, 0.08);
+}
+
+.gos-technician-login > div.relative,
+.gos-technician-register > div.relative {
+  display: block !important;
+  max-width: 700px !important;
+  min-height: calc(100dvh - 64px) !important;
+  padding-top: 12px !important;
+  padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
+}
+
+.gos-technician-login > div.relative { max-width: 560px !important; }
+
+.gos-technician-login > div.relative > section:first-child,
+.gos-technician-register > div.relative > section:first-child { display: none !important; }
+
+.gos-technician-auth [class*="bg-[#071122]"],
+.gos-technician-auth [class*="bg-[#0b1628]"],
+.gos-technician-auth [class*="bg-[#020817]"] {
+  background: #fff !important;
+  border-color: #d8e2e8 !important;
+  color: var(--gos-blue-deep) !important;
+  box-shadow: 0 8px 30px rgba(12, 43, 73, 0.08);
+}
+
+.gos-technician-auth [class*="rounded-[32px]"],
+.gos-technician-auth [class*="rounded-[38px]"],
+.gos-technician-auth [class*="rounded-[42px]"],
+.gos-technician-auth .rounded-3xl,
+.gos-technician-auth .rounded-2xl,
+.gos-technician-auth .rounded-xl { border-radius: 8px !important; }
+
+.gos-technician-auth .text-white,
+.gos-technician-auth [class*="text-cyan-100/"] { color: var(--gos-charcoal) !important; }
+
+.gos-technician-auth [class*="text-cyan-100/2"],
+.gos-technician-auth [class*="text-cyan-100/4"],
+.gos-technician-auth [class*="text-cyan-100/5"],
+.gos-technician-auth [class*="text-cyan-100/6"],
+.gos-technician-auth [class*="text-cyan-100/7"] { color: var(--gos-muted) !important; }
+
+.gos-technician-auth .text-cyan-300,
+.gos-technician-auth .text-cyan-200 { color: #008f95 !important; }
+
+.gos-technician-auth input,
+.gos-technician-auth select,
+.gos-technician-auth .gos-secure-editor {
+  min-height: 46px;
+  background: #f7fafb !important;
+  border: 1px solid #ccd9e0 !important;
+  border-radius: 7px !important;
+  color: var(--gos-charcoal) !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-auth input::placeholder { color: #8293a2 !important; }
+
+.gos-technician-auth input:focus,
+.gos-technician-auth select:focus,
+.gos-technician-auth .gos-secure-editor:focus {
+  border-color: var(--gos-turquoise) !important;
+  outline: 2px solid rgba(30, 190, 184, 0.15) !important;
+  outline-offset: 0 !important;
+}
+
+.gos-technician-auth button[class*="bg-gradient-to-r"],
+.gos-technician-auth button[class*="from-cyan-400"] {
+  min-height: 46px;
+  border-radius: 7px !important;
+  background: var(--gos-blue-deep) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-auth h1,
+.gos-technician-auth h2,
+.gos-technician-auth h3 {
+  font-family: var(--font-serif);
+  letter-spacing: 0;
+}
+
+.gos-technician-auth h2 {
+  font-size: clamp(1.65rem, 4vw, 2.15rem) !important;
+  line-height: 1.1 !important;
+}
+
+.gos-technician-auth p,
+.gos-technician-auth label,
+.gos-technician-auth input,
+.gos-technician-auth select,
+.gos-technician-auth [class*="text-sm"] {
+  font-weight: 600;
+}
+
+.gos-technician-auth input::placeholder {
+  font-weight: 500;
+}
+
+.gos-technician-register .tech-phone-field {
+  min-height: 48px;
+  gap: 10px;
+  padding: 0 12px;
+  background: #f7fafb !important;
+  border: 1px solid #ccd9e0 !important;
+  border-radius: 7px !important;
+}
+
+.gos-technician-register .tech-phone-field:focus-within {
+  border-color: var(--gos-turquoise) !important;
+  outline: 2px solid rgba(30, 190, 184, 0.15);
+}
+
+.gos-technician-register .tech-phone-field .tech-dial-code,
+.gos-technician-register .tech-phone-field .tech-phone-number {
+  min-height: 44px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  outline: 0 !important;
+}
+
+.gos-technician-register .tech-custom-select > div > button:first-child {
+  background: #f7fafb !important;
+  border-color: #ccd9e0 !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-register .tech-custom-select > div > button:first-child[aria-expanded="true"] {
+  border-color: var(--gos-turquoise) !important;
+  outline: 2px solid rgba(30, 190, 184, 0.15);
+}
+
+.gos-technician-register .tech-select-menu {
+  width: 100%;
+  min-width: 0;
+  background: #fff !important;
+  border: 1px solid #ccd9e0 !important;
+  border-radius: 7px !important;
+  color: var(--gos-charcoal) !important;
+}
+
+.gos-technician-register .tech-select-menu button {
+  min-width: 0;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-register .tech-select-menu button[aria-selected="true"] {
+  background: var(--gos-blue-deep) !important;
+  color: #fff !important;
+}
+
+.gos-technician-register .tech-select-menu button[aria-selected="false"] {
+  background: #fff !important;
+  color: var(--gos-charcoal) !important;
+}
+
+.gos-technician-register .tech-select-menu button[aria-selected="false"]:hover,
+.gos-technician-register .tech-select-menu button[aria-selected="false"]:focus-visible {
+  background: var(--gos-off-white) !important;
+}
+
+.gos-technician-register .tech-live-photo {
+  background: #f7fafb !important;
+  border-color: #d5e1e7 !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-register .tech-live-photo .tech-camera-button {
+  background: var(--gos-blue-deep) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.gos-technician-register .tech-live-photo .tech-camera-button svg {
+  color: #53d7d2 !important;
+}
+
+.gos-technician-register .tech-review-block > h3 {
+  color: var(--gos-blue-deep) !important;
+  font-family: var(--font-serif);
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+}
+
+.gos-technician-register .tech-review-block p {
+  color: var(--gos-charcoal) !important;
+}
+
+.gos-technician-register .tech-review-block p:first-child {
+  color: var(--gos-muted) !important;
+}
+
+.gos-technician-register .tech-phone-field .tech-dial-code {
+  width: 64px;
+  padding: 0 10px 0 0;
+  border-right: 1px solid #d8e2e8 !important;
+  color: var(--gos-blue-deep) !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.gos-technician-register .tech-phone-field .tech-phone-number {
+  width: 100%;
+  padding: 0 !important;
+}
+
+@media (max-width: 380px) {
+  .gos-technician-register .tech-phone-field .tech-dial-code {
+    width: 58px;
+    font-size: 0.7rem;
+  }
+}
+
+/* Admin operations workspace. */
+.gos-admin-portal {
+  --admin-navy: #0b2945;
+  --admin-deep: #061d31;
+  --admin-ink: #102a43;
+  --admin-muted: #60758a;
+  --admin-line: #d7e1e7;
+  --admin-canvas: #edf3f5;
+  background: var(--admin-canvas) !important;
+  color: var(--admin-ink) !important;
+  font-family: var(--font-sans);
+}
+
+.gos-admin-portal > aside {
+  width: 256px !important;
+  padding: 20px 16px !important;
+  background: #fff !important;
+  border-color: var(--admin-line) !important;
+  color: var(--admin-ink) !important;
+  box-shadow: 4px 0 18px rgba(11,41,69,.045) !important;
+}
+
+.gos-admin-portal main { background: var(--admin-canvas) !important; }
+
+.gos-admin-portal [class*="bg-[#071122]"],
+.gos-admin-portal [class*="bg-[#0b1628]"] {
+  background: #fff !important;
+  border-color: var(--admin-line) !important;
+  color: var(--admin-ink) !important;
+  box-shadow: 0 4px 16px rgba(11,41,69,.055);
+}
+
+.gos-admin-portal aside [class*="bg-[#071122]"],
+.gos-admin-portal aside [class*="bg-[#0b1628]"],
+.gos-admin-portal nav[class*="bg-[#071122]"],
+.gos-admin-portal div[class*="fixed inset-0"] {
+  background: var(--admin-deep) !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+
+.gos-admin-portal > aside button:not([class*="bg-cyan-400"]) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: #405d72 !important;
+}
+
+.gos-admin-portal > aside button:not([class*="bg-cyan-400"]):hover {
+  background: #edf7f7 !important;
+  color: #092f4b !important;
+}
+
+.gos-admin-portal > aside button[class*="bg-cyan-400"] {
+  background: #13bfd0 !important;
+  color: #06233a !important;
+}
+
+.gos-admin-portal > aside button:last-child {
+  background: #fff4f4 !important;
+  border-color: #f3d2d2 !important;
+  color: #a52b2b !important;
+}
+
+.gos-admin-portal > aside > div:first-child h1 { color: #0ba4a8 !important; }
+.gos-admin-portal > aside > div:first-child p { color: #607b8d !important; }
+.gos-admin-portal > aside > div:nth-child(2) { scrollbar-width: thin; scrollbar-color: #9babb5 transparent; }
+
+.gos-admin-portal aside button { min-height: 42px; padding: 10px 13px !important; border-radius: 6px !important; }
+.gos-admin-portal aside > div:nth-child(2) { gap: 6px !important; }
+
+.gos-admin-portal [class*="rounded-[28px]"],
+.gos-admin-portal [class*="rounded-[32px]"],
+.gos-admin-portal .rounded-3xl,
+.gos-admin-portal .rounded-2xl,
+.gos-admin-portal .rounded-xl { border-radius: 8px !important; }
+
+.gos-admin-portal .text-white,
+.gos-admin-portal [class*="text-cyan-100/"] { color: var(--admin-ink) !important; }
+.gos-admin-portal [class*="text-cyan-100/3"],
+.gos-admin-portal [class*="text-cyan-100/4"],
+.gos-admin-portal [class*="text-cyan-100/5"],
+.gos-admin-portal [class*="text-cyan-100/6"] { color: var(--admin-muted) !important; }
+
+.gos-admin-portal > aside [class*="text-cyan-100/"] {
+  color: #607b8d !important;
+}
+.gos-admin-portal div[class*="fixed inset-0"] [class*="text-cyan-100/"],
+.gos-admin-portal nav [class*="text-cyan-100/"],
+.gos-admin-portal div[class*="fixed inset-0"] [class*="text-cyan-100/"] { color: #bbced8 !important; }
+
+.gos-admin-portal .text-cyan-300,
+.gos-admin-portal .text-cyan-200 { color: #008f95 !important; }
+.gos-admin-portal > aside .text-cyan-300 { color: #079da2 !important; }
+.gos-admin-portal div[class*="fixed inset-0"] .text-cyan-300,
+.gos-admin-portal nav .text-cyan-300 { color: #51d5d1 !important; }
+
+.gos-admin-portal input,
+.gos-admin-portal select,
+.gos-admin-portal textarea {
+  background: #f8fafb !important;
+  border-color: #cad7df !important;
+  color: var(--admin-ink) !important;
+  border-radius: 6px !important;
+}
+
+.gos-admin-portal button,
+.gos-admin-portal a,
+.gos-admin-portal input { -webkit-tap-highlight-color: transparent; }
+.gos-admin-portal button:focus-visible,
+.gos-admin-portal a:focus-visible,
+.gos-admin-portal input:focus-visible { outline: 2px solid var(--gos-turquoise); outline-offset: 2px; }
+.gos-admin-portal nav { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+
+@media (max-width: 767px) {
+  .gos-admin-portal main > div:first-child { height: calc(64px + env(safe-area-inset-top)) !important; padding-top: env(safe-area-inset-top); }
+  .gos-admin-portal #admin-main-content { padding: 12px 12px calc(78px + env(safe-area-inset-bottom)) !important; }
+  .gos-admin-portal h1 { font-size: 1.1rem !important; }
+  .gos-admin-portal h2 { font-size: 1.05rem !important; }
+  .gos-admin-portal h3 { font-size: .95rem !important; }
+  .gos-admin-portal button,
+  .gos-admin-portal a { min-height: 40px; }
+  .gos-admin-portal nav button { min-width: 0; min-height: 50px; padding: 5px 2px !important; border-radius: 6px !important; }
+}
+
+/* Agent operations workspace — matches the technician/admin portal treatment. */
+.gos-agent-portal {
+  --agent-navy: #0b2945;
+  --agent-deep: #061d31;
+  --agent-ink: #102a43;
+  --agent-muted: #60758a;
+  --agent-line: #d7e1e7;
+  --agent-canvas: #edf3f5;
+  background: var(--agent-canvas) !important;
+  color: var(--agent-ink) !important;
+  font-family: var(--font-sans);
+}
+
+.gos-agent-portal > aside {
+  width: 256px !important;
+  padding: 20px 16px !important;
+  background: #fff !important;
+  border-color: var(--agent-line) !important;
+  color: var(--agent-ink) !important;
+  box-shadow: 4px 0 18px rgba(11,41,69,.045) !important;
+}
+
+.gos-agent-portal main { background: var(--agent-canvas) !important; }
+
+.gos-agent-portal [class*="bg-[#071122]"],
+.gos-agent-portal [class*="bg-[#0b1628]"] {
+  background: #fff !important;
+  border-color: var(--agent-line) !important;
+  color: var(--agent-ink) !important;
+  box-shadow: 0 4px 16px rgba(11,41,69,.055);
+}
+
+.gos-agent-portal aside [class*="bg-[#071122]"],
+.gos-agent-portal aside [class*="bg-[#0b1628]"],
+.gos-agent-portal nav[class*="bg-[#071122]"],
+.gos-agent-portal > aside {
+  background: var(--agent-deep) !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+
+.gos-agent-portal .agent-mobile-menu {
+  background: #edf2f5 !important;
+  color: var(--agent-ink) !important;
+  box-shadow: none !important;
+}
+
+.gos-agent-portal .agent-mobile-menu > div:first-child {
+  background: #fff !important;
+  color: var(--agent-ink) !important;
+}
+
+.gos-agent-portal .agent-mobile-menu button.bg-gos-blue-deep {
+  background: var(--agent-deep) !important;
+  border-color: var(--agent-deep) !important;
+  color: #fff !important;
+  box-shadow: 0 3px 12px rgba(8, 42, 67, 0.14) !important;
+}
+.gos-agent-portal .agent-mobile-menu .bg-gos-blue-deep.text-white { color: #fff !important; }
+
+.gos-agent-portal > aside button:not([class*="bg-cyan-400"]) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: #405d72 !important;
+}
+
+.gos-agent-portal > aside button:not([class*="bg-cyan-400"]):hover {
+  background: #edf7f7 !important;
+  color: #092f4b !important;
+}
+
+.gos-agent-portal > aside button[class*="bg-cyan-400"] {
+  background: #13bfd0 !important;
+  color: #06233a !important;
+}
+
+.gos-agent-portal > aside button:last-child {
+  background: #fff4f4 !important;
+  border-color: #f3d2d2 !important;
+  color: #a52b2b !important;
+}
+
+.gos-agent-portal > aside > div:first-child h1 { color: #0ba4a8 !important; }
+.gos-agent-portal > aside > div:first-child p { color: #607b8d !important; }
+.gos-agent-portal > aside > div:nth-child(2) { scrollbar-width: thin; scrollbar-color: #9babb5 transparent; }
+
+.gos-agent-portal aside button { min-height: 42px; padding: 10px 13px !important; border-radius: 6px !important; }
+.gos-agent-portal aside > div:nth-child(2) { gap: 6px !important; }
+
+.gos-agent-portal [class*="rounded-[28px]"],
+.gos-agent-portal [class*="rounded-[32px]"],
+.gos-agent-portal .rounded-3xl,
+.gos-agent-portal .rounded-2xl,
+.gos-agent-portal .rounded-xl { border-radius: 8px !important; }
+
+.gos-agent-portal .text-white,
+.gos-agent-portal [class*="text-cyan-100/"] { color: var(--agent-ink) !important; }
+.gos-agent-portal [class*="text-cyan-100/3"],
+.gos-agent-portal [class*="text-cyan-100/4"],
+.gos-agent-portal [class*="text-cyan-100/5"],
+.gos-agent-portal [class*="text-cyan-100/6"] { color: var(--agent-muted) !important; }
+
+.gos-agent-portal > aside [class*="text-cyan-100/"] {
+  color: #607b8d !important;
+}
+.gos-agent-portal nav [class*="text-cyan-100/"] { color: #bbced8 !important; }
+
+/* The mobile menu overlay's own nav buttons carry bg-[#0b1628]/bg-[#071122] classes that the
+   generic surface rules above turn white — but the rule above also forces their text to a
+   light color meant for the overlay's own dark backdrop, leaving light text on a white pill.
+   Match the same white-card / dark-ink look used everywhere else in the portal. */
+.gos-agent-portal .agent-mobile-menu button[class*="bg-[#0b1628]"],
+.gos-agent-portal .agent-mobile-menu button[class*="bg-[#071122]"] {
+  background: #fff !important;
+  border-color: var(--agent-line) !important;
+  color: var(--agent-ink) !important;
+  box-shadow: 0 2px 10px rgba(11, 41, 69, 0.08) !important;
+}
+
+.gos-agent-portal .agent-mobile-menu button[class*="bg-cyan-400"] {
+  background: #13bfd0 !important;
+  color: #06233a !important;
+}
+
+.gos-agent-portal .text-cyan-300,
+.gos-agent-portal .text-cyan-200 { color: #008f95 !important; }
+.gos-agent-portal > aside .text-cyan-300 { color: #079da2 !important; }
+.gos-agent-portal .agent-mobile-menu .text-cyan-300,
+.gos-agent-portal nav .text-cyan-300 { color: #51d5d1 !important; }
+
+.gos-agent-portal .agent-mobile-menu .text-gos-blue-deep { color: var(--agent-ink) !important; }
+.gos-agent-portal .agent-mobile-menu .text-gos-muted { color: var(--agent-muted) !important; }
+.gos-agent-portal .agent-mobile-menu .text-gos-turquoise { color: #079da2 !important; }
+.gos-agent-portal .agent-mobile-menu button.bg-gos-blue-deep .text-gos-gold { color: #d6a62b !important; }
+
+.gos-agent-portal input,
+.gos-agent-portal select,
+.gos-agent-portal textarea {
+  background: #f8fafb !important;
+  border-color: #cad7df !important;
+  color: var(--agent-ink) !important;
+  border-radius: 6px !important;
+}
+
+.gos-agent-portal button,
+.gos-agent-portal a,
+.gos-agent-portal input { -webkit-tap-highlight-color: transparent; }
+.gos-agent-portal button:focus-visible,
+.gos-agent-portal a:focus-visible,
+.gos-agent-portal input:focus-visible { outline: 2px solid var(--gos-turquoise); outline-offset: 2px; }
+.gos-agent-portal nav { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+
+.invoice-details-page > .pointer-events-none { display: none; }
+.invoice-details-page .invoice-document {
+  background: #fff !important;
+  border-color: var(--gos-border) !important;
+  box-shadow: 0 14px 36px rgba(8, 42, 67, .09) !important;
+  color: var(--gos-charcoal) !important;
+}
+.invoice-details-page .invoice-document [class*="bg-black/"],
+.invoice-details-page .invoice-document [class*="bg-[#071122]"],
+.invoice-details-page .invoice-document [class*="bg-[#0b1628]"] { background: #f8fafb !important; border-color: var(--gos-border) !important; }
+.invoice-details-page .invoice-document [class*="border-white/"] { border-color: var(--gos-border) !important; }
+.invoice-details-page .invoice-document .text-white,
+.invoice-details-page .invoice-document [class*="text-slate-"] { color: var(--gos-blue-deep) !important; }
+.invoice-details-page .invoice-document .text-cyan-300 { color: var(--gos-turquoise) !important; }
+.invoice-details-page .invoice-document [class*="text-cyan-100/"] { color: var(--gos-muted) !important; }
+.invoice-details-page .invoice-actions button { background: #fff !important; border: 1px solid var(--gos-border) !important; color: var(--gos-blue-deep) !important; box-shadow: 0 3px 10px rgba(8, 42, 67, .06); }
+.invoice-details-page .invoice-actions button:first-child { background: var(--gos-blue-deep) !important; border-color: var(--gos-blue-deep) !important; color: #fff !important; }
+
+@media (max-width: 767px) {
+  .gos-agent-portal,
+  .gos-agent-portal main,
+  .gos-agent-portal #agent-main-content {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    overflow-x: hidden !important;
+  }
+  .gos-agent-portal #agent-main-content *,
+  .gos-agent-portal .agent-mobile-menu * { min-width: 0; max-width: 100%; }
+  .gos-agent-portal #agent-main-content article,
+  .gos-agent-portal #agent-main-content section,
+  .gos-agent-portal #agent-main-content p,
+  .gos-agent-portal #agent-main-content a,
+  .gos-agent-portal #agent-main-content button { overflow-wrap: anywhere; }
+  .gos-agent-portal main > div:first-child,
+  .gos-agent-portal main > header:first-child { height: calc(64px + env(safe-area-inset-top)) !important; padding-top: env(safe-area-inset-top); }
+  .gos-agent-portal #agent-main-content { padding: 12px 12px calc(78px + env(safe-area-inset-bottom)) !important; }
+  .gos-agent-portal h1 { font-size: 1.1rem !important; }
+  .gos-agent-portal h2 { font-size: 1.05rem !important; }
+  .gos-agent-portal h3 { font-size: .95rem !important; }
+  .gos-agent-portal button,
+  .gos-agent-portal a { min-height: 40px; }
+  .gos-agent-portal nav button { min-width: 0; min-height: 50px; padding: 5px 2px !important; border-radius: 6px !important; }
+}
+
+.gos-technician-register > div.relative > section:last-child > div,
+.gos-technician-login > div.relative > section:last-child > div:last-child {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.gos-technician-verification {
+  padding-top: max(68px, calc(54px + env(safe-area-inset-top))) !important;
+  padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+}
+
+@media (max-width: 639px) {
+  .gos-technician-auth .lg\:hidden img { height: 52px !important; }
+  .gos-technician-login > div.relative,
+  .gos-technician-register > div.relative { padding-inline: 12px !important; }
+  .gos-technician-auth form { gap: 14px !important; }
+  .gos-technician-register [class*="grid-cols-3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.gos-admin-login { --admin-navy:#09263f; --admin-teal:#0aa6a6; min-height:100dvh; display:grid; place-items:center; padding:32px; color:#102a40; background:#eef3f5; position:relative; }
+.gos-admin-login__back { position:fixed; top:max(18px,env(safe-area-inset-top)); left:20px; z-index:2; display:flex; align-items:center; gap:8px; border:0; background:transparent; color:#25435a; font-weight:700; cursor:pointer; }
+.gos-admin-login__shell { width:min(980px,100%); min-height:590px; display:grid; grid-template-columns:1.08fr .92fr; overflow:hidden; border:1px solid #d7e1e5; border-radius:8px; background:#fff; box-shadow:0 24px 70px rgba(15,39,57,.13); }
+.gos-admin-login__intro { padding:48px; background:var(--admin-navy); color:#fff; display:flex; flex-direction:column; }
+.gos-admin-login__brand,.gos-admin-login__assurance,.gos-admin-login__form-heading { display:flex; align-items:center; gap:12px; }
+.gos-admin-login__brand-mark { display:grid; place-items:center; width:42px; height:42px; background:#fff; color:var(--admin-navy); font-size:11px; font-weight:900; }
+.gos-admin-login__brand div,.gos-admin-login__assurance div { display:grid; gap:3px; }
+.gos-admin-login__brand strong { font-family:var(--font-heading,Georgia,serif); font-size:20px; }
+.gos-admin-login__brand span:last-child { color:#9eb5c4; font-size:11px; font-weight:700; text-transform:uppercase; }
+.gos-admin-login__intro-copy { margin:auto 0; max-width:440px; }
+.gos-admin-login__eyebrow { color:#51d4ce; font-size:11px; font-weight:800; letter-spacing:.12em; }
+.gos-admin-login__intro h1 { margin:16px 0; font-family:var(--font-heading,Georgia,serif); font-size:clamp(36px,4vw,54px); line-height:1.03; letter-spacing:0; }
+.gos-admin-login__intro p { margin:0; color:#c2d0d9; font-size:15px; font-weight:600; line-height:1.75; }
+.gos-admin-login__assurance { padding-top:22px; border-top:1px solid rgba(255,255,255,.14); }
+.gos-admin-login__assurance svg { color:#51d4ce; }
+.gos-admin-login__assurance strong { font-size:13px; }
+.gos-admin-login__assurance span { color:#9eb5c4; font-size:12px; }
+.gos-admin-login__form-panel { align-self:center; padding:50px 46px; }
+.gos-admin-login__mobile-logo { display:none; }
+.gos-admin-login__icon { width:46px; height:46px; display:grid; place-items:center; border-radius:6px; background:#e8f7f6; color:#058b8e; }
+.gos-admin-login__form-heading p { margin:0 0 3px; color:#058b8e; font-size:10px; font-weight:900; letter-spacing:.12em; }
+.gos-admin-login__form-heading h2 { margin:0; font-family:var(--font-heading,Georgia,serif); font-size:31px; letter-spacing:0; }
+.gos-admin-login__lead { margin:18px 0 25px; color:#607586; font-size:14px; font-weight:600; line-height:1.55; }
+.gos-admin-login__alert { display:flex; gap:9px; align-items:flex-start; margin-bottom:18px; padding:12px; border:1px solid #f1c8c8; border-radius:6px; background:#fff4f4; color:#a52929; font-size:13px; font-weight:700; }
+.gos-admin-login__form { display:grid; gap:18px; }
+.gos-admin-login__form label>span { display:block; margin-bottom:7px; color:#243e52; font-size:12px; font-weight:800; }
+.gos-admin-login__field { height:50px; display:flex; align-items:center; gap:10px; padding:0 14px; border:1px solid #cfdce2; border-radius:6px; background:#fbfcfd; color:#748997; }
+.gos-admin-login__field:focus-within { border-color:var(--admin-teal); box-shadow:0 0 0 3px rgba(10,166,166,.11); background:#fff; }
+.gos-admin-login__field input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:#102a40; font-size:14px; font-weight:650; }
+.gos-admin-login__field button { width:34px; height:34px; display:grid; place-items:center; border:0; background:transparent; color:#476074; cursor:pointer; }
+.gos-admin-login__submit { height:50px; display:flex; align-items:center; justify-content:center; gap:10px; border:0; border-radius:6px; background:var(--admin-navy); color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
+.gos-admin-login__submit:hover { background:#0d3557; }
+.gos-admin-login__submit:disabled { opacity:.65; cursor:wait; }
+.gos-admin-login__security { display:flex; align-items:flex-start; gap:8px; margin-top:22px; padding-top:18px; border-top:1px solid #e2e9ec; color:#637887; font-size:11px; font-weight:650; line-height:1.5; }
+.gos-admin-login__security svg { flex:0 0 auto; color:#0a9a87; }
+@media (max-width:720px) {
+  .gos-admin-login { display:block; padding:calc(64px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom)); background:#fff; }
+  .gos-admin-login__back { left:12px; }
+  .gos-admin-login__back span,.gos-admin-login__intro { display:none; }
+  .gos-admin-login__shell { display:block; min-height:0; border:0; box-shadow:none; }
+  .gos-admin-login__form-panel { padding:12px 8px; }
+  .gos-admin-login__mobile-logo { display:block; width:104px; max-height:50px; object-fit:contain; object-position:left center; margin-bottom:30px; }
+  .gos-admin-login__form-heading h2 { font-size:27px; }
+  .gos-admin-login__field,.gos-admin-login__submit { height:48px; }
 }

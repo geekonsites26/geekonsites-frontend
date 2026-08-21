@@ -60,11 +60,35 @@ export const autoDetectUserLocation = async () => {
     coords.longitude
   )
 
-  localStorage.setItem("gos_location", location.countryCode)
   localStorage.setItem("gos_country_name", location.countryName)
   localStorage.setItem("gos_city", location.city)
   localStorage.setItem("gos_latitude", String(location.latitude))
   localStorage.setItem("gos_longitude", String(location.longitude))
 
+  if (isSupportedCountry(location.countryCode)) setLocation(location.countryCode, "detected")
   return location
 }
+
+export const initializeUserRegion = async () => {
+  if (localStorage.getItem("gos_location_source") === "manual") return getLocation()
+
+  const detectedAt = Number(localStorage.getItem("gos_location_detected_at") || 0)
+  if (detectedAt && Date.now() - detectedAt < 24 * 60 * 60 * 1000) return getLocation()
+
+  try {
+    const detected = await autoDetectUserLocation()
+    if (!isSupportedCountry(detected.countryCode)) {
+      localStorage.setItem("gos_unsupported_country", "true")
+      localStorage.setItem("gos_detected_country", detected.countryCode || "")
+    } else {
+      localStorage.removeItem("gos_unsupported_country")
+    }
+    return getLocation()
+  } catch {
+    const language = navigator.language || ""
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+    const fallback = language.toLowerCase().includes("gb") || timeZone === "Europe/London" ? "UK" : "US"
+    return setLocation(fallback, "fallback")
+  }
+}
+import { getLocation, setLocation } from "../utils/location"
