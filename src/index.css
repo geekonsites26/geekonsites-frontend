@@ -1150,6 +1150,41 @@ select {
 
 .gos-technician-portal .tech-status-toast svg { flex: 0 0 auto; }
 
+.gos-status-toast {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  right: 1rem;
+  z-index: 2147483000;
+  display: flex;
+  width: min(26rem, calc(100vw - 2rem));
+  min-height: 3.5rem;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .9rem 1rem;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: .75rem;
+  background: #071122 !important;
+  color: #fff !important;
+  opacity: 1 !important;
+  filter: none !important;
+  box-shadow: 0 18px 48px rgba(2, 8, 23, .48), 0 4px 14px rgba(2, 8, 23, .32) !important;
+  isolation: isolate;
+}
+
+.gos-status-toast p { margin: 0; color: #fff !important; font-size: .875rem; font-weight: 750; line-height: 1.45; }
+.gos-status-toast svg { width: 1.15rem; height: 1.15rem; margin-top: .1rem; flex: 0 0 auto; }
+.gos-status-toast--success { border-color: #22c55e; }
+.gos-status-toast--success svg { color: #4ade80; }
+.gos-status-toast--error { border-color: #ef4444; }
+.gos-status-toast--error svg { color: #f87171; }
+.gos-status-toast--warning { border-color: #f59e0b; }
+.gos-status-toast--warning svg { color: #fbbf24; }
+
+@media (max-width: 639px) {
+  .gos-status-toast { top: max(.75rem, env(safe-area-inset-top)); right: .75rem; width: calc(100vw - 1.5rem); }
+}
+
 @media (max-width: 767px) {
   .gos-technician-portal .tech-status-toast {
     top: calc(10px + env(safe-area-inset-top));

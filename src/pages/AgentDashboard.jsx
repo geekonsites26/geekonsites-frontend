@@ -14,6 +14,7 @@ import { apiRequest } from "../services/api"
 import { getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
 import RevenueChart from "../components/agent/RevenueChart"
 import BookingChart from "../components/agent/BookingChart"
+import StatusToast from "../components/ui/StatusToast"
 import {
   Activity,
   ArrowLeft,
@@ -101,6 +102,7 @@ export default function AgentDashboard() {
   const [notificationsMuted, setNotificationsMuted] = useState(localStorage.getItem("gos_agent_notifications_muted") === "true")
   const [notificationRefreshing, setNotificationRefreshing] = useState(false)
   const knownNotificationIds = useRef(new Set())
+  const popupTimer = useRef(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
 const [statusFilter, setStatusFilter] = useState("ALL")
@@ -388,7 +390,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
   const showPopup = useCallback((text) => {
     setPopup(text)
-    setTimeout(() => setPopup(""), 2200)
+    if (popupTimer.current) window.clearTimeout(popupTimer.current)
+    popupTimer.current = window.setTimeout(() => setPopup(""), 4500)
   }, [])
 
   const openTab = (tab) => {
@@ -1022,11 +1025,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
   return (
     <div className="gos-agent-portal flex h-dvh w-full overflow-hidden bg-[#020817] text-white">
-      {popup && (
-        <div className="fixed bottom-24 right-4 z-[80] rounded-2xl border border-cyan-500/20 bg-[#071122] px-5 py-4 shadow-2xl md:bottom-6 md:right-6">
-          <p className="text-sm font-semibold text-cyan-100">{popup}</p>
-        </div>
-      )}
+      <StatusToast message={popup} />
 
       <aside className="hidden h-dvh w-[310px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
         <button

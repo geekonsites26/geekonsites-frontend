@@ -218,7 +218,8 @@ setTimeout(() => {
 
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-cyan-300"
                   >
                     {showPassword ? (

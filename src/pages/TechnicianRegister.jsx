@@ -967,7 +967,8 @@ function PasswordField({ label, show, setShow, ...props }) {
 
         <button
           type="button"
-          onClick={() => setShow(!show)}
+          onClick={() => setShow((visible) => !visible)}
+          aria-label={show ? "Hide password" : "Show password"}
           className="absolute right-4 top-1/2 -translate-y-1/2 text-cyan-300"
         >
           {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

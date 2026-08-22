@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import BrandLogo from "../components/common/BrandLogo"
+import StatusToast from "../components/ui/StatusToast"
 import {
   getTechnicianBookings,
   getTechnicianNotifications,
@@ -149,6 +150,7 @@ export default function TechnicianDashboard() {
   const [notificationsMuted, setNotificationsMuted] = useState(() => localStorage.getItem("gos_technician_notifications_muted") === "true")
   const [notificationRefreshing, setNotificationRefreshing] = useState(false)
   const knownNotificationIds = useRef(new Set())
+  const popupTimer = useRef(null)
 
   const technicianStatus = "APPROVED"
   const technicianName = user?.fullName || "Technician"
@@ -188,7 +190,8 @@ export default function TechnicianDashboard() {
 
   const showPopup = (text) => {
     setPopup(text)
-    setTimeout(() => setPopup(""), 2400)
+    if (popupTimer.current) window.clearTimeout(popupTimer.current)
+    popupTimer.current = window.setTimeout(() => setPopup(""), 4500)
   }
 
   const loadTechnicianNotifications = async () => {
@@ -1084,12 +1087,7 @@ const saveMeetingLink = async (job) => {
 
   return (
     <div className="gos-technician-portal flex h-screen w-full overflow-hidden bg-[#020817] text-white">
-      {popup && (
-        <div className="tech-status-toast" role="status" aria-live="polite">
-          <CheckCircle2 className="h-4 w-4" />
-          <p>{popup}</p>
-        </div>
-      )}
+      <StatusToast message={popup} />
 
       {liveTracking && (
         <div className="fixed bottom-24 left-4 z-50 rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-4 text-sm font-bold text-green-300 shadow-2xl md:bottom-6">

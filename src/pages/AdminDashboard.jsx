@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { getAllAgents, createAgent } from "../services/agentService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import BrandLogo from "../components/common/BrandLogo"
+import StatusToast from "../components/ui/StatusToast"
 import {
   getAdminDashboardStats,
   getAdminNotifications,
@@ -105,6 +106,7 @@ export default function AdminDashboard() {
   const [techFilter, setTechFilter] = useState("ALL")
   const [technicianActions, setTechnicianActions] = useState({})
   const technicianActionLocks = useRef(new Set())
+  const popupTimer = useRef(null)
   const [bookingFilter, setBookingFilter] = useState("ALL")
   const [creatingAgent, setCreatingAgent] = useState(false)
 
@@ -179,7 +181,8 @@ setNotifications(
 
   const showPopup = (text) => {
     setPopup(text)
-    setTimeout(() => setPopup(""), 2400)
+    if (popupTimer.current) window.clearTimeout(popupTimer.current)
+    popupTimer.current = window.setTimeout(() => setPopup(""), 4500)
   }
 
   const handleApproveTech = async (id) => {
@@ -327,7 +330,15 @@ setNotifications(
   try {
     setCreatingAgent(true)
 
-    await createAgent(agentForm)
+    const payload = {
+      name: agentForm.name.trim(),
+      email: agentForm.email.trim(),
+      password: agentForm.password,
+      phone: agentForm.phone.trim(),
+      country: agentForm.country,
+      city: agentForm.city.trim(),
+    }
+    await createAgent(payload)
 
     showPopup("Agent created successfully")
 
@@ -340,10 +351,11 @@ setNotifications(
       city: "",
     })
 
-    loadDashboard()
+    const refreshedAgents = await getAllAgents()
+    setAgents(Array.isArray(refreshedAgents) ? refreshedAgents : [])
   } catch (err) {
     console.error(err)
-    showPopup("Failed to create agent")
+    showPopup(err?.message || "Failed to create agent")
   } finally {
     setCreatingAgent(false)
   }
@@ -1314,11 +1326,7 @@ setNotifications(
 
   return (
     <div className="gos-admin-portal flex h-screen w-full overflow-hidden bg-[#020817] text-white">
-      {popup && (
-        <div className="fixed bottom-24 right-4 z-[80] rounded-2xl border border-cyan-500/20 bg-[#071122] px-5 py-4 shadow-2xl md:bottom-6 md:right-6">
-          <p className="text-sm font-semibold text-cyan-100">{popup}</p>
-        </div>
-      )}
+      <StatusToast message={popup} />
 
       <aside className="hidden h-screen w-[310px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
         <div className="mb-8">

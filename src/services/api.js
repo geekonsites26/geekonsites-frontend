@@ -71,18 +71,17 @@ export async function apiRequest(endpoint, options = {}) {
   const contentType = response.headers.get("content-type")
   const isJson = contentType && contentType.includes("application/json")
 
-  const data = isJson ? await response.json().catch(() => null) : null
+  const data = isJson
+    ? await response.json().catch(() => null)
+    : await response.text().catch(() => "")
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
       clearAuth()
     }
 
-    throw new Error(
-      data?.message ||
-        data?.error ||
-        `Request failed with status ${response.status}`
-    )
+    const serverMessage = typeof data === "string" ? data.trim() : data?.message || data?.error
+    throw new Error(serverMessage || `Request failed with status ${response.status}`)
   }
 
   return data

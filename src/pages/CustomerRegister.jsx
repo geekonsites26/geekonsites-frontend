@@ -139,16 +139,5 @@ function Field({ icon: Icon, label, children }) {
 function PasswordField({ label, value, onChange, visible, toggle }) {
   const isConfirmation = label === "Confirm password"
   const inputId = isConfirmation ? "gos-confirm-entry" : "gos-secure-entry"
-  const edit = (event) => {
-    const next = event.currentTarget.textContent.replace(/[\r\n]/g, "")
-    onChange({ target: { value: next } })
-  }
-  const preventOverflow = (event) => {
-    if (event.nativeEvent.inputType?.startsWith("delete")) return
-    const selection = window.getSelection()
-    const selectedLength = selection?.rangeCount ? selection.getRangeAt(0).toString().length : 0
-    const incomingLength = event.nativeEvent.data?.length || 0
-    if (value.length - selectedLength + incomingLength > 15) event.preventDefault()
-  }
-  return <div className="block"><span id={`${inputId}-label`} className="mb-2 block text-xs font-extrabold text-gos-blue-deep">{label}</span><div className="flex min-h-12 items-center gap-3 rounded-lg border border-gos-border bg-[#f8fafb] px-3 focus-within:border-gos-turquoise"><LockKeyhole size={17} className="pointer-events-none shrink-0 text-gos-turquoise" /><div id={inputId} role="textbox" aria-labelledby={`${inputId}-label`} aria-required="true" tabIndex={0} contentEditable suppressContentEditableWarning data-placeholder={label} data-masked={visible ? "false" : "true"} onBeforeInput={preventOverflow} onInput={edit} onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault() }} onPaste={(event) => { event.preventDefault(); const pasted = event.clipboardData.getData("text").replace(/[\r\n]/g, ""); const selection = window.getSelection(); const selectedLength = selection?.rangeCount ? selection.getRangeAt(0).toString().length : 0; document.execCommand("insertText", false, pasted.slice(0, Math.max(0, 15 - value.length + selectedLength))) }} spellCheck="false" className="gos-secure-editor min-w-0 flex-1 cursor-text bg-transparent text-sm font-semibold outline-none focus:outline-none focus-visible:outline-none" />{toggle && <button type="button" onClick={toggle} aria-label={visible ? "Hide password" : "Show password"} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gos-muted outline-none focus-visible:outline-none">{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button>}</div></div>
+  return <label className="block" htmlFor={inputId}><span className="mb-2 block text-xs font-extrabold text-gos-blue-deep">{label}</span><span className="flex min-h-12 items-center gap-3 rounded-lg border border-gos-border bg-[#f8fafb] px-3 focus-within:border-gos-turquoise"><LockKeyhole size={17} className="pointer-events-none shrink-0 text-gos-turquoise" /><input id={inputId} type={visible ? "text" : "password"} value={value} onChange={onChange} maxLength={15} required autoComplete="new-password" placeholder={label} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-gos-charcoal outline-none placeholder:text-gos-muted" />{toggle && <button type="button" onClick={toggle} aria-label={visible ? "Hide password" : "Show password"} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gos-muted hover:text-gos-blue">{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button>}</span></label>
 }
