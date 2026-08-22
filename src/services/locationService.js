@@ -1,3 +1,38 @@
+import { getLocation, setLocation } from "../utils/location"
+
+let googleMapsLoader
+
+const loadGoogleMaps = () => {
+  if (window.google?.maps?.Geocoder) return Promise.resolve(window.google.maps)
+  if (googleMapsLoader) return googleMapsLoader
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  if (!apiKey) return Promise.reject(new Error("Address lookup is unavailable."))
+  googleMapsLoader = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]')
+    const script = existing || document.createElement("script")
+    const finish = () => window.google?.maps?.Geocoder ? resolve(window.google.maps) : reject(new Error("Address lookup could not be loaded."))
+    script.addEventListener("load", finish, { once: true })
+    script.addEventListener("error", () => reject(new Error("Address lookup could not be loaded.")), { once: true })
+    if (!existing) {
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async`
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
+    }
+  })
+  return googleMapsLoader
+}
+
+const component = (components, ...types) => {
+  for (const type of types) {
+    const match = components.find((item) => item.types.includes(type))
+    if (match?.long_name) return match.long_name
+  }
+  return ""
+}
+
+const uniqueParts = (...parts) => [...new Set(parts.map((part) => part?.trim()).filter(Boolean))]
+
 export const isSupportedCountry = (countryCode) => {
   return countryCode === "US" || countryCode === "GB" || countryCode === "UK"
 }
@@ -21,8 +56,8 @@ export const getBrowserLocation = () => {
           longitude: position.coords.longitude,
         })
       },
-      () => {
-        reject("Location permission denied.")
+      (error) => {
+        reject(error)
       },
       {
         enableHighAccuracy: true,
@@ -69,6 +104,31 @@ export const autoDetectUserLocation = async () => {
   return location
 }
 
+export const reverseGeocodeAddress = async (latitude, longitude) => {
+  const maps = await loadGoogleMaps()
+  const results = await new Promise((resolve, reject) => {
+    new maps.Geocoder().geocode({ location: { lat: latitude, lng: longitude } }, (items, status) => {
+      if (status === "OK" && items?.length) resolve(items)
+      else reject(new Error("No address was found for these coordinates."))
+    })
+  })
+  const components = results[0].address_components || []
+  const countryEntry = components.find((item) => item.types.includes("country"))
+  const route = component(components, "route")
+  const locality = component(components, "locality")
+  const area = component(components, "sublocality_level_1", "sublocality", "neighborhood")
+  return {
+    houseAddress: uniqueParts(component(components, "subpremise"), component(components, "premise"), component(components, "street_number")).join(", "),
+    streetAddress: uniqueParts(route, area || (!route ? locality : "")).join(", "),
+    city: locality || component(components, "postal_town", "administrative_area_level_2"),
+    state: component(components, "administrative_area_level_1"),
+    postalCode: component(components, "postal_code"),
+    country: normalizeCountryCode(countryEntry?.short_name || ""),
+    latitude,
+    longitude,
+  }
+}
+
 export const initializeUserRegion = async () => {
   if (localStorage.getItem("gos_location_source") === "manual") return getLocation()
 
@@ -91,4 +151,3 @@ export const initializeUserRegion = async () => {
     return setLocation(fallback, "fallback")
   }
 }
-import { getLocation, setLocation } from "../utils/location"

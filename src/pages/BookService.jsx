@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useLocation, useNavigate } from "react-router-dom"
 import { getLocation } from "../utils/location"
+import { getBrowserLocation, isSupportedCountry, reverseGeocodeAddress } from "../services/locationService"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import {
   Laptop, Printer, Wifi, User, Phone, MapPin, CreditCard,
@@ -199,6 +200,10 @@ export default function BookService() {
   const [city, setCity] = useState("")
   const [stateRegion, setStateRegion] = useState("")
   const [postalCode, setPostalCode] = useState("")
+  const [customerCoordinates, setCustomerCoordinates] = useState({ latitude: null, longitude: null })
+  const [locationDetecting, setLocationDetecting] = useState(false)
+  const [locationMessage, setLocationMessage] = useState("")
+  const [locationMessageType, setLocationMessageType] = useState("info")
   const [country, setCountry] = useState(() => getLocation().code)
 useEffect(() => {
   const updateLocation = () => {
@@ -379,12 +384,43 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const handleAutoLocation = () => {
-    if (!navigator.geolocation) return alert("Location is not supported on this device.")
-    navigator.geolocation.getCurrentPosition(
-      () => alert("Location detected. Please still enter accurate address for dispatch."),
-      () => alert("Location permission denied. Please enter address manually.")
-    )
+  const handleAutoLocation = async () => {
+    if (locationDetecting) return
+    setLocationDetecting(true)
+    setLocationMessage("Detecting location...")
+    setLocationMessageType("info")
+    try {
+      const coordinates = await getBrowserLocation()
+      setCustomerCoordinates(coordinates)
+      localStorage.setItem("gos_latitude", String(coordinates.latitude))
+      localStorage.setItem("gos_longitude", String(coordinates.longitude))
+      try {
+        const address = await reverseGeocodeAddress(coordinates.latitude, coordinates.longitude)
+        setHouseAddress(address.houseAddress)
+        setStreetAddress(address.streetAddress)
+        setCity(address.city)
+        setStateRegion(address.state)
+        setPostalCode(address.postalCode)
+        if (isSupportedCountry(address.country)) setCountry(address.country)
+        setLocationMessage("Location detected")
+        setLocationMessageType("success")
+      } catch {
+        setLocationMessage("Location coordinates detected, but the address could not be found. Please complete the address manually.")
+        setLocationMessageType("warning")
+      }
+    } catch (error) {
+      const message = error?.code === 1
+        ? "Location permission denied. Please enter your address manually."
+        : error?.code === 3
+          ? "Location detection timed out. Please try again or enter your address manually."
+          : error?.code === 2
+            ? "Your current location is unavailable. Check that GPS is enabled or enter your address manually."
+            : "Location is not supported on this device. Please enter your address manually."
+      setLocationMessage(message)
+      setLocationMessageType("error")
+    } finally {
+      setLocationDetecting(false)
+    }
   }
 
   const handleSubmit = async () => {
@@ -422,8 +458,8 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
       baseAmount: Number(baseAmount.toFixed(2)),
       paymentAmount: Number(totalAmount.toFixed(2)),
       currency,
-      customerLatitude: supportMode === "Onsite" ? Number(localStorage.getItem("gos_latitude")) || null : null,
-      customerLongitude: supportMode === "Onsite" ? Number(localStorage.getItem("gos_longitude")) || null : null,
+      customerLatitude: supportMode === "Onsite" ? customerCoordinates.latitude : null,
+      customerLongitude: supportMode === "Onsite" ? customerCoordinates.longitude : null,
 
       remoteSessionRequired: supportMode === "Remote",
 
@@ -611,9 +647,10 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
 
                 {currentStep === 5 && (
                   <StepCard number="05" title="Service location" subtitle="Required for dispatch, tax, and regional pricing">
-                    <button type="button" onClick={handleAutoLocation} className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 py-4 text-sm font-black text-cyan-300">
-                      <LocateFixed size={18} /> Use my current location
+                    <button type="button" onClick={handleAutoLocation} disabled={locationDetecting} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 py-4 text-sm font-black text-cyan-300 disabled:cursor-wait disabled:opacity-60">
+                      <LocateFixed size={18} /> {locationDetecting ? "Detecting location..." : "Use my current location"}
                     </button>
+                    {locationMessage && <p role="status" aria-live="polite" className={`mb-4 mt-2 text-xs font-bold ${locationMessageType === "success" ? "text-emerald-600" : locationMessageType === "error" ? "text-red-600" : locationMessageType === "warning" ? "text-amber-700" : "text-gos-muted"}`}>{locationMessage}</p>}
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Input icon={Home} placeholder="House / Apartment" value={houseAddress} onChange={setHouseAddress} />
