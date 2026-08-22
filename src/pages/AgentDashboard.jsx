@@ -535,9 +535,9 @@ const [modeFilter, setModeFilter] = useState("ALL")
       </div>
       <CompactSection title="System Summary"><div className="overflow-x-auto"><table className="w-full min-w-[560px] border-collapse text-xs"><thead><tr className="bg-slate-100 text-left uppercase tracking-wider text-slate-600"><th className="px-3 py-2">Records</th><th className="px-3 py-2 text-right">Active</th><th className="px-3 py-2 text-right">Pending</th><th className="px-3 py-2 text-right">Total</th></tr></thead><tbody>{rows.map(([label, row]) => <tr key={label} className="border-t border-slate-200"><th className="px-3 py-2 text-left font-bold text-slate-700">{label}</th><td className="px-3 py-2 text-right font-black text-emerald-700">{row?.active ?? "—"}</td><td className="px-3 py-2 text-right font-black text-amber-700">{row?.pending ?? "—"}</td><td className="px-3 py-2 text-right font-black text-[#071d3d]">{row?.total ?? 0}</td></tr>)}</tbody></table></div></CompactSection>
       <div className="grid gap-4 xl:grid-cols-2"><PeriodStrip title="Total Stats for Today" data={today} timezone={operationsSummary?.timezone} /><PeriodStrip title="Total Stats for Yesterday" data={yesterday} timezone={operationsSummary?.timezone} /></div>
-      <CompactSection title="Live Booking Queue" action={<button type="button" onClick={() => openTab("Live Bookings")} className="text-xs font-black text-cyan-700">View all</button>}>
+      <CompactSection title="Live Booking Queue" action={<button type="button" onClick={() => openTab("Live Bookings")} className="rounded px-2 py-1 text-xs font-black text-white hover:bg-white/10">View all</button>}>
         <div className="mb-3 flex flex-wrap gap-2"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 rounded border border-slate-300 bg-white px-2 text-xs"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="ASSIGNMENT_PENDING">Assignment pending</option><option value="TECHNICIAN_ASSIGNED">Assigned</option><option value="SERVICE_COMPLETED">Completed</option></select><select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)} className="h-9 rounded border border-slate-300 bg-white px-2 text-xs"><option value="ALL">All modes</option><option value="ONSITE">Onsite</option><option value="REMOTE">Remote</option></select></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-xs"><thead><tr className="bg-slate-100 text-left uppercase text-slate-600"><th className="p-2">Booking</th><th className="p-2">Created</th><th className="p-2">Customer</th><th className="p-2">Location</th><th className="p-2">Service</th><th className="p-2">Mode</th><th className="p-2">Technician</th><th className="p-2">Status</th><th className="p-2">Actions</th></tr></thead><tbody>{queue.slice(0, 8).map((booking) => <tr key={booking.id} className="border-t border-slate-200"><td className="p-2 font-black">GOS-{booking.id}</td><td className="whitespace-nowrap p-2">{booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "—"}</td><td className="p-2 font-semibold">{booking.customerName || "Customer"}</td><td className="p-2">{[booking.city, booking.country].filter(Boolean).join(", ") || "—"}</td><td className="p-2">{booking.serviceType || "—"}</td><td className="p-2">{getMode(booking)}</td><td className="p-2">{booking.technicianName || "Unassigned"}</td><td className="p-2"><StatusBadge status={booking.bookingStatus} /></td><td className="p-2"><div className="flex gap-2"><button type="button" onClick={() => setSelectedBooking(bookings.find((item) => item.id === booking.id) || booking)} className="font-bold text-cyan-700">View</button><button type="button" onClick={() => { setSelectedBooking(bookings.find((item) => item.id === booking.id) || booking); openTab("Assign Technician") }} className="font-bold text-[#071d3d]">Assign</button></div></td></tr>)}</tbody></table>{!queue.length && <p className="p-6 text-center text-sm text-slate-500">No matching bookings.</p>}</div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-xs"><thead><tr className="bg-slate-100 text-left uppercase text-slate-600"><th className="p-2">Booking</th><th className="p-2">Created</th><th className="p-2">Customer</th><th className="p-2">Location</th><th className="p-2">Service</th><th className="p-2">Mode</th><th className="p-2">Technician</th><th className="min-w-[142px] p-2">Status</th><th className="p-2">Actions</th></tr></thead><tbody>{queue.slice(0, 8).map((booking) => <tr key={booking.id} className="border-t border-slate-200"><td className="p-2 font-black">GOS-{booking.id}</td><td className="whitespace-nowrap p-2">{booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "—"}</td><td className="p-2 font-semibold">{booking.customerName || "Customer"}</td><td className="p-2">{[booking.city, booking.country].filter(Boolean).join(", ") || "—"}</td><td className="p-2">{booking.serviceType || "—"}</td><td className="p-2">{getMode(booking)}</td><td className="p-2">{booking.technicianName || "Unassigned"}</td><td className="min-w-[142px] whitespace-nowrap p-2"><StatusBadge status={booking.bookingStatus} /></td><td className="p-2"><div className="flex gap-2"><button type="button" onClick={() => setSelectedBooking(bookings.find((item) => item.id === booking.id) || booking)} className="font-bold text-cyan-700">View</button><button type="button" onClick={() => { setSelectedBooking(bookings.find((item) => item.id === booking.id) || booking); openTab("Assign Technician") }} className="font-bold text-[#071d3d]">Assign</button></div></td></tr>)}</tbody></table>{!queue.length && <p className="p-6 text-center text-sm text-slate-500">No matching bookings.</p>}</div>
       </CompactSection>
     </div>
   }
@@ -1301,7 +1301,7 @@ function OperationsKpi({ title, value, icon: Icon, alert = false }) {
 }
 
 function CompactSection({ title, action, children }) {
-  return <section className="overflow-hidden rounded border border-slate-300 bg-white"><header className="flex min-h-9 items-center justify-between bg-[#071d3d] px-3 py-2 text-white"><h2 className="text-xs font-black uppercase tracking-[0.12em]">{title}</h2>{action}</header><div className="p-3">{children}</div></section>
+  return <section className="overflow-hidden rounded border border-slate-300 bg-white"><header className="flex min-h-9 items-center justify-between bg-[#071d3d] px-3 py-2 !text-white"><h2 className="text-xs font-black uppercase tracking-[0.12em] !text-white">{title}</h2>{action}</header><div className="p-3">{children}</div></section>
 }
 
 function PeriodStrip({ title, data = {}, timezone }) {
@@ -1550,15 +1550,15 @@ function Badge({ children }) {
 function StatusBadge({ status }) {
   const cls =
     status === "SERVICE_COMPLETED" || status === "PAYMENT_COMPLETED"
-      ? "border-green-500/20 bg-green-500/10 text-green-300"
+      ? "border-emerald-800 bg-emerald-700 text-white"
       : status === "PENDING" || status === "ASSIGNMENT_PENDING"
-        ? "border-yellow-500/20 bg-yellow-500/10 text-yellow-300"
+        ? "border-amber-700 bg-amber-500 text-slate-950"
         : status === "CANCELLED"
-          ? "border-red-500/20 bg-red-500/10 text-red-300"
-          : "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
+          ? "border-red-800 bg-red-700 text-white"
+          : "border-cyan-800 bg-cyan-700 text-white"
 
   return (
-    <span className={`rounded-xl border px-3 py-1 text-xs font-bold ${cls}`}>
+    <span className={`inline-flex whitespace-nowrap rounded-md border px-3 py-1 text-xs font-bold leading-4 ${cls}`}>
       {statusLabel[status] || status || "UNKNOWN"}
     </span>
   )
