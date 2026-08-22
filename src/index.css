@@ -13,8 +13,8 @@ html {
 
 /* Shared operational flow theme: checkout, receipts, invoices, and sessions. */
 .gos-service-flow {
-  background: #edf2f5 !important;
-  color: #10283f !important;
+  background: var(--gos-off-white) !important;
+  color: var(--gos-charcoal) !important;
 }
 
 .gos-service-flow > .pointer-events-none,
@@ -359,6 +359,15 @@ body {
 #root {
   width: 100%;
   overflow-x: hidden;
+}
+
+.gos-hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gos-hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 1023px) {
@@ -997,13 +1006,13 @@ select {
 
 /* Compact operational workspace shared by web and the Capacitor app. */
 .gos-technician-portal {
-  --tech-navy: #0c2b49;
-  --tech-navy-deep: #071f35;
-  --tech-ink: #102a43;
-  --tech-muted: #60758a;
-  --tech-line: #d8e2e8;
-  --tech-surface: #ffffff;
-  --tech-canvas: #edf3f5;
+  --tech-navy: var(--gos-blue);
+  --tech-navy-deep: var(--gos-blue-deep);
+  --tech-ink: var(--gos-charcoal);
+  --tech-muted: var(--gos-muted);
+  --tech-line: var(--gos-border);
+  --tech-surface: var(--gos-white);
+  --tech-canvas: var(--gos-off-white);
   background: var(--tech-canvas) !important;
   color: var(--tech-ink) !important;
   font-family: var(--font-sans);
@@ -1173,7 +1182,7 @@ select {
 /* Technician authentication and onboarding. */
 .gos-technician-auth {
   min-height: 100dvh !important;
-  background: #edf3f5 !important;
+  background: var(--gos-off-white) !important;
   color: var(--gos-blue-deep) !important;
   font-family: var(--font-sans);
 }
@@ -1233,7 +1242,7 @@ select {
 .gos-technician-auth [class*="text-cyan-100/7"] { color: var(--gos-muted) !important; }
 
 .gos-technician-auth .text-cyan-300,
-.gos-technician-auth .text-cyan-200 { color: #008f95 !important; }
+.gos-technician-auth .text-cyan-200 { color: var(--gos-turquoise) !important; }
 
 .gos-technician-auth input,
 .gos-technician-auth select,
@@ -1410,12 +1419,12 @@ select {
 
 /* Admin operations workspace. */
 .gos-admin-portal {
-  --admin-navy: #0b2945;
-  --admin-deep: #061d31;
-  --admin-ink: #102a43;
-  --admin-muted: #60758a;
-  --admin-line: #d7e1e7;
-  --admin-canvas: #edf3f5;
+  --admin-navy: var(--gos-blue);
+  --admin-deep: var(--gos-blue-deep);
+  --admin-ink: var(--gos-charcoal);
+  --admin-muted: var(--gos-muted);
+  --admin-line: var(--gos-border);
+  --admin-canvas: var(--gos-off-white);
   background: var(--admin-canvas) !important;
   color: var(--admin-ink) !important;
   font-family: var(--font-sans);
@@ -1534,12 +1543,12 @@ select {
 
 /* Agent operations workspace — matches the technician/admin portal treatment. */
 .gos-agent-portal {
-  --agent-navy: #0b2945;
-  --agent-deep: #061d31;
-  --agent-ink: #102a43;
-  --agent-muted: #60758a;
-  --agent-line: #d7e1e7;
-  --agent-canvas: #edf3f5;
+  --agent-navy: var(--gos-blue);
+  --agent-deep: var(--gos-blue-deep);
+  --agent-ink: var(--gos-charcoal);
+  --agent-muted: var(--gos-muted);
+  --agent-line: var(--gos-border);
+  --agent-canvas: var(--gos-off-white);
   background: var(--agent-canvas) !important;
   color: var(--agent-ink) !important;
   font-family: var(--font-sans);
@@ -1731,10 +1740,10 @@ select {
 
 .gos-technician-register > div.relative > section:last-child > div,
 .gos-technician-login > div.relative > section:last-child > div:last-child {
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: clamp(20px, 4vw, 32px) !important;
+  border: 1px solid var(--gos-border) !important;
+  background: #fff !important;
+  box-shadow: var(--gos-shadow-md) !important;
 }
 
 .gos-technician-verification {
@@ -1749,7 +1758,8 @@ select {
   .gos-technician-auth form { gap: 14px !important; }
   .gos-technician-register [class*="grid-cols-3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-.gos-admin-login { --admin-navy:#09263f; --admin-teal:#0aa6a6; min-height:100dvh; display:grid; place-items:center; padding:32px; color:#102a40; background:#eef3f5; position:relative; }
+.gos-admin-login { --admin-navy:var(--gos-blue-deep); --admin-teal:var(--gos-turquoise); min-height:100dvh; color:var(--gos-charcoal); background:var(--gos-off-white); position:relative; }
+.gos-admin-login__body { min-height:calc(100dvh - 64px); display:grid; place-items:center; padding:32px; }
 .gos-admin-login__back { position:fixed; top:max(18px,env(safe-area-inset-top)); left:20px; z-index:2; display:flex; align-items:center; gap:8px; border:0; background:transparent; color:#25435a; font-weight:700; cursor:pointer; }
 .gos-admin-login__shell { width:min(980px,100%); min-height:590px; display:grid; grid-template-columns:1.08fr .92fr; overflow:hidden; border:1px solid #d7e1e5; border-radius:8px; background:#fff; box-shadow:0 24px 70px rgba(15,39,57,.13); }
 .gos-admin-login__intro { padding:48px; background:var(--admin-navy); color:#fff; display:flex; flex-direction:column; }
@@ -1785,7 +1795,8 @@ select {
 .gos-admin-login__security { display:flex; align-items:flex-start; gap:8px; margin-top:22px; padding-top:18px; border-top:1px solid #e2e9ec; color:#637887; font-size:11px; font-weight:650; line-height:1.5; }
 .gos-admin-login__security svg { flex:0 0 auto; color:#0a9a87; }
 @media (max-width:720px) {
-  .gos-admin-login { display:block; padding:calc(64px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom)); background:#fff; }
+  .gos-admin-login { display:block; padding:0; background:#fff; }
+  .gos-admin-login__body { min-height:calc(100dvh - 64px); padding:14px 14px calc(20px + env(safe-area-inset-bottom)); }
   .gos-admin-login__back { left:12px; }
   .gos-admin-login__back span,.gos-admin-login__intro { display:none; }
   .gos-admin-login__shell { display:block; min-height:0; border:0; box-shadow:none; }

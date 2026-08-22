@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, Mail, ShieldCheck, XCircle } from "lucide-react"
-import BrandLogo from "../components/common/BrandLogo"
+import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, Mail, ShieldCheck, XCircle } from "lucide-react"
+import AuthHeader from "../components/auth/AuthHeader"
 import { loginAdmin } from "../services/authService"
 
 export default function AdminLogin() {
@@ -33,10 +33,10 @@ export default function AdminLogin() {
 
   return (
     <main className="gos-admin-login">
-      <button className="gos-admin-login__back" type="button" onClick={() => navigate("/")} aria-label="Back to website"><ArrowLeft size={19} /><span>Website</span></button>
-      <section className="gos-admin-login__shell">
+      <AuthHeader />
+      <div className="gos-admin-login__body"><section className="gos-admin-login__shell">
         <aside className="gos-admin-login__intro">
-          <div className="gos-admin-login__brand"><BrandLogo className="h-auto w-48" /><div><span>Administration</span></div></div>
+          <div className="gos-admin-login__brand"><div><span>Administration</span></div></div>
           <div className="gos-admin-login__intro-copy">
             <span className="gos-admin-login__eyebrow">INTERNAL OPERATIONS</span>
             <h1>One secure place to run every service.</h1>
@@ -46,7 +46,6 @@ export default function AdminLogin() {
         </aside>
 
         <div className="gos-admin-login__form-panel">
-          <BrandLogo className="gos-admin-login__mobile-logo object-contain" />
           <div className="gos-admin-login__form-heading"><span className="gos-admin-login__icon"><KeyRound size={22} /></span><div><p>ADMIN PORTAL</p><h2>Welcome back</h2></div></div>
           <p className="gos-admin-login__lead">Sign in with your private GeekOnSites administrator credentials.</p>
           {error && <div className="gos-admin-login__alert" role="alert"><XCircle size={19} /><span>{error}</span></div>}
@@ -58,7 +57,7 @@ export default function AdminLogin() {
           </form>
           <div className="gos-admin-login__security"><CheckCircle2 size={17} /><span>Administrator accounts are created only through secure server configuration.</span></div>
         </div>
-      </section>
+      </section></div>
     </main>
   )
 }

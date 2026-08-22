@@ -31,6 +31,7 @@ export const createTechnician = async (data) => {
   return apiRequest("/api/technicians", {
     method: "POST",
     body: JSON.stringify(data),
+    timeoutMs: 45000,
   })
 }
 
@@ -112,6 +113,17 @@ export const completeTechnicianService = async (bookingId) => {
 export const markTechnicianArrived = async (bookingId) => {
   return apiRequest(`/api/bookings/${bookingId}/technician/arrived`, {
     method: "PUT",
+  })
+}
+
+export const resendTechnicianOnboarding = async (id) => {
+  return apiRequest(`/api/technicians/${id}/resend-onboarding`, { method: "POST" })
+}
+
+export const setTechnicianOnboardingPassword = async (token, password) => {
+  return apiRequest("/api/technicians/onboarding/set-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
   })
 }
 

@@ -203,7 +203,7 @@ useEffect(() => {
   }
 
   return (
-    <div className="gos-services-page min-h-screen bg-[#f3f6f8] pb-24 text-gos-charcoal" data-catalog-view={catalogView}>
+    <div className="gos-services-page min-h-screen bg-gos-off-white pb-24 text-gos-charcoal" data-catalog-view={catalogView}>
       <SEO title="Services | GeekOnSites" description="Explore professional remote support, on-site technology service and business IT solutions from GeekOnSites." />
       <section className="relative flex min-h-[33rem] overflow-hidden px-4 pb-10 pt-24 sm:min-h-[35rem] sm:px-6 sm:pb-12 sm:pt-28 lg:px-10">
         <img src="/images/services/computer-support.webp?v=1" alt="Professional computer support service" className="absolute inset-0 h-full w-full object-cover object-[center_58%]" />
@@ -228,9 +228,9 @@ useEffect(() => {
       </section>
 
       <nav className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 border-y border-gos-border bg-white/95 px-4 py-2 backdrop-blur-md sm:top-[calc(4rem+env(safe-area-inset-top))] sm:px-6 lg:px-10" aria-label="Service catalog sections">
-        <div className="mx-auto grid max-w-7xl grid-cols-4 gap-1">
+        <div className="gos-hide-scrollbar mx-auto flex max-w-7xl snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain sm:grid sm:grid-cols-4 sm:gap-1" role="tablist" aria-label="Service categories">
           {catalogViews.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => setCatalogView(id)} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-md px-1.5 text-[10px] font-extrabold sm:gap-2 sm:px-2 sm:text-sm ${catalogView === id ? "bg-gos-blue-deep text-white" : "text-gos-blue-deep hover:bg-gos-off-white"}`}>
+            <button key={id} type="button" role="tab" aria-selected={catalogView === id} onClick={() => setCatalogView(id)} className={`flex min-h-11 min-w-[7.5rem] shrink-0 snap-start items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-extrabold sm:min-w-0 sm:px-2 sm:text-sm ${catalogView === id ? "bg-gos-blue-deep text-white" : "border border-gos-border text-gos-blue-deep hover:bg-gos-off-white sm:border-transparent"}`}>
               <Icon size={15} className="shrink-0" /> <span>{label}</span>
             </button>
           ))}

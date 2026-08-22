@@ -15,6 +15,7 @@ import About from "./pages/About"
 import Contact from "./pages/Contact"
 import PrivacyPolicy from "./pages/PrivacyPolicy"
 import TermsConditions from "./pages/TermsConditions"
+import RefundPolicy from "./pages/RefundPolicy"
 import Services from "./pages/Services"
 import BookService from "./pages/BookService"
 import Payment from "./pages/Payment"
@@ -40,6 +41,7 @@ import TechnicianLogin from "./pages/TechnicianLogin"
 import TechnicianRegister from "./pages/TechnicianRegister"
 import TechnicianVerificationPending from "./pages/TechnicianVerificationPending"
 import TechnicianDashboard from "./pages/TechnicianDashboard"
+import TechnicianSetPassword from "./pages/TechnicianSetPassword"
 
 import AgentLogin from "./pages/AgentLogin"
 import AgentDashboard from "./pages/AgentDashboard"
@@ -96,6 +98,7 @@ function AppContent() {
       "/technician-register",
       "/technician-verification",
       "/technician-dashboard",
+      "/technician/set-password",
       "/agent-login",
       "/agent-dashboard",
       "/admin-login",
@@ -117,6 +120,7 @@ function AppContent() {
         <Route path="/support" element={<Contact />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsConditions />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
 
         <Route path="/book-service" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><BookService /></ProtectedRoute>} />
         <Route path="/payment" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><Payment /></ProtectedRoute>} />
@@ -184,6 +188,7 @@ function AppContent() {
         <Route path="/technician-login" element={<TechnicianLogin />} />
         <Route path="/technician-register" element={<TechnicianRegister />} />
         <Route path="/technician-verification" element={<TechnicianVerificationPending />} />
+        <Route path="/technician/set-password" element={<TechnicianSetPassword />} />
 
         <Route
           path="/technician-dashboard"

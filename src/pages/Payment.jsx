@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { createStripeCheckoutSession } from "../services/paymentService"
 import { getLocation } from "../utils/location"
@@ -21,6 +21,7 @@ export default function Payment() {
   const location = useLocation()
   const remainingPayment = location.state?.paymentType === "REMAINING"
   const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [ukEarlyServiceConsent, setUkEarlyServiceConsent] = useState(false)
   const [loading, setLoading] = useState(false)
  const [, forceUpdate] = useState(0)
 
@@ -54,6 +55,17 @@ const currency =
   (selectedLocation === "US" ? "USD" : "GBP")
 
 const symbol = currency === "USD" ? "$" : "\u00A3"
+const isUkBooking = ["UK", "GB", "UNITED KINGDOM", "GREAT BRITAIN"].includes(
+  String(booking?.country || "").trim().toUpperCase()
+)
+const bookingCreatedDate = booking?.createdAt ? new Date(booking.createdAt) : null
+const scheduledDate = booking?.bookingDate ? new Date(`${booking.bookingDate}T00:00:00`) : null
+const consentPeriodEnd = bookingCreatedDate
+  ? new Date(bookingCreatedDate.getTime() + 14 * 24 * 60 * 60 * 1000)
+  : null
+const requiresUkEarlyServiceConsent = isUkBooking && (
+  !scheduledDate || !consentPeriodEnd || scheduledDate <= consentPeriodEnd
+)
 
   const selectedServices = Array.isArray(booking?.selectedServices) ? booking.selectedServices : []
 
@@ -120,6 +132,11 @@ const paymentType = remainingPayment
       return
     }
 
+    if (requiresUkEarlyServiceConsent && !remainingPayment && !ukEarlyServiceConsent) {
+      alert("Please provide explicit consent for service to begin during the 14-day cancellation period.")
+      return
+    }
+
     try {
       setLoading(true)
 
@@ -131,7 +148,8 @@ const paymentType = remainingPayment
 
 const session = await createStripeCheckoutSession(
   booking.id,
-  paymentMode
+  paymentMode,
+  requiresUkEarlyServiceConsent && !remainingPayment ? ukEarlyServiceConsent : false
 )
 
 window.location.href = session.checkoutUrl
@@ -392,16 +410,30 @@ window.location.href = session.checkoutUrl
 
                 <p className="text-sm leading-6 text-slate-400">
                   I agree to the GeekOnSites Terms of Service, Privacy Policy,
-                  and Refund Policy. For on-site services, the first payment may
+                  and <Link to="/refund-policy" target="_blank" rel="noopener noreferrer" className="font-bold text-cyan-300 underline underline-offset-2">Refund & Cancellation Policy</Link>. For on-site services, the first payment may
                   be treated as an advance booking payment. Taxes, regulatory
                   charges, parts, accessories, complex repair charges, or extra
                   distance fees may apply where required.
                 </p>
               </div>
 
+              {requiresUkEarlyServiceConsent && !remainingPayment && (
+                <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-cyan-400/25 bg-cyan-400/10 p-4">
+                  <input
+                    type="checkbox"
+                    checked={ukEarlyServiceConsent}
+                    onChange={(event) => setUkEarlyServiceConsent(event.target.checked)}
+                    className="mt-1 h-4 w-4 shrink-0 accent-cyan-400"
+                  />
+                  <span className="text-sm leading-6 text-slate-300">
+                    I request that GeekOnSites begin providing the service during the 14-day cancellation period. I understand that if I cancel after service has begun, I may have to pay for the service supplied up to cancellation, and if the service is fully performed I may lose the statutory right to cancel where applicable.
+                  </span>
+                </label>
+              )}
+
               <motion.button
                 onClick={handlePayment}
-                disabled={loading}
+                disabled={loading || (requiresUkEarlyServiceConsent && !remainingPayment && !ukEarlyServiceConsent)}
                 whileHover={{ scale: loading ? 1 : 1.02 }}
                 whileTap={{ scale: loading ? 1 : 0.97 }}
                 className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-600 px-6 py-4 font-bold text-black shadow-xl shadow-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
@@ -448,7 +480,7 @@ window.location.href = session.checkoutUrl
 
           <button
             onClick={handlePayment}
-            disabled={loading}
+            disabled={loading || (requiresUkEarlyServiceConsent && !remainingPayment && !ukEarlyServiceConsent)}
             className="rounded-2xl bg-cyan-400 px-6 py-4 text-sm font-extrabold text-black disabled:opacity-60"
           >
             {loading

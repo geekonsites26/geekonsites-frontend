@@ -1,34 +1,51 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 import { motionEase } from "../../styles/motion"
 import BrandLogo from "../common/BrandLogo"
 
-const SPLASH_DURATION = 1650
+const MAX_SPLASH_DURATION = 7000
+const FALLBACK_DURATION = 2750
 
 export default function SplashScreen({ onComplete }) {
   const reduceMotion = useReducedMotion()
   const videoRef = useRef(null)
+  const completedRef = useRef(false)
+  const fallbackTimerRef = useRef(null)
+  const expectedDurationRef = useRef(MAX_SPLASH_DURATION)
   const [progress, setProgress] = useState(0)
+  const [videoReady, setVideoReady] = useState(false)
+  const [videoFailed, setVideoFailed] = useState(false)
+
+  const completeSplash = useCallback(() => {
+    if (completedRef.current) return
+    completedRef.current = true
+    setProgress(100)
+    onComplete()
+  }, [onComplete])
+
+  const handleVideoError = useCallback(() => {
+    if (completedRef.current || videoFailed) return
+    setVideoFailed(true)
+    setVideoReady(false)
+    fallbackTimerRef.current = window.setTimeout(completeSplash, FALLBACK_DURATION)
+  }, [completeSplash, videoFailed])
 
   useEffect(() => {
-    const duration = reduceMotion ? 600 : SPLASH_DURATION
     const startedAt = performance.now()
     const progressTimer = window.setInterval(() => {
       const elapsed = performance.now() - startedAt
-      setProgress(Math.min(100, Math.round((elapsed / duration) * 100)))
+      setProgress(Math.min(99, Math.round((elapsed / expectedDurationRef.current) * 100)))
     }, reduceMotion ? 100 : 40)
-    const completeTimer = window.setTimeout(() => {
-      setProgress(100)
-      onComplete()
-    }, duration)
+    const safetyTimer = window.setTimeout(completeSplash, MAX_SPLASH_DURATION)
 
     videoRef.current?.play().catch(() => {})
 
     return () => {
       window.clearInterval(progressTimer)
-      window.clearTimeout(completeTimer)
+      window.clearTimeout(safetyTimer)
+      window.clearTimeout(fallbackTimerRef.current)
     }
-  }, [onComplete, reduceMotion])
+  }, [completeSplash, reduceMotion])
 
   return (
     <motion.div
@@ -36,19 +53,34 @@ export default function SplashScreen({ onComplete }) {
       aria-label="GeekOnSites is starting"
       initial={{ opacity: 1 }}
       exit={{ opacity: 0, scale: reduceMotion ? 1 : 1.015 }}
-      transition={{ duration: reduceMotion ? 0.12 : 0.25, ease: motionEase }}
+      transition={{ duration: reduceMotion ? 0.12 : 0.35, ease: motionEase }}
       className="fixed inset-0 z-[1000000] min-h-[100dvh] overflow-hidden bg-[#07182f] text-white [font-family:Manrope,sans-serif]"
     >
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${videoReady && !videoFailed ? "opacity-100" : "opacity-0"}`}
         src="/videos/gos-opening.mp4"
         autoPlay
         muted
         playsInline
         preload="auto"
+        onCanPlay={() => setVideoReady(true)}
+        onLoadedMetadata={(event) => {
+          const videoDuration = Number(event.currentTarget.duration) * 1000
+          if (Number.isFinite(videoDuration) && videoDuration > 0) expectedDurationRef.current = Math.min(videoDuration, MAX_SPLASH_DURATION)
+        }}
+        onEnded={completeSplash}
+        onError={handleVideoError}
         aria-hidden="true"
       />
+      {(!videoReady || videoFailed) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#07182f] px-8" aria-hidden="true">
+          <div className="relative flex items-center justify-center">
+            <span className="absolute h-24 w-[115%] rounded-full bg-white/35 blur-3xl" />
+            <BrandLogo className="relative h-auto w-56 max-w-[75vw] drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] sm:w-72" />
+          </div>
+        </div>
+      )}
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,13,29,0.16)_0%,rgba(3,13,29,0.08)_40%,rgba(3,13,29,0.84)_100%)]" aria-hidden="true" />
 
       <div
@@ -61,7 +93,10 @@ export default function SplashScreen({ onComplete }) {
           transition={{ duration: 0.55, ease: motionEase }}
           className="flex items-center justify-between gap-4"
         >
-          <BrandLogo className="h-auto w-36 sm:w-48" />
+          <div className="relative flex items-center justify-center">
+            <span className="absolute h-14 w-[110%] rounded-full bg-white/30 blur-2xl" aria-hidden="true" />
+            <BrandLogo className="relative h-auto w-36 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] sm:w-48" />
+          </div>
           <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/75 sm:text-[10px]">
             Technology support
           </p>

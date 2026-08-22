@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { getAllAgents, createAgent } from "../services/agentService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
@@ -14,6 +14,7 @@ import {
   getAllTechnicians,
   approveTechnician,
   rejectTechnician,
+  resendTechnicianOnboarding,
   openTechnicianVerificationEvidence,
 } from "../services/technicianService"
 import {
@@ -21,6 +22,7 @@ import {
   assignTechnicianToBooking,
 } from "../services/bookingService"
 import { deleteContactMessage, getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
+import { executeAdminRefund, getAdminRefunds, rejectAdminRefund, reviewAdminRefund } from "../services/refundService"
 import {
   Activity,
   BarChart3,
@@ -94,11 +96,15 @@ export default function AdminDashboard() {
   const [notifications, setNotifications] = useState([])
   const [contactMessages, setContactMessages] = useState([])
   const [remoteSessions, setRemoteSessions] = useState([])
+  const [refunds, setRefunds] = useState([])
+  const [refundDecisions, setRefundDecisions] = useState({})
   const [selectedMessage, setSelectedMessage] = useState(null)
  const [dashboardStats, setDashboardStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [techFilter, setTechFilter] = useState("ALL")
+  const [technicianActions, setTechnicianActions] = useState({})
+  const technicianActionLocks = useRef(new Set())
   const [bookingFilter, setBookingFilter] = useState("ALL")
   const [creatingAgent, setCreatingAgent] = useState(false)
 
@@ -135,6 +141,7 @@ export default function AdminDashboard() {
   contactData,
   remoteSessionData,
   customerData,
+  refundData,
 ] = await Promise.all([
   getAllBookings(),
   getAllTechnicians(),
@@ -144,6 +151,7 @@ export default function AdminDashboard() {
   getAllContactMessages(),
   getAdminRemoteSessions(),
   getAdminCustomers(),
+  getAdminRefunds(),
 ])
 
       setBookings(Array.isArray(bookingData) ? bookingData : [])
@@ -159,6 +167,7 @@ setNotifications(
       setContactMessages(Array.isArray(contactData) ? contactData : [])
       setRemoteSessions(Array.isArray(remoteSessionData) ? remoteSessionData : [])
       setRegisteredCustomers(Array.isArray(customerData) ? customerData : [])
+      setRefunds(Array.isArray(refundData) ? refundData : [])
 
     } catch (error) {
       console.error(error)
@@ -174,24 +183,84 @@ setNotifications(
   }
 
   const handleApproveTech = async (id) => {
+    if (technicianActionLocks.current.has(id)) return
+    technicianActionLocks.current.add(id)
+    setTechnicianActions((current) => ({ ...current, [id]: "APPROVING" }))
     try {
-      await approveTechnician(id)
+      const updatedTechnician = await approveTechnician(id)
+      if (updatedTechnician?.verificationStatus !== "APPROVED") {
+        throw new Error("The technician was not approved. Please try again.")
+      }
+      setTechnicians((current) =>
+        current.map((technician) =>
+          String(technician.id) === String(id)
+            ? { ...technician, ...updatedTechnician }
+            : technician
+        )
+      )
       showPopup("Technician approved successfully")
-      loadDashboard()
     } catch (error) {
       console.error(error)
-      showPopup("Failed to approve technician")
+      showPopup(error?.message || "Failed to approve technician")
+    } finally {
+      technicianActionLocks.current.delete(id)
+      setTechnicianActions((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
     }
   }
 
   const handleRejectTech = async (id) => {
+    if (technicianActionLocks.current.has(id)) return
+    technicianActionLocks.current.add(id)
+    setTechnicianActions((current) => ({ ...current, [id]: "REJECTING" }))
     try {
-      await rejectTechnician(id)
-      showPopup("Technician rejected")
-      loadDashboard()
+      const updatedTechnician = await rejectTechnician(id)
+      if (updatedTechnician?.verificationStatus !== "REJECTED") {
+        throw new Error("The technician was not rejected. Please try again.")
+      }
+      setTechnicians((current) =>
+        current.map((technician) =>
+          String(technician.id) === String(id)
+            ? { ...technician, ...updatedTechnician }
+            : technician
+        )
+      )
+      showPopup("Technician rejected successfully")
     } catch (error) {
       console.error(error)
-      showPopup("Failed to reject technician")
+      showPopup(error?.message || "Failed to reject technician")
+    } finally {
+      technicianActionLocks.current.delete(id)
+      setTechnicianActions((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+    }
+  }
+
+  const handleResendOnboarding = async (id) => {
+    if (technicianActionLocks.current.has(id)) return
+    technicianActionLocks.current.add(id)
+    setTechnicianActions((current) => ({ ...current, [id]: "RESENDING" }))
+    try {
+      const updatedTechnician = await resendTechnicianOnboarding(id)
+      setTechnicians((current) => current.map((technician) =>
+        String(technician.id) === String(id) ? { ...technician, ...updatedTechnician } : technician
+      ))
+      showPopup("Technician setup email queued successfully")
+    } catch (error) {
+      showPopup(error?.message || "Failed to resend setup email")
+    } finally {
+      technicianActionLocks.current.delete(id)
+      setTechnicianActions((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
     }
   }
 
@@ -302,6 +371,7 @@ setNotifications(
     { title: "Agents", icon: Users },
     { title: "Customers", icon: UserCheck },
     { title: "Payments", icon: CreditCard },
+    { title: "Refunds", icon: DollarSign },
     { title: "Remote Sessions", icon: Video },
     { title: "Reports", icon: BarChart3 },
     { title: "Notifications", icon: Bell },
@@ -593,6 +663,14 @@ setNotifications(
                 </div>
               </div>
 
+              {(booking.country === "UK" || booking.country === "GB" || booking.country === "United Kingdom") && (
+                <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-4 sm:grid-cols-3">
+                  <MiniInfo label="UK early-service consent" value={booking.ukEarlyServiceConsent ? "Yes" : "No"} />
+                  <MiniInfo label="Consent timestamp" value={booking.ukEarlyServiceConsentAt ? new Date(booking.ukEarlyServiceConsentAt).toLocaleString() : "Not provided"} />
+                  <MiniInfo label="Consent text/version" value={booking.ukEarlyServiceConsentTextVersion || "Not provided"} />
+                </div>
+              )}
+
               {!booking.technicianId ? (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
                   <select
@@ -674,8 +752,10 @@ setNotifications(
                 </h3>
 
                 <p className="mt-1 text-sm text-cyan-100/45">
-                  {tech.email || "Email N/A"}
+                  Personal: {tech.personalEmail || tech.email || "Email N/A"}
                 </p>
+
+                {tech.companyEmail && <p className="mt-1 text-sm font-bold text-cyan-200">Company: {tech.companyEmail}</p>}
 
                 <p className="mt-1 text-sm text-cyan-100/45">
                   {tech.phone || "Phone N/A"}
@@ -700,6 +780,7 @@ setNotifications(
                 label="Availability"
                 value={tech.availabilityStatus || "N/A"}
               />
+              <MiniInfo label="Onboarding" value={tech.onboardingStatus?.replaceAll("_", " ") || "NOT STARTED"} />
               <MiniInfo
                 label="Rating"
                 value={tech.rating ? `${tech.rating} / 5` : "N/A"}
@@ -722,20 +803,55 @@ setNotifications(
               {tech.publicLiabilityName && <button onClick={() => openTechnicianVerificationEvidence(tech.id, "public-liability").catch((error) => showPopup(error.message))} className="rounded-md border border-cyan-500/30 px-4 py-2 text-xs font-bold text-cyan-200">Liability insurance</button>}
               {tech.verificationStatus !== "APPROVED" && (
                 <button
+                  type="button"
                   onClick={() => handleApproveTech(tech.id)}
-                  className="rounded-2xl bg-green-400 px-5 py-3 text-sm font-black text-black hover:bg-green-300"
+                  disabled={Boolean(technicianActions[tech.id])}
+                  aria-busy={technicianActions[tech.id] === "APPROVING"}
+                  className="rounded-2xl bg-green-400 px-5 py-3 text-sm font-black text-black hover:bg-green-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {tech.verificationStatus === "REJECTED" ? "Approve again" : "Approve"}
+                  {technicianActions[tech.id] === "APPROVING"
+                    ? "Approving..."
+                    : tech.verificationStatus === "REJECTED"
+                      ? "Approve again"
+                      : "Approve"}
+                </button>
+              )}
+              {tech.verificationStatus === "APPROVED" && !tech.companyEmail && (
+                <button
+                  type="button"
+                  onClick={() => handleApproveTech(tech.id)}
+                  disabled={Boolean(technicianActions[tech.id])}
+                  aria-busy={technicianActions[tech.id] === "APPROVING"}
+                  className="rounded-2xl bg-green-400 px-5 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {technicianActions[tech.id] === "APPROVING" ? "Starting..." : "Start Onboarding"}
                 </button>
               )}
 
               {tech.verificationStatus !== "REJECTED" && (
                 <button
+                  type="button"
                   onClick={() => handleRejectTech(tech.id)}
-                  className="rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-3 text-sm font-black text-red-300 hover:bg-red-500/20"
+                  disabled={Boolean(technicianActions[tech.id])}
+                  aria-busy={technicianActions[tech.id] === "REJECTING"}
+                  className="rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-3 text-sm font-black text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Reject
+                  {technicianActions[tech.id] === "REJECTING" ? "Rejecting..." : "Reject"}
                 </button>
+              )}
+              {tech.verificationStatus === "APPROVED" && tech.onboardingStatus && tech.onboardingStatus !== "PASSWORD_SET" && (
+                <button
+                  type="button"
+                  onClick={() => handleResendOnboarding(tech.id)}
+                  disabled={Boolean(technicianActions[tech.id])}
+                  aria-busy={technicianActions[tech.id] === "RESENDING"}
+                  className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {technicianActions[tech.id] === "RESENDING" ? "Sending..." : "Resend Setup Email"}
+                </button>
+              )}
+              {tech.onboardingStatus === "PASSWORD_SET" && (
+                <span className="inline-flex items-center rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-3 text-sm font-black text-green-300">Account Activated</span>
               )}
             </div>
           </div>
@@ -965,6 +1081,58 @@ setNotifications(
     </Panel>
   )
 
+  const updateRefundDecision = (id, field, value) => setRefundDecisions((current) => ({ ...current, [id]: { ...current[id], [field]: value } }))
+
+  const processRefund = async (refund) => {
+    const decision = refundDecisions[refund.id] || {}
+    const amount = decision.amount || refund.suggestedMaximumRefundAmount
+    if (!window.confirm(`Issue ${refund.currency} ${Number(amount).toFixed(2)} through Stripe for refund #${refund.id}?`)) return
+    try {
+      await reviewAdminRefund(refund.id)
+      await executeAdminRefund(refund.id, amount, decision.note || "")
+      showPopup("Refund processed securely")
+      await loadDashboard()
+    } catch (error) {
+      showPopup(error.message || "Refund processing failed")
+      await loadDashboard()
+    }
+  }
+
+  const rejectRefund = async (refund) => {
+    const note = refundDecisions[refund.id]?.note || ""
+    if (!window.confirm(`Reject refund request #${refund.id}?`)) return
+    try {
+      await rejectAdminRefund(refund.id, note)
+      showPopup("Refund request rejected")
+      await loadDashboard()
+    } catch (error) {
+      showPopup(error.message || "Could not reject refund")
+    }
+  }
+
+  const RefundsSection = () => (
+    <Panel title="Refunds" subtitle="Country-aware cancellation review and Stripe execution">
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MiniInfo label="Pending" value={refunds.filter((item) => ["REQUESTED", "UNDER_REVIEW"].includes(item.refundStatus)).length} />
+        <MiniInfo label="Processing" value={refunds.filter((item) => item.refundStatus === "PROCESSING").length} />
+        <MiniInfo label="Refunded" value={refunds.filter((item) => ["REFUNDED", "PARTIALLY_REFUNDED"].includes(item.refundStatus)).length} />
+        <MiniInfo label="Failed" value={refunds.filter((item) => item.refundStatus === "FAILED").length} />
+      </div>
+      <div className="space-y-4">{refunds.length ? refunds.map((refund) => {
+        const booking = bookings.find((item) => item.id === refund.bookingId) || {}
+        const actionable = ["REQUESTED", "UNDER_REVIEW", "FAILED"].includes(refund.refundStatus)
+        return <article key={refund.id} className="rounded-3xl border border-white/10 bg-[#0b1628] p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:justify-between"><div><div className="flex flex-wrap gap-2"><h3 className="text-lg font-black">Refund #{refund.id} · GOS-{refund.bookingId}</h3><StatusBadge status={refund.refundStatus} /><Badge>{refund.country}</Badge></div><p className="mt-2 text-sm text-cyan-100/70">{booking.customerName || `Customer #${refund.customerId}`} · {booking.serviceType || "Service"}</p><p className="mt-1 text-xs text-cyan-100/45">Requested {refund.requestedAt ? new Date(refund.requestedAt).toLocaleString() : "N/A"}</p></div><div className="grid gap-2 sm:grid-cols-3"><MiniInfo label="Paid" value={money(refund.currency, refund.originalPaymentAmount)} /><MiniInfo label="Maximum" value={money(refund.currency, refund.suggestedMaximumRefundAmount)} /><MiniInfo label="Stage" value={booking.bookingStatus || "N/A"} /></div></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2"><MiniInfo label="Reason" value={refund.refundReason} /><MiniInfo label="Customer message" value={refund.customerMessage || "None"} /><MiniInfo label="UK consent" value={refund.country === "UK" ? (booking.ukEarlyServiceConsent ? "Yes" : "No") : "Not applicable"} /><MiniInfo label="Consent timestamp" value={booking.ukEarlyServiceConsentAt ? new Date(booking.ukEarlyServiceConsentAt).toLocaleString() : "Not provided"} /></div>
+          <p className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs leading-6 text-cyan-100/60">{refund.ruleContext}</p>
+          {refund.failureReason && <p className="mt-3 text-xs text-red-300">{refund.failureReason}</p>}
+          {actionable && <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr_auto_auto]"><input type="number" min="0.01" step="0.01" max={refund.suggestedMaximumRefundAmount} value={refundDecisions[refund.id]?.amount ?? refund.suggestedMaximumRefundAmount} onChange={(event) => updateRefundDecision(refund.id, "amount", event.target.value)} className="rounded-xl border border-white/10 bg-[#071122] px-3 text-sm" aria-label="Approved refund amount" /><input value={refundDecisions[refund.id]?.note || ""} onChange={(event) => updateRefundDecision(refund.id, "note", event.target.value)} placeholder="Admin audit note" className="rounded-xl border border-white/10 bg-[#071122] px-3 text-sm" /><button type="button" onClick={() => processRefund(refund)} className="rounded-xl bg-cyan-400 px-4 py-3 text-xs font-black text-black">Approve & refund</button><button type="button" onClick={() => rejectRefund(refund)} className="rounded-xl border border-red-400/30 px-4 py-3 text-xs font-black text-red-300">Reject</button></div>}
+          {refund.stripeRefundId && <p className="mt-3 text-xs text-slate-500">Stripe refund: {refund.stripeRefundId}</p>}
+        </article>
+      }) : <EmptyState title="No refund requests" />}</div>
+    </Panel>
+  )
+
   const ReportsSection = () => (
     <Panel title="Reports & Analytics" subtitle="Calculated from backend data">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1128,6 +1296,7 @@ setNotifications(
   if (activeTab === "Agents") return AgentSection()
   if (activeTab === "Customers") return CustomerSection()
   if (activeTab === "Payments") return PaymentSection()
+  if (activeTab === "Refunds") return RefundsSection()
   if (activeTab === "Remote Sessions") return RemoteSessionsSection()
   if (activeTab === "Reports") return ReportsSection()
   if (activeTab === "Notifications") return NotificationsSection()

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, MapPin, Phone, ShieldCheck, User } from "lucide-react"
+import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, MapPin, Phone, ShieldCheck, User } from "lucide-react"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { setLocation, useRegion } from "../utils/location"
-import BrandLogo from "../components/common/BrandLogo"
+import AuthHeader from "../components/auth/AuthHeader"
 
 const passwordRules = [
   ["Uppercase letter", (value) => /[A-Z]/.test(value)],
@@ -68,16 +68,10 @@ export default function CustomerRegister() {
   }
 
   return (
-    <main className="gos-register-page min-h-screen bg-[#edf2f5] text-gos-charcoal">
-      <header className="border-b border-gos-border bg-white px-4 py-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-2 text-xs font-extrabold text-gos-blue"><ArrowLeft size={16} /> Home</Link>
-          <Link to="/" aria-label="GeekOnSites home"><BrandLogo className="h-auto w-36" /></Link>
-          <Link to="/customer-login" className="text-xs font-extrabold text-gos-blue">Log in</Link>
-        </div>
-      </header>
+    <main className="gos-register-page min-h-screen bg-gos-off-white text-gos-charcoal">
+      <AuthHeader />
 
-      <section className="mx-auto grid min-h-[calc(100dvh-3.5rem)] max-w-5xl items-stretch lg:grid-cols-[0.82fr_1.18fr]">
+      <section className="mx-auto grid min-h-[calc(100dvh-3.5rem)] min-w-0 w-full max-w-5xl items-stretch lg:grid-cols-[0.82fr_1.18fr]">
         <aside className="hidden bg-gos-blue-deep px-8 py-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div>
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gos-turquoise text-gos-blue-deep"><ShieldCheck size={20} /></span>
@@ -90,8 +84,8 @@ export default function CustomerRegister() {
           </div>
         </aside>
 
-        <div className="flex items-center px-4 py-5 sm:px-8 sm:py-8 lg:bg-white lg:px-12">
-          <form onSubmit={submit} autoComplete="off" data-form-type="other" className="mx-auto w-full max-w-xl rounded-lg border border-gos-border bg-white p-5 shadow-[var(--gos-shadow-md)] sm:p-7 lg:border-0 lg:p-0 lg:shadow-none">
+        <div className="flex min-w-0 w-full items-center px-4 py-5 sm:px-8 sm:py-8 lg:bg-white lg:px-12">
+          <form onSubmit={submit} autoComplete="off" data-form-type="other" className="mx-auto min-w-0 w-full max-w-xl rounded-lg border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-md)] sm:p-7 lg:border-0 lg:p-0 lg:shadow-none">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-turquoise">Create your account</p>
             <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none text-gos-blue-deep">Join GeekOnSites.</h2>
             <p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">Use accurate details so your technician and service updates reach you.</p>

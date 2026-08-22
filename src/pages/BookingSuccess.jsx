@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { getLocation } from "../utils/location"
 import {
@@ -282,6 +282,8 @@ export default function BookingSuccess() {
               <Home size={20} />
               Back to Website
             </button>
+
+            <Link to="/refund-policy" className="mt-2 flex min-h-10 w-full items-center justify-center text-center text-xs font-bold text-gos-blue underline underline-offset-2">Refund & Cancellation Policy</Link>
 
             <div className="mt-2.5 flex items-center justify-center gap-2 text-[11px] text-gray-400">
               <Clock size={16} className="text-cyan-300" />

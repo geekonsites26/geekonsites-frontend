@@ -13,5 +13,5 @@ const sections = [
 ]
 
 export default function TermsConditions() {
-  return <LegalPage eyebrow="Service agreement" title="Terms & Conditions" description="The rules that apply when customers use GeekOnSites accounts, bookings, payments, remote sessions, and on-site technology services." sections={sections} seoTitle="Terms & Conditions | GeekOnSites" />
+  return <LegalPage eyebrow="Service agreement" title="Terms & Conditions" description="The rules that apply when customers use GeekOnSites accounts, bookings, payments, remote sessions, and on-site technology services." sections={sections} seoTitle="Terms & Conditions | GeekOnSites" relatedLinks={[{ label: "Refund & Cancellation Policy", to: "/refund-policy" }, { label: "Privacy Policy", to: "/privacy" }]} />
 }

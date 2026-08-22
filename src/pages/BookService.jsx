@@ -479,7 +479,7 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
 }
 
   return (
-    <main className="gos-booking-page relative min-h-screen overflow-x-hidden bg-[#eaf0f3] pb-40 pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal sm:pt-[calc(4rem+env(safe-area-inset-top))] lg:pb-16">
+    <main className="gos-booking-page relative min-h-screen overflow-x-hidden bg-gos-off-white pb-40 pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal sm:pt-[calc(4rem+env(safe-area-inset-top))] lg:pb-16">
 
       <section className="relative mx-auto max-w-7xl px-3 pb-8 sm:px-6 sm:pb-10">
         <DashboardReturnLink force to="/" className="-ml-2 my-2" />

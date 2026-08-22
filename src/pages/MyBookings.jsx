@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { getCustomerBookings } from "../services/bookingService"
+import { getMyRefunds, requestBookingRefund } from "../services/refundService"
 import {
   Search,
   Laptop,
@@ -78,6 +79,11 @@ export default function MyBookings() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
+  const [refunds, setRefunds] = useState([])
+  const [refundBookingId, setRefundBookingId] = useState(null)
+  const [refundReason, setRefundReason] = useState("")
+  const [refundMessage, setRefundMessage] = useState("")
+  const [refundSubmitting, setRefundSubmitting] = useState(false)
 
   useEffect(() => {
     loadBookings()
@@ -88,9 +94,10 @@ export default function MyBookings() {
     setLoading(true)
     setLoadError("")
 
-    const data = await getCustomerBookings()
+    const [data, refundData] = await Promise.all([getCustomerBookings(), getMyRefunds()])
 
     setBookings(Array.isArray(data) ? data : [])
+    setRefunds(Array.isArray(refundData) ? refundData : [])
   } catch (error) {
     console.error(error)
     setLoadError(error.message || "Failed to load bookings.")
@@ -98,6 +105,22 @@ export default function MyBookings() {
     setLoading(false)
   }
 }
+
+  const submitRefund = async (bookingId) => {
+    if (!refundReason.trim() || refundSubmitting) return
+    try {
+      setRefundSubmitting(true)
+      const saved = await requestBookingRefund(bookingId, refundReason.trim(), refundMessage.trim())
+      setRefunds((current) => [saved, ...current])
+      setRefundBookingId(null)
+      setRefundReason("")
+      setRefundMessage("")
+    } catch (error) {
+      setLoadError(error.message || "Could not submit refund request.")
+    } finally {
+      setRefundSubmitting(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -272,6 +295,9 @@ export default function MyBookings() {
             const Icon = getIcon(booking.serviceType)
             const readableStatus = statusLabel[booking.bookingStatus] || booking.bookingStatus || "Pending"
             const supportType = booking.remoteSessionRequired ? "remote" : "onsite"
+            const remotePaid = supportType === "remote" && booking.paymentStatus === "PAID"
+            const remoteReady = remotePaid && booking.remoteSessionStatus === "READY" && Boolean(booking.remoteSessionLink)
+            const bookingRefund = refunds.find((refund) => refund.bookingId === booking.id)
 
             return (
               <div
@@ -463,15 +489,38 @@ export default function MyBookings() {
   </button>
 )}
 
-                  {supportType === "remote" &&
-                     booking.bookingStatus !== "SERVICE_COMPLETED" &&
-                     booking.bookingStatus !== "BOOKING_CLOSED" && (
+                  {bookingRefund ? (
+                    <div className="mt-3 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm">
+                      <p className="font-black text-cyan-200">Refund status: {bookingRefund.refundStatus?.replaceAll("_", " ")}</p>
+                      {bookingRefund.approvedRefundAmount != null && <p className="mt-1 text-slate-300">Approved: {bookingRefund.currency} {Number(bookingRefund.approvedRefundAmount).toFixed(2)}</p>}
+                      <p className="mt-1 text-xs text-slate-400">Submitting a request does not automatically issue a refund.</p>
+                    </div>
+                  ) : Number(booking.paidAmount || 0) > 0 && booking.bookingStatus !== "BOOKING_CLOSED" && (
+                    <div className="mt-3">
+                      {refundBookingId === booking.id ? (
+                        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                          <label className="block text-xs font-bold text-slate-300">Cancellation/refund reason
+                            <select value={refundReason} onChange={(event) => setRefundReason(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#020817] p-3 text-sm" required>
+                              <option value="">Select a reason</option>
+                              <option>Service no longer required</option><option>Scheduling issue</option><option>Service quality concern</option><option>Duplicate booking or payment</option><option>Other</option>
+                            </select>
+                          </label>
+                          <textarea value={refundMessage} onChange={(event) => setRefundMessage(event.target.value)} maxLength={2000} placeholder="Additional details (optional)" className="min-h-24 w-full rounded-xl border border-white/10 bg-[#020817] p-3 text-sm" />
+                          <p className="text-xs leading-5 text-slate-400">GeekOnSites will review the booking stage and applicable US or UK rules. No refund is automatic.</p>
+                          <div className="flex gap-2"><button type="button" onClick={() => submitRefund(booking.id)} disabled={!refundReason || refundSubmitting} className="rounded-xl bg-cyan-400 px-4 py-3 text-xs font-black text-black disabled:opacity-50">{refundSubmitting ? "Submitting..." : "Submit request"}</button><button type="button" onClick={() => setRefundBookingId(null)} className="rounded-xl border border-white/10 px-4 py-3 text-xs font-bold">Cancel</button></div>
+                        </div>
+                      ) : <button type="button" onClick={() => setRefundBookingId(booking.id)} className="w-full rounded-2xl border border-white/10 py-3 text-xs font-black text-slate-200">Request cancellation/refund</button>}
+                    </div>
+                  )}
+
+                  {supportType === "remote" && booking.bookingStatus !== "SERVICE_COMPLETED" && booking.bookingStatus !== "BOOKING_CLOSED" && (
     <button
-      onClick={() => openRemoteSession(booking)}
-      className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 py-3 text-xs font-black text-cyan-300"
+      onClick={() => remotePaid ? openRemoteSession(booking) : navigate("/payment", { state: { booking } })}
+      disabled={remotePaid && !remoteReady}
+      className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 py-3 text-xs font-black text-cyan-300 disabled:cursor-not-allowed disabled:opacity-45"
     >
       <Video size={15} />
-      Join Remote Session
+      {!remotePaid ? "Complete payment to continue" : remoteReady ? "Join Remote Session" : "Meeting preparation in progress"}
     </button>
 )}
                 </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import logo from "../assets/geekonsites-logo.png"
 import { getAllBookings } from "../services/bookingService"
@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  ContactRound,
   User,
   Users,
   Video,
@@ -44,6 +45,7 @@ import {
   Wrench,
   X,
 } from "lucide-react"
+import AgentCrm from "../components/agent/AgentCrm"
 
 const statusLabel = {
   PENDING: "Pending",
@@ -367,6 +369,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
     { title: "Assign Technician", icon: Wrench },
     { title: "Technicians", icon: Users },
     { title: "Customers", icon: Users },
+    { title: "CRM", icon: ContactRound },
     { title: "Payments", icon: CreditCard },
     { title: "Support", icon: Activity },
     { title: "Remote Sessions", icon: Monitor },
@@ -383,10 +386,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
     { title: "Settings", icon: Settings },
   ]
 
-  const showPopup = (text) => {
+  const showPopup = useCallback((text) => {
     setPopup(text)
     setTimeout(() => setPopup(""), 2200)
-  }
+  }, [])
 
   const openTab = (tab) => {
     setActiveTab(tab)
@@ -997,6 +1000,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
   )
 
   const renderContent = () => {
+    if (activeTab === "CRM") return <AgentCrm notify={showPopup} onOpenBooking={(id) => { const booking = bookings.find((item) => item.id === id); if (booking) setSelectedBooking(booking) }} />
     if (activeTab === "Live Bookings") return <LiveBookingsSection />
     if (activeTab === "Assign Technician") return <AssignTechnicianSection />
     if (activeTab === "Technicians") return <TechniciansSection />

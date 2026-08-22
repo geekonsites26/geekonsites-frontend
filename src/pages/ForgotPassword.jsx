@@ -35,7 +35,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <main className="gos-auth-page flex min-h-screen items-center bg-[#edf2f5] px-4 py-6 text-gos-charcoal">
+    <main className="gos-auth-page flex min-h-screen items-center bg-gos-off-white px-4 py-6 text-gos-charcoal">
       <section className="mx-auto w-full max-w-md rounded-lg border border-gos-border bg-white p-5 shadow-[var(--gos-shadow-md)] sm:p-7">
         <Link to="/customer-login" className="inline-flex items-center gap-2 text-xs font-extrabold text-gos-blue"><ArrowLeft size={15} /> Back to login</Link>
         {sent ? (

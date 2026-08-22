@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { getBookingById, provisionRemoteSession } from "../services/bookingService"
+import { getRemoteChatMessages, sendRemoteChatMessage } from "../services/remoteChatService"
 
 export default function RemoteSession() {
   const navigate = useNavigate()
@@ -44,18 +45,12 @@ export default function RemoteSession() {
   const [copied, setCopied] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [provisioning, setProvisioning] = useState(false)
+  const [chatSending, setChatSending] = useState(false)
+  const [chatError, setChatError] = useState("")
   const provisionAttempted = useRef(false)
 
-  const [chat, setChat] = useState([
-    {
-      sender: "technician",
-      text: "Hello, I’m ready. Please join the secure video meeting.",
-    },
-    {
-      sender: "customer",
-      text: "Okay, joining now.",
-    },
-  ])
+  const [chat, setChat] = useState([])
+  const currentRole = localStorage.getItem("gos_role") || "CUSTOMER"
 
   useEffect(() => {
     if (!meetingJoined) return undefined
@@ -87,6 +82,28 @@ export default function RemoteSession() {
       clearInterval(refreshTimer)
     }
   }, [booking?.id])
+
+  useEffect(() => {
+    if (!booking?.id || booking?.paymentStatus !== "PAID") return undefined
+    let active = true
+    const loadMessages = async () => {
+      try {
+        const messages = await getRemoteChatMessages(booking.id)
+        if (active) {
+          setChat(Array.isArray(messages) ? messages : [])
+          setChatError("")
+        }
+      } catch (error) {
+        if (active) setChatError(error.message || "Chat could not be refreshed.")
+      }
+    }
+    loadMessages()
+    const timer = window.setInterval(loadMessages, 4000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [booking?.id, booking?.paymentStatus])
 
   const prepareMeeting = async () => {
     if (!booking?.id || booking?.paymentStatus !== "PAID" || provisioning) return
@@ -129,8 +146,8 @@ export default function RemoteSession() {
   ]
 
   const paymentRequired = booking?.paymentStatus !== "PAID"
-  const meetingPending = !booking?.remoteSessionLink || booking?.remoteSessionStatus !== "READY"
-  const meetingFailed = ["SETUP_REQUIRED", "PROVISIONING_FAILED"].includes(booking?.remoteSessionStatus)
+  const meetingPending = paymentRequired || !booking?.remoteSessionLink || booking?.remoteSessionStatus !== "READY"
+  const meetingFailed = ["FAILED", "SETUP_REQUIRED", "PROVISIONING_FAILED"].includes(booking?.remoteSessionStatus)
   const meetingStatusLabel = paymentRequired
     ? "Payment Required"
     : meetingFailed
@@ -159,7 +176,7 @@ export default function RemoteSession() {
   }
 
   const copyMeetingLink = async () => {
-    if (meetingPending) {
+    if (paymentRequired || meetingPending) {
       alert("Meeting link is not ready yet.")
       return
     }
@@ -187,18 +204,20 @@ export default function RemoteSession() {
     )
   }
 
-  const sendMessage = () => {
-    if (!message.trim()) return
-
-    setChat((prev) => [
-      ...prev,
-      {
-        sender: "customer",
-        text: message.trim(),
-      },
-    ])
-
-    setMessage("")
+  const sendMessage = async () => {
+    const text = message.trim()
+    if (!text || chatSending || paymentRequired) return
+    try {
+      setChatSending(true)
+      setChatError("")
+      const saved = await sendRemoteChatMessage(booking.id, text)
+      setChat((previous) => previous.some((item) => item.id === saved.id) ? previous : [...previous, saved])
+      setMessage("")
+    } catch (error) {
+      setChatError(error.message || "Message was not sent. Please retry.")
+    } finally {
+      setChatSending(false)
+    }
   }
 
   const endSession = () => {
@@ -591,34 +610,39 @@ export default function RemoteSession() {
                 </div>
 
                 <div className="h-[250px] space-y-3 overflow-y-auto rounded-3xl border border-white/10 bg-black/20 p-4">
-                  {chat.map((item, index) => (
+                  {chat.length === 0 && <p className="py-8 text-center text-xs text-slate-500">No messages yet. Start the booking conversation here.</p>}
+                  {chat.map((item) => (
                     <div
-                      key={index}
+                      key={item.id}
                       className={`flex ${
-                        item.sender === "customer"
+                        item.senderRole === currentRole
                           ? "justify-end"
                           : "justify-start"
                       }`}
                     >
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
-                          item.sender === "customer"
+                          item.senderRole === currentRole
                             ? "bg-cyan-500 text-black"
                             : "bg-white/10 text-white"
                         }`}
                       >
-                        {item.text}
+                        <p className="mb-1 text-[10px] font-black uppercase tracking-wide opacity-65">{item.senderRole === currentRole ? "You" : item.senderRole === "TECHNICIAN" ? "Technician" : "Customer"}</p>
+                        <p>{item.message}</p>
+                        <p className="mt-1 text-[9px] opacity-60">{item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</p>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {chatError && <p className="mt-2 text-xs font-semibold text-red-300">{chatError}</p>}
 
                 <div className="mt-4 flex gap-2">
                   <input
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") sendMessage()
+                      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage() }
                     }}
                     placeholder="Type message..."
                     className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/50"
@@ -626,9 +650,10 @@ export default function RemoteSession() {
 
                   <button
                     onClick={sendMessage}
-                    className="rounded-2xl bg-cyan-400 px-5 text-sm font-black text-black hover:bg-cyan-300"
+                    disabled={!message.trim() || chatSending || paymentRequired}
+                    className="rounded-2xl bg-cyan-400 px-5 text-sm font-black text-black hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Send
+                    {chatSending ? "Sending..." : "Send"}
                   </button>
                 </div>
               </section>

@@ -144,7 +144,7 @@ export default function Navbar() {
                   <div className="overflow-hidden rounded-md border border-gos-border bg-white">
                     {mainLinks.map((item) => (
                       <motion.div key={item.path} variants={{ hidden: { opacity: 0, x: -6 }, visible: { opacity: 1, x: 0 } }} className="border-b border-gos-border last:border-b-0">
-                        <Link to={item.path} onClick={closeMenus} className={`flex min-h-11 items-center justify-between px-3 py-2 text-[13px] font-extrabold ${isActive(item.path) ? "bg-[#eef8f7] text-gos-blue-deep" : "text-gos-blue-deep"}`}>
+                        <Link to={item.path} onClick={closeMenus} className={`flex min-h-11 items-center justify-between px-3 py-2 text-[13px] font-extrabold ${isActive(item.path) ? "bg-gos-off-white text-gos-blue-deep" : "text-gos-blue-deep"}`}>
                           <span>{item.label}</span>{isActive(item.path) && <span className="h-2 w-2 rounded-full bg-gos-turquoise" />}
                         </Link>
                       </motion.div>

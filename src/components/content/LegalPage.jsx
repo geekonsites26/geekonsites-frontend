@@ -4,7 +4,7 @@ import Container from "../layout/Container"
 import SEO from "../common/SEO"
 import DashboardReturnLink from "../customer/DashboardReturnLink"
 
-export default function LegalPage({ eyebrow, title, description, sections, seoTitle }) {
+export default function LegalPage({ eyebrow, title, description, sections, seoTitle, dateLabel = "Effective date: 14 August 2026", relatedLinks = [] }) {
   return (
     <main className="min-h-screen bg-gos-off-white pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal lg:pb-0 sm:pt-[calc(4rem+env(safe-area-inset-top))]">
       <SEO title={seoTitle} description={description} />
@@ -16,7 +16,8 @@ export default function LegalPage({ eyebrow, title, description, sections, seoTi
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-gos-gold">{eyebrow}</p>
             <h1 className="mt-3 font-['Cormorant_Garamond'] text-5xl font-bold leading-[0.92] text-gos-blue-deep sm:text-6xl">{title}</h1>
             <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-gos-charcoal sm:text-base">{description}</p>
-            <p className="mt-4 text-xs font-bold text-gos-muted">Effective date: 14 August 2026</p>
+            <p className="mt-4 text-xs font-bold text-gos-muted">{dateLabel}</p>
+            {relatedLinks.length > 0 && <nav className="mt-4 flex flex-wrap gap-x-5 gap-y-2" aria-label="Related policies">{relatedLinks.map((link) => <Link key={link.to} to={link.to} className="text-xs font-extrabold text-gos-blue hover:text-gos-turquoise">{link.label}</Link>)}</nav>}
           </div>
         </Container>
       </header>

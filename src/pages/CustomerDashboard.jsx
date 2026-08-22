@@ -41,6 +41,13 @@ const serviceIcon = (name = "") => {
 const statusText = (status) => STATUS_LABELS[status] || status?.replaceAll("_", " ") || "Pending"
 const scheduleText = (booking) => [booking?.bookingDate, booking?.timeSlot].filter(Boolean).join(" at ") || "Schedule pending"
 const locationText = (booking) => [booking?.city, booking?.state, booking?.country].filter(Boolean).join(", ") || "Location pending"
+const isRemoteBooking = (booking) => Boolean(booking?.remoteSessionRequired) || booking?.serviceMode === "REMOTE"
+const hasRequiredPayment = (booking) => isRemoteBooking(booking)
+  ? booking?.paymentStatus === "PAID"
+  : ["PAID", "PARTIALLY_PAID", "BALANCE_PENDING"].includes(booking?.paymentStatus)
+const remoteSessionReady = (booking) => hasRequiredPayment(booking)
+  && booking?.remoteSessionStatus === "READY"
+  && Boolean(booking?.remoteSessionLink)
 
 export default function CustomerDashboard() {
   const navigate = useNavigate()
@@ -118,7 +125,7 @@ export default function CustomerDashboard() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#edf2f5] text-gos-charcoal">
+    <div className="min-h-screen bg-gos-off-white text-gos-charcoal">
       <header className="sticky top-0 z-40 border-b border-gos-border bg-white/95 backdrop-blur-xl" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
           <button type="button" onClick={() => navigate("/")} className="flex min-w-0 items-center gap-2.5 text-left" aria-label="Return to GeekOnSites home">
@@ -185,11 +192,13 @@ function SectionLabel({ label, action, onAction }) {
 
 function CurrentBooking({ booking, navigate }) {
   const Icon = serviceIcon(booking.serviceType)
-  const remote = Boolean(booking.remoteSessionRequired) || booking.serviceMode === "REMOTE"
+  const remote = isRemoteBooking(booking)
+  const paid = hasRequiredPayment(booking)
+  const sessionReady = remoteSessionReady(booking)
   return <article className="overflow-hidden rounded-md border border-gos-border bg-white shadow-[var(--gos-shadow-sm)]">
     <div className="grid md:grid-cols-[1fr_0.72fr]">
       <div className="p-4 sm:p-5"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#eaf7f5] text-gos-turquoise"><Icon size={21} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-base font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[10px] font-extrabold text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><p className="mt-4 flex items-center gap-2 text-xs font-bold text-gos-muted"><CalendarDays size={14} /> {scheduleText(booking)}</p><p className="mt-2 flex items-center gap-2 text-xs font-bold text-gos-muted"><MapPin size={14} /> {locationText(booking)}</p></div></div></div>
-      <div className="border-t border-gos-border bg-gos-off-white p-4 md:border-l md:border-t-0 sm:p-5"><p className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-gos-muted">{remote ? "Remote session" : "Assigned professional"}</p><p className="mt-2 text-sm font-extrabold text-gos-blue-deep">{remote ? (booking.remoteSessionStatus === "READY" ? "Secure meeting ready" : "Meeting preparation in progress") : (booking.technicianName || "Assignment in progress")}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => navigate(remote ? "/remote-session" : `/track-technician/${booking.id}`, { state: { booking } })} className="flex min-h-10 items-center justify-center gap-2 rounded-md bg-gos-blue-deep text-xs font-extrabold text-white">{remote ? <Video size={14} /> : <Navigation size={14} />} {remote ? "Session" : "Track"}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-10 items-center justify-center gap-2 rounded-md border border-gos-border bg-white text-xs font-extrabold text-gos-blue disabled:opacity-45"><FileText size={14} /> Invoice</button></div></div>
+      <div className="border-t border-gos-border bg-gos-off-white p-4 md:border-l md:border-t-0 sm:p-5"><p className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-gos-muted">{remote ? "Remote session" : "Assigned professional"}</p><p className="mt-2 text-sm font-extrabold text-gos-blue-deep">{remote ? (!paid ? "Payment required" : sessionReady ? "Secure meeting ready" : "Meeting preparation in progress") : (booking.technicianName || "Assignment in progress")}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => remote && !paid ? navigate("/payment", { state: { booking } }) : navigate(remote ? "/remote-session" : `/track-technician/${booking.id}`, { state: { booking } })} disabled={remote && paid && !sessionReady} className="flex min-h-10 items-center justify-center gap-2 rounded-md bg-gos-blue-deep text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45">{remote ? <Video size={14} /> : <Navigation size={14} />} {remote ? (!paid ? "Complete payment" : sessionReady ? "Session" : "Preparing") : "Track"}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-10 items-center justify-center gap-2 rounded-md border border-gos-border bg-white text-xs font-extrabold text-gos-blue disabled:opacity-45"><FileText size={14} /> Invoice</button></div></div>
     </div><Timeline booking={booking} />
   </article>
 }
@@ -208,8 +217,10 @@ function BookingsView({ bookings, filter, setFilter, search, setSearch, navigate
 
 function BookingRow({ booking, navigate }) {
   const Icon = serviceIcon(booking.serviceType)
-  const remote = Boolean(booking.remoteSessionRequired) || booking.serviceMode === "REMOTE"
-  return <article className="rounded-md border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-sm)]"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gos-off-white text-gos-blue"><Icon size={19} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><div className="mt-3 grid gap-2 text-[11px] font-semibold text-gos-muted sm:grid-cols-3"><span className="flex items-center gap-1.5"><CalendarDays size={13} />{scheduleText(booking)}</span><span className="flex items-center gap-1.5"><User size={13} />{booking.technicianName || "Not assigned"}</span><span className="flex items-center gap-1.5"><MapPin size={13} />{remote ? (booking.remoteSessionStatus || "Meeting pending") : locationText(booking)}</span></div></div></div><Timeline booking={booking} compact /><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => navigate(remote ? "/remote-session" : `/track-technician/${booking.id}`, { state: { booking } })} className="flex min-h-9 items-center gap-2 rounded-md bg-gos-blue-deep px-3 text-[10px] font-extrabold text-white">{remote ? <Video size={13} /> : <Navigation size={13} />} {remote ? "Session" : "Track"}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-9 items-center gap-2 rounded-md border border-gos-border px-3 text-[10px] font-extrabold text-gos-blue disabled:opacity-45"><FileText size={13} /> Invoice</button></div></article>
+  const remote = isRemoteBooking(booking)
+  const paid = hasRequiredPayment(booking)
+  const sessionReady = remoteSessionReady(booking)
+  return <article className="rounded-md border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-sm)]"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gos-off-white text-gos-blue"><Icon size={19} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><div className="mt-3 grid gap-2 text-[11px] font-semibold text-gos-muted sm:grid-cols-3"><span className="flex items-center gap-1.5"><CalendarDays size={13} />{scheduleText(booking)}</span><span className="flex items-center gap-1.5"><User size={13} />{booking.technicianName || "Not assigned"}</span><span className="flex items-center gap-1.5"><MapPin size={13} />{remote ? (!paid ? "Payment required" : booking.remoteSessionStatus || "Meeting preparation in progress") : locationText(booking)}</span></div></div></div><Timeline booking={booking} compact /><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => remote && !paid ? navigate("/payment", { state: { booking } }) : navigate(remote ? "/remote-session" : `/track-technician/${booking.id}`, { state: { booking } })} disabled={remote && paid && !sessionReady} className="flex min-h-9 items-center gap-2 rounded-md bg-gos-blue-deep px-3 text-[10px] font-extrabold text-white disabled:opacity-45">{remote ? <Video size={13} /> : <Navigation size={13} />} {remote ? (!paid ? "Complete payment" : sessionReady ? "Session" : "Preparing") : "Track"}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-9 items-center gap-2 rounded-md border border-gos-border px-3 text-[10px] font-extrabold text-gos-blue disabled:opacity-45"><FileText size={13} /> Invoice</button></div></article>
 }
 
 function Status({ status }) {
@@ -222,7 +233,7 @@ function Timeline({ booking, compact = false }) {
   const status = booking.bookingStatus
   const assigned = ["TECHNICIAN_ASSIGNED", "TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...COMPLETED].includes(status)
   const started = ["SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...COMPLETED].includes(status)
-  const steps = [{ label: "Booked", active: true }, { label: "Paid", active: booking.paymentStatus !== "PENDING" || status !== "PENDING" }, { label: "Assigned", active: assigned }, { label: "Started", active: started }, { label: "Complete", active: COMPLETED.has(status) }]
+  const steps = [{ label: "Booked", active: true }, { label: "Paid", active: hasRequiredPayment(booking) }, { label: "Assigned", active: assigned }, { label: "Started", active: started }, { label: "Complete", active: COMPLETED.has(status) }]
   return <div className={`border-t border-gos-border ${compact ? "mt-3 pt-3" : "px-4 py-3 sm:px-5"}`}><div className="grid grid-cols-5">{steps.map(({ label, active }, index) => <div key={label} className="relative text-center"><span className={`relative z-10 mx-auto flex h-5 w-5 items-center justify-center rounded-full border ${active ? "border-gos-turquoise bg-gos-turquoise text-white" : "border-gos-border bg-white text-gos-border"}`}>{active ? <Check size={11} /> : <Circle size={8} />}</span>{index < steps.length - 1 && <span className={`absolute left-1/2 top-2.5 h-px w-full ${steps[index + 1].active ? "bg-gos-turquoise" : "bg-gos-border"}`} />}<span className="mt-1.5 block text-[8px] font-bold text-gos-muted">{label}</span></div>)}</div></div>
 }
 

@@ -37,9 +37,10 @@ export const clearAuth = () => {
 
 export async function apiRequest(endpoint, options = {}) {
   const token = getToken()
-  const timeoutController = options.signal ? null : new AbortController()
+  const { timeoutMs = 20000, ...fetchOptions } = options
+  const timeoutController = fetchOptions.signal ? null : new AbortController()
   const timeoutId = timeoutController
-    ? window.setTimeout(() => timeoutController.abort(), 20000)
+    ? window.setTimeout(() => timeoutController.abort(), timeoutMs)
     : null
 
   const headers = {
@@ -54,8 +55,8 @@ export async function apiRequest(endpoint, options = {}) {
   let response
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      signal: options.signal || timeoutController.signal,
+      ...fetchOptions,
+      signal: fetchOptions.signal || timeoutController.signal,
       headers,
     })
   } catch (error) {

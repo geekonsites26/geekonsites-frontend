@@ -2,9 +2,8 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { motion } from "framer-motion"
 import { loginUser } from "../services/authService"
-import BrandLogo from "../components/common/BrandLogo"
+import AuthHeader from "../components/auth/AuthHeader"
 import {
-  ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
   CheckCircle2,
@@ -72,12 +71,7 @@ setTimeout(() => {
 
   return (
     <div className="gos-technician-auth gos-technician-login min-h-screen bg-[#020817] text-white relative overflow-hidden">
-      <header className="relative z-40 border-b border-gos-border bg-white px-4 py-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Link to="/" className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border text-gos-blue" aria-label="Back to website"><ArrowLeft size={17} /></Link>
-          <Link to="/" aria-label="GeekOnSites home"><BrandLogo className="h-auto w-36" /></Link>
-        </div>
-      </header>
+      <AuthHeader />
       <div className="absolute top-20 left-5 md:left-20 w-72 h-72 bg-cyan-500/20 blur-[130px] rounded-full" />
       <div className="absolute bottom-10 right-5 md:right-20 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full" />
 

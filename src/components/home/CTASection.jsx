@@ -7,7 +7,7 @@ import { fadeUp, staggerContainer, staggerItem, viewportOnce } from "../../style
 export default function CTASection() {
   return (
     <Section className="relative overflow-hidden border-y border-gos-border bg-white py-8 sm:py-12 lg:py-14">
-      <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={viewportOnce} className="relative grid gap-7 overflow-hidden rounded-lg border border-gos-blue/15 bg-[linear-gradient(135deg,rgba(229,240,249,0.96),rgba(240,248,249,0.92))] p-6 shadow-[var(--gos-shadow-sm)] sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:p-10">
+      <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={viewportOnce} className="relative grid gap-7 overflow-hidden rounded-lg border border-gos-border bg-white p-6 shadow-[var(--gos-shadow-sm)] sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:p-10">
         <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gos-turquoise" aria-hidden="true" />
         <div className="grid gap-5 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:items-start">
           <motion.span variants={staggerItem} className="flex h-12 w-12 items-center justify-center rounded-full bg-gos-off-white text-gos-turquoise"><BadgeCheck size={24} /></motion.span>

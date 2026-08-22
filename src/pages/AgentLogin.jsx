@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, Headphones, Loader2, LockKeyhole, Mail, ShieldCheck, Wrench } from "lucide-react"
+import { ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, Headphones, Loader2, LockKeyhole, Mail, ShieldCheck, Wrench } from "lucide-react"
 import { loginUser } from "../services/authService"
-import BrandLogo from "../components/common/BrandLogo"
+import AuthHeader from "../components/auth/AuthHeader"
 
 export default function AgentLogin() {
   const navigate = useNavigate()
@@ -46,13 +46,12 @@ export default function AgentLogin() {
   }
 
   return (
-    <main className="gos-auth-page flex min-h-screen bg-white text-gos-charcoal sm:items-center sm:bg-[#edf2f5] sm:px-6 sm:py-8">
-      <div className="mx-auto grid min-h-screen w-full max-w-5xl overflow-hidden bg-white sm:min-h-[36rem] sm:rounded-lg sm:border sm:border-gos-border sm:shadow-[var(--gos-shadow-md)] lg:grid-cols-[0.9fr_1.1fr]">
+    <main className="gos-auth-page relative flex min-h-screen bg-white pt-16 text-gos-charcoal sm:items-center sm:bg-gos-off-white sm:px-6 sm:pb-8 sm:pt-24">
+      <AuthHeader className="absolute inset-x-0 top-0" />
+      <div className="mx-auto grid min-h-[calc(100dvh-4rem)] w-full max-w-5xl overflow-hidden bg-white sm:min-h-[36rem] sm:rounded-lg sm:border sm:border-gos-border sm:shadow-[var(--gos-shadow-md)] lg:grid-cols-[0.9fr_1.1fr]">
         <section className="relative hidden min-h-[38rem] flex-col justify-between overflow-hidden bg-gos-blue-deep p-8 text-white lg:flex xl:p-10">
           <div className="relative">
-            <Link to="/" className="inline-flex items-center gap-2 text-xs font-extrabold text-white/75 transition hover:text-white"><ArrowLeft size={15} /> Back to website</Link>
-            <BrandLogo className="mt-8 h-auto w-48" />
-            <p className="mt-14 text-[10px] font-extrabold uppercase tracking-[0.16em] text-gos-gold">GeekOnSites agent access</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-gos-gold">GeekOnSites agent access</p>
             <h1 className="mt-4 max-w-md font-['Cormorant_Garamond'] text-5xl font-bold leading-[0.95] tracking-normal">Live operations, clearly coordinated.</h1>
             <p className="mt-5 max-w-md text-sm font-semibold leading-6 text-white/70">Manage incoming bookings, assign the right technician, and support customers across the US and UK from one secure workspace.</p>
           </div>
@@ -64,11 +63,6 @@ export default function AgentLogin() {
         </section>
 
         <section className="flex flex-col px-4 py-3 sm:justify-center sm:p-8 lg:p-10 xl:p-12">
-          <div className="flex items-center justify-between border-b border-gos-border pb-4 lg:hidden">
-            <Link to="/" className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border text-gos-blue" aria-label="Back to website"><ArrowLeft size={17} /></Link>
-            <BrandLogo className="h-auto w-36" />
-          </div>
-
           <div className="mt-3 sm:mt-8 lg:mt-0">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-turquoise">Agent portal</p>
             <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none tracking-normal text-gos-blue-deep sm:text-5xl">Operations login.</h2>

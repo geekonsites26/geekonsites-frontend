@@ -21,9 +21,11 @@ export default function Contact() {
   const region = useRegion()
   const { customer } = useCustomerAuth()
   const [loading, setLoading] = useState(false)
+  const [connectingSlowly, setConnectingSlowly] = useState(false)
   const [formData, setFormData] = useState(initialForm)
   const [submitError, setSubmitError] = useState("")
   const [requestId, setRequestId] = useState(null)
+  const submissionInFlight = useRef(false)
 
   useEffect(() => {
     setFormData((current) => ({
@@ -46,8 +48,10 @@ export default function Contact() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (submissionInFlight.current) return
     setSubmitError("")
     setRequestId(null)
+    setConnectingSlowly(false)
     const digits = formData.phone.replace(/\D/g, "").replace(region.code === "US" ? /^1/ : /^44/, "")
     if (!formData.country || !formData.subject) {
       setSubmitError("Select your country and service type.")
@@ -57,15 +61,21 @@ export default function Contact() {
       setSubmitError(`Enter a valid 10-digit ${region.code} phone number.`)
       return
     }
+    submissionInFlight.current = true
     setLoading(true)
+    const coldStartTimer = window.setTimeout(() => setConnectingSlowly(true), 6500)
 
     try {
       const saved = await sendContactMessage({ ...formData, phone: digits ? `${region.dialCode}${digits}` : "", country: region.code })
-      setRequestId(saved?.id)
-      setFormData((current) => ({ ...initialForm, fullName: current.fullName, email: current.email, phone: digits, country: region.code }))
+      setRequestId(saved?.id ?? true)
+      setFormData({ ...initialForm, country: region.code })
     } catch (error) {
-      setSubmitError(error?.message || "Your message could not be sent. Please try again.")
+      const timedOut = error?.name === "AbortError" || error?.cause?.name === "AbortError" || /too long|timeout/i.test(error?.message || "")
+      setSubmitError(timedOut ? "The support service took too long to respond. Your details are still here—please try again when ready." : "Your message could not be sent. Your details are still here—please try again.")
     } finally {
+      window.clearTimeout(coldStartTimer)
+      submissionInFlight.current = false
+      setConnectingSlowly(false)
       setLoading(false)
     }
   }
@@ -149,8 +159,9 @@ export default function Contact() {
                 <textarea name="message" value={formData.message} onChange={handleChange} rows={5} minLength={10} maxLength={5000} placeholder="Describe the issue and the support you need" required className="mt-2 min-h-36 w-full resize-y rounded-md border border-gos-border bg-gos-off-white px-4 py-3 text-sm font-semibold text-gos-charcoal outline-none transition placeholder:text-gos-muted focus:border-gos-turquoise focus:bg-white" />
               </label>
               <motion.button type="submit" disabled={loading} whileTap={{ scale: 0.985 }} className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-gos-blue-deep px-6 py-3 text-sm font-extrabold text-white transition hover:bg-gos-blue disabled:cursor-wait disabled:opacity-60 sm:col-span-2">
-                {loading ? "Sending message..." : "Send Message"}<Send size={17} />
+                {loading ? "Sending your message..." : "Send Message"}<Send size={17} />
               </motion.button>
+              {loading && connectingSlowly && <p role="status" aria-live="polite" className="rounded-md border border-gos-border bg-gos-off-white px-4 py-3 text-center text-xs font-bold leading-5 text-gos-blue-deep sm:col-span-2">Connecting securely to our support service. This may take a few moments.</p>}
               <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-gos-muted sm:col-span-2"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-gos-turquoise" />Your contact details are used to respond to this request and coordinate support.</p>
             </form>
           </motion.div>

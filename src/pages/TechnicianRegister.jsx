@@ -3,9 +3,8 @@ import { Link, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { createTechnician } from "../services/technicianService"
 import { getLocation } from "../utils/location"
-import BrandLogo from "../components/common/BrandLogo"
+import AuthHeader from "../components/auth/AuthHeader"
 import {
-  ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
   Camera,
@@ -60,6 +59,8 @@ export default function TechnicianRegister() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSlowSubmission, setIsSlowSubmission] = useState(false)
   const [submitError, setSubmitError] = useState("")
 
   const [form, setForm] = useState({
@@ -145,7 +146,35 @@ export default function TechnicianRegister() {
     }))
   }
 
-  const handleIdentityDocument = (event) => {
+  const readAsDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ""))
+    reader.onerror = () => reject(new Error("The selected file could not be read."))
+    reader.readAsDataURL(file)
+  })
+
+  const optimizeEvidenceImage = async (file) => {
+    const originalDataUrl = await readAsDataUrl(file)
+    if (!file.type.startsWith("image/")) return originalDataUrl
+
+    const image = await new Promise((resolve, reject) => {
+      const preview = new Image()
+      preview.onload = () => resolve(preview)
+      preview.onerror = () => reject(new Error("The selected image could not be processed."))
+      preview.src = originalDataUrl
+    })
+    const maxDimension = 1600
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
+    const canvas = document.createElement("canvas")
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height)
+    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg"
+    const optimizedDataUrl = canvas.toDataURL(outputType, 0.82)
+    return optimizedDataUrl.length < originalDataUrl.length ? optimizedDataUrl : originalDataUrl
+  }
+
+  const handleIdentityDocument = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
@@ -156,16 +185,19 @@ export default function TechnicianRegister() {
       alert("Identity document must be 5 MB or smaller.")
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => setForm((current) => ({
-      ...current,
-      identityDocumentName: file.name,
-      identityDocumentData: String(reader.result || ""),
-    }))
-    reader.readAsDataURL(file)
+    try {
+      const dataUrl = await optimizeEvidenceImage(file)
+      setForm((current) => ({
+        ...current,
+        identityDocumentName: file.name,
+        identityDocumentData: dataUrl,
+      }))
+    } catch (error) {
+      alert(error.message)
+    }
   }
 
-  const handleEvidenceFile = (event, nameField, dataField) => {
+  const handleEvidenceFile = async (event, nameField, dataField) => {
     const file = event.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
@@ -176,9 +208,12 @@ export default function TechnicianRegister() {
       alert("Document must be 5 MB or smaller.")
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => setForm((current) => ({ ...current, [nameField]: file.name, [dataField]: String(reader.result || "") }))
-    reader.readAsDataURL(file)
+    try {
+      const dataUrl = await optimizeEvidenceImage(file)
+      setForm((current) => ({ ...current, [nameField]: file.name, [dataField]: dataUrl }))
+    } catch (error) {
+      alert(error.message)
+    }
   }
 
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -269,7 +304,14 @@ export default function TechnicianRegister() {
 
   const handleSubmit = async (e) => {
   e.preventDefault()
+  if (isSubmitting || submitted) return
+
   setSubmitError("")
+  setIsSubmitting(true)
+  setIsSlowSubmission(false)
+  const slowSubmissionTimer = window.setTimeout(() => {
+    setIsSlowSubmission(true)
+  }, 7000)
 
   try {
     const technicianData = {
@@ -305,25 +347,32 @@ export default function TechnicianRegister() {
 
     await createTechnician(technicianData)
 
+    setSubmitError("")
     setSubmitted(true)
 
     setTimeout(() => {
       navigate("/technician-login")
     }, 1200)
   } catch (error) {
-    setSubmitError(error.message || "Technician application could not be submitted.")
+    const isConnectivityFailure =
+      error?.name === "TypeError" ||
+      error?.message === "The server is taking too long to respond. Please try again."
+    setSubmitError(
+      isConnectivityFailure
+        ? "We couldn't submit your application right now. Please try again."
+        : error?.message || "We couldn't submit your application right now. Please try again."
+    )
     window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })
+  } finally {
+    window.clearTimeout(slowSubmissionTimer)
+    setIsSlowSubmission(false)
+    setIsSubmitting(false)
   }
 }
 
   return (
     <div className="gos-technician-auth gos-technician-register min-h-screen bg-[#020817] text-white relative overflow-hidden">
-      <header className="relative z-40 border-b border-gos-border bg-white px-4 py-3" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Link to="/" className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border text-gos-blue" aria-label="Back to website"><ArrowLeft size={17} /></Link>
-          <Link to="/" aria-label="GeekOnSites home"><BrandLogo className="h-auto w-36" /></Link>
-        </div>
-      </header>
+      <AuthHeader />
       <div className="absolute top-20 left-5 md:left-20 w-72 h-72 bg-cyan-500/20 blur-[130px] rounded-full" />
       <div className="absolute bottom-10 right-5 md:right-20 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full" />
 
@@ -423,7 +472,8 @@ export default function TechnicianRegister() {
               <div className="mt-6 rounded-2xl bg-green-500/10 border border-green-500/20 p-4 flex gap-3 text-green-300">
                 <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
                 <p className="text-sm">
-                  Application submitted. Redirecting to technician login...
+                  Status: HR Review Pending. Official GeekOnSites company mail
+                  will be assigned only after admin approval.
                 </p>
               </div>
             )}
@@ -834,7 +884,7 @@ export default function TechnicianRegister() {
                 ) : (
                   <button
                     type="submit"
-                    disabled={submitted}
+                    disabled={isSubmitting || submitted}
                     className={`${
                       step > 0 ? "w-2/3" : "w-full"
                     } bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 disabled:opacity-70 text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/20 transition`}
@@ -844,6 +894,12 @@ export default function TechnicianRegister() {
                         <CheckCircle2 className="w-5 h-5" />
                         Submitted
                       </>
+                    ) : isSubmitting ? (
+                      <span className="px-2 text-center text-sm sm:text-base">
+                        {isSlowSubmission
+                          ? "We're securely processing your technician application. This may take a moment."
+                          : "Submitting your application..."}
+                      </span>
                     ) : (
                       <>
                         Submit for HR Review
