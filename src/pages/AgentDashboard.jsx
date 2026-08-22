@@ -7,6 +7,8 @@ import {
   getAllAgents,
   getAgentNotifications,
   getAgentProfile,
+  getAgentDashboardSummary,
+  getAgentBookingQueue,
 } from "../services/agentService"
 import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
@@ -23,8 +25,6 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   Clock3,
-  CreditCard,
-  DollarSign,
   Download,
   LayoutDashboard,
   LogOut,
@@ -99,6 +99,8 @@ export default function AgentDashboard() {
   const [notifications, setNotifications] = useState([])
   const [agentProfile, setAgentProfile] = useState(null)
   const [supportMessages, setSupportMessages] = useState([])
+  const [operationsSummary, setOperationsSummary] = useState(null)
+  const [bookingQueue, setBookingQueue] = useState([])
   const [notificationsMuted, setNotificationsMuted] = useState(localStorage.getItem("gos_agent_notifications_muted") === "true")
   const [notificationRefreshing, setNotificationRefreshing] = useState(false)
   const knownNotificationIds = useRef(new Set())
@@ -149,6 +151,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
         getAgentNotifications(),
         getAgentProfile(),
         getAllContactMessages(),
+        getAgentDashboardSummary(),
+        getAgentBookingQueue(0, 25),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       const bookingData = value(0, [])
@@ -157,6 +161,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
       const notificationData = value(3, [])
       const profileData = value(4, null)
       const supportData = value(5, [])
+      const summaryData = value(6, null)
+      const queueData = value(7, { content: [] })
 
       setBookings(Array.isArray(bookingData) ? bookingData : [])
       setTechnicians(Array.isArray(technicianData) ? technicianData : [])
@@ -165,6 +171,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
       knownNotificationIds.current = new Set((Array.isArray(notificationData) ? notificationData : []).map((item) => item.id))
       setAgentProfile(profileData)
       setSupportMessages(Array.isArray(supportData) ? supportData : [])
+      setOperationsSummary(summaryData)
+      setBookingQueue(Array.isArray(queueData?.content) ? queueData.content : [])
       if (profileData) {
         updateCustomerProfile({
           ...user,
@@ -181,7 +189,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
       }
       const failures = results.filter((result) => result.status === "rejected")
       failures.forEach((result) => console.error("Agent dashboard API error:", result.reason))
-      if (failures.length) showPopup(`${6 - failures.length} of 6 dashboard feeds loaded`)
+      if (failures.length) showPopup(`${8 - failures.length} of 8 dashboard feeds loaded`)
     } catch (error) {
       console.error("Agent dashboard load error:", error)
       showPopup("Failed to load dashboard data")
@@ -372,7 +380,6 @@ const [modeFilter, setModeFilter] = useState("ALL")
     { title: "Technicians", icon: Users },
     { title: "Customers", icon: Users },
     { title: "CRM", icon: ContactRound },
-    { title: "Payments", icon: CreditCard },
     { title: "Support", icon: Activity },
     { title: "Remote Sessions", icon: Monitor },
     { title: "Reports", icon: BarChart3 },
@@ -508,6 +515,32 @@ const [modeFilter, setModeFilter] = useState("ALL")
       </div>
     </>
   )
+
+  const OperationsDashboardSection = () => {
+    const top = operationsSummary?.topMetrics || {}
+    const system = operationsSummary?.systemSummary || {}
+    const today = operationsSummary?.today || {}
+    const yesterday = operationsSummary?.yesterday || {}
+    const rows = [["Agents", system.agents], ["Customers", system.customers], ["Bookings", system.bookings], ["Technicians", system.technicians], ["Remote Sessions", system.remoteSessions], ["Support Requests", system.supportRequests]]
+    const queue = bookingQueue.filter((booking) => {
+      const keyword = searchTerm.trim().toLowerCase()
+      return (statusFilter === "ALL" || booking.bookingStatus === statusFilter) && (modeFilter === "ALL" || getMode(booking) === modeFilter) && (!keyword || [booking.id, booking.customerName, booking.serviceType, booking.technicianName, booking.city, booking.country].some((value) => String(value || "").toLowerCase().includes(keyword)))
+    })
+    return <div className="space-y-4 text-slate-900">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <OperationsKpi title="Total Agents" value={top.totalAgents ?? agents.length} icon={Users} />
+        <OperationsKpi title="Agents With Active Jobs" value={top.agentsWithActiveJobs ?? 0} icon={User} />
+        <OperationsKpi title="Active Jobs" value={top.activeJobs ?? 0} icon={Activity} />
+        <OperationsKpi title="Needs Attention" value={top.needsAttention ?? 0} icon={Clock3} alert />
+      </div>
+      <CompactSection title="System Summary"><div className="overflow-x-auto"><table className="w-full min-w-[560px] border-collapse text-xs"><thead><tr className="bg-slate-100 text-left uppercase tracking-wider text-slate-600"><th className="px-3 py-2">Records</th><th className="px-3 py-2 text-right">Active</th><th className="px-3 py-2 text-right">Pending</th><th className="px-3 py-2 text-right">Total</th></tr></thead><tbody>{rows.map(([label, row]) => <tr key={label} className="border-t border-slate-200"><th className="px-3 py-2 text-left font-bold text-slate-700">{label}</th><td className="px-3 py-2 text-right font-black text-emerald-700">{row?.active ?? "—"}</td><td className="px-3 py-2 text-right font-black text-amber-700">{row?.pending ?? "—"}</td><td className="px-3 py-2 text-right font-black text-[#071d3d]">{row?.total ?? 0}</td></tr>)}</tbody></table></div></CompactSection>
+      <div className="grid gap-4 xl:grid-cols-2"><PeriodStrip title="Total Stats for Today" data={today} timezone={operationsSummary?.timezone} /><PeriodStrip title="Total Stats for Yesterday" data={yesterday} timezone={operationsSummary?.timezone} /></div>
+      <CompactSection title="Live Booking Queue" action={<button type="button" onClick={() => openTab("Live Bookings")} className="text-xs font-black text-cyan-700">View all</button>}>
+        <div className="mb-3 flex flex-wrap gap-2"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 rounded border border-slate-300 bg-white px-2 text-xs"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="ASSIGNMENT_PENDING">Assignment pending</option><option value="TECHNICIAN_ASSIGNED">Assigned</option><option value="SERVICE_COMPLETED">Completed</option></select><select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)} className="h-9 rounded border border-slate-300 bg-white px-2 text-xs"><option value="ALL">All modes</option><option value="ONSITE">Onsite</option><option value="REMOTE">Remote</option></select></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-xs"><thead><tr className="bg-slate-100 text-left uppercase text-slate-600"><th className="p-2">Booking</th><th className="p-2">Created</th><th className="p-2">Customer</th><th className="p-2">Location</th><th className="p-2">Service</th><th className="p-2">Mode</th><th className="p-2">Technician</th><th className="p-2">Status</th><th className="p-2">Actions</th></tr></thead><tbody>{queue.slice(0, 8).map((booking) => <tr key={booking.id} className="border-t border-slate-200"><td className="p-2 font-black">GOS-{booking.id}</td><td className="whitespace-nowrap p-2">{booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "—"}</td><td className="p-2 font-semibold">{booking.customerName || "Customer"}</td><td className="p-2">{[booking.city, booking.country].filter(Boolean).join(", ") || "—"}</td><td className="p-2">{booking.serviceType || "—"}</td><td className="p-2">{getMode(booking)}</td><td className="p-2">{booking.technicianName || "Unassigned"}</td><td className="p-2"><StatusBadge status={booking.bookingStatus} /></td><td className="p-2"><div className="flex gap-2"><button type="button" onClick={() => setSelectedBooking(bookings.find((item) => item.id === booking.id) || booking)} className="font-bold text-cyan-700">View</button><button type="button" onClick={() => { setSelectedBooking(bookings.find((item) => item.id === booking.id) || booking); openTab("Assign Technician") }} className="font-bold text-[#071d3d]">Assign</button></div></td></tr>)}</tbody></table>{!queue.length && <p className="p-6 text-center text-sm text-slate-500">No matching bookings.</p>}</div>
+      </CompactSection>
+    </div>
+  }
 
   const LiveBookingsSection = () => (
     <Panel
@@ -722,13 +755,6 @@ const [modeFilter, setModeFilter] = useState("ALL")
     )
   }
 
-  const PaymentsSection = () => (
-    <Panel title="Payment Oversight" subtitle="Paid, pending, and remaining balances from live bookings">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><ReportCard title="Collected" value={`GBP/USD ${bookings.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0).toFixed(2)}`} /><ReportCard title="Paid bookings" value={bookings.filter((item) => item.paymentStatus === "PAID").length} /><ReportCard title="Part paid" value={bookings.filter((item) => item.paymentStatus === "PARTIALLY_PAID").length} /><ReportCard title="Pending" value={bookings.filter((item) => !["PAID", "PARTIALLY_PAID"].includes(item.paymentStatus)).length} /></div>
-      <div className="mt-6 space-y-3">{bookings.length ? bookings.map((booking) => <button type="button" key={booking.id} onClick={() => setSelectedBooking(booking)} className="grid w-full gap-3 rounded-2xl border border-white/10 bg-[#0b1628] p-4 text-left sm:grid-cols-[0.7fr_1.3fr_0.8fr_0.8fr]"><MiniInfo label="Booking" value={`GOS-${booking.id}`} /><MiniInfo label="Customer" value={booking.customerName || "Customer"} /><MiniInfo label="Status" value={booking.paymentStatus || "PENDING"} /><MiniInfo label="Paid" value={formatMoney(booking, booking.paidAmount)} /></button>) : <EmptyState title="No payments" text="Payment records will appear with bookings." />}</div>
-    </Panel>
-  )
-
   const updateSupportStatus = async (messageId, status) => {
     try {
       const updated = await updateContactMessageStatus(messageId, status)
@@ -913,6 +939,14 @@ const [modeFilter, setModeFilter] = useState("ALL")
     )
   }
 
+  const OperationsReportsSection = () => {
+    const lifecycle = operationsSummary?.bookingLifecycle || {}
+    return <Panel title="Operations Reports" subtitle="Real booking lifecycle and service-mode totals">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><ReportCard title="Completed" value={lifecycle.SERVICE_COMPLETED || 0} /><ReportCard title="Pending" value={(lifecycle.PENDING || 0) + (lifecycle.ASSIGNMENT_PENDING || 0)} /><ReportCard title="Onsite" value={operationsSummary?.onsite?.total || 0} /><ReportCard title="Remote" value={operationsSummary?.remote?.total || 0} /></div>
+      <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-4">{Object.entries(lifecycle).filter(([, value]) => value > 0).map(([status, count]) => <div key={status} className="flex items-center justify-between rounded border border-white/10 bg-[#0b1628] p-3 text-xs"><span>{statusLabel[status] || status}</span><strong className="text-cyan-300">{count}</strong></div>)}</div>
+    </Panel>
+  }
+
   const NotificationsSection = () => (
   <Panel
     title="Notifications"
@@ -1003,18 +1037,19 @@ const [modeFilter, setModeFilter] = useState("ALL")
   )
 
   const renderContent = () => {
+    void DashboardSection
+    void ReportsSection
     if (activeTab === "CRM") return <AgentCrm notify={showPopup} onOpenBooking={(id) => { const booking = bookings.find((item) => item.id === id); if (booking) setSelectedBooking(booking) }} />
     if (activeTab === "Live Bookings") return <LiveBookingsSection />
     if (activeTab === "Assign Technician") return <AssignTechnicianSection />
     if (activeTab === "Technicians") return <TechniciansSection />
     if (activeTab === "Customers") return <CustomersSection />
-    if (activeTab === "Payments") return <PaymentsSection />
     if (activeTab === "Support") return <SupportSection />
     if (activeTab === "Remote Sessions") return <RemoteSessionsSection />
-    if (activeTab === "Reports") return <ReportsSection />
+    if (activeTab === "Reports") return <OperationsReportsSection />
     if (activeTab === "Notifications") return <NotificationsSection />
     if (activeTab === "Settings") return <SettingsSection />
-    return <DashboardSection />
+    return <OperationsDashboardSection />
   }
 
   if (loading) {
@@ -1024,25 +1059,19 @@ const [modeFilter, setModeFilter] = useState("ALL")
   }
 
   return (
-    <div className="gos-agent-portal flex h-dvh w-full overflow-hidden bg-[#020817] text-white">
+    <div className="gos-agent-portal flex h-dvh w-full overflow-hidden bg-slate-100 text-white">
       <StatusToast message={popup} />
 
-      <aside className="hidden h-dvh w-[310px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
+      <aside className="hidden h-dvh w-[238px] shrink-0 flex-col border-r border-slate-700 bg-[#071d3d] lg:flex">
         <button
           onClick={() => navigate("/")}
-          className="mb-8 flex items-center gap-3 text-left"
+          className="flex h-[76px] shrink-0 items-center border-b border-white/10 px-4 text-left"
           aria-label="Back to GeekOnSites home"
         >
-          <img src={logo} alt="GeekOnSites" className="h-auto w-44 max-w-full shrink object-contain" />
-          <span>
-            <span className="block text-xl font-black leading-none text-cyan-300">GeekOnSites</span>
-            <span className="mt-1.5 block text-xs text-cyan-100/45">
-              Agent Operations Center
-            </span>
-          </span>
+          <img src={logo} alt="GeekOnSites Agent Center" className="h-auto w-[190px] max-w-full object-contain" />
         </button>
 
-        <div className="space-y-3 overflow-y-auto pr-1">
+        <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 py-3">
           {navItems.map((item) => {
             const Icon = item.icon
             const showBadge = item.title === "Notifications" && unreadCount > 0
@@ -1051,13 +1080,13 @@ const [modeFilter, setModeFilter] = useState("ALL")
               <button
                 key={item.title}
                 onClick={() => openTab(item.title)}
-                className={`flex w-full items-center gap-4 rounded-2xl px-5 py-4 ${
+                className={`flex min-h-10 w-full items-center gap-3 rounded px-3 py-2 text-xs ${
                   activeTab === item.title
-                    ? "bg-cyan-400 font-black text-black"
-                    : "border border-white/5 bg-[#0b1628] text-cyan-100/70"
+                    ? "bg-cyan-400 font-black text-[#071d3d]"
+                    : "font-semibold text-slate-200 hover:bg-white/10"
                 }`}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-4 w-4" />
                 <span className="min-w-0 flex-1 truncate text-left">{item.title}</span>
                 {showBadge && (
                   <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-black text-white">
@@ -1074,7 +1103,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
             logoutCustomer()
             navigate("/agent-login")
           }}
-          className="mt-5 flex w-full items-center gap-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-red-300"
+          className="m-2 flex min-h-10 items-center gap-3 rounded border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-200"
         >
           <LogOut className="h-5 w-5" />
           Logout
@@ -1156,7 +1185,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
       )}
 
       <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-[82px] shrink-0 items-center justify-between gap-3 border-b border-cyan-500/10 bg-[#071122]/95 px-4 md:h-[90px] md:px-6">
+        <header className="flex h-[64px] shrink-0 items-center justify-between gap-3 border-b border-slate-300 bg-white px-4 text-[#071d3d] md:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <button
               onClick={() => navigate("/")}
@@ -1170,8 +1199,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
               <h1 className="truncate text-xl font-black md:text-2xl">
                 {activeTab}
               </h1>
-              <p className="mt-1 truncate text-xs text-cyan-100/40 md:text-sm">
-                Backend-connected dispatch operations
+              <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">
+                Agent Center · {agentName} · {agentProfile?.status || "ACTIVE"}
               </p>
             </div>
           </div>
@@ -1219,7 +1248,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
         <div
           id="agent-main-content"
-          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28 md:p-6 lg:pb-6"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-3 pb-28 md:p-4 lg:pb-4"
         >
           {renderContent()}
         </div>
@@ -1265,6 +1294,19 @@ const [modeFilter, setModeFilter] = useState("ALL")
       )}
     </div>
   )
+}
+
+function OperationsKpi({ title, value, icon: Icon, alert = false }) {
+  return <div className="flex min-h-[76px] overflow-hidden rounded border border-slate-300 bg-white"><div className={`flex w-12 shrink-0 items-center justify-center ${alert ? "bg-amber-500" : "bg-[#0b4778]"}`}><Icon className="h-5 w-5 text-white" /></div><div className="min-w-0 px-3 py-2"><p className="text-2xl font-black leading-none text-[#071d3d]">{value ?? 0}</p><p className="mt-2 truncate text-[10px] font-black uppercase tracking-wide text-slate-500">{title}</p></div></div>
+}
+
+function CompactSection({ title, action, children }) {
+  return <section className="overflow-hidden rounded border border-slate-300 bg-white"><header className="flex min-h-9 items-center justify-between bg-[#071d3d] px-3 py-2 text-white"><h2 className="text-xs font-black uppercase tracking-[0.12em]">{title}</h2>{action}</header><div className="p-3">{children}</div></section>
+}
+
+function PeriodStrip({ title, data = {}, timezone }) {
+  const fields = [["Total", data.created], ["Pending", data.pending], ["Assigned", data.assigned], ["Completed", data.completed], ["Onsite", data.onsite], ["Remote", data.remote]]
+  return <CompactSection title={title}><div className="grid grid-cols-3 divide-x divide-y divide-slate-200 sm:grid-cols-6 sm:divide-y-0">{fields.map(([label, value]) => <div key={label} className="px-2 py-2 text-center"><p className="text-lg font-black text-[#071d3d]">{value ?? 0}</p><p className="text-[9px] font-bold uppercase text-slate-500">{label}</p></div>)}</div><p className="mt-2 text-right text-[9px] font-semibold text-slate-400">Calendar day · {timezone || "server timezone"}</p></CompactSection>
 }
 
 function DashboardLoader({ label }) { return <div className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><img src={logo} alt="GeekOnSites" className="mx-auto h-auto w-48 object-contain" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">{label}</p><p className="mt-1 text-xs font-semibold text-gos-muted">Secure workspace loading</p></div></div> }
