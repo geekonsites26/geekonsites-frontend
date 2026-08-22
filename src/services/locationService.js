@@ -32,6 +32,8 @@ const component = (components, ...types) => {
 }
 
 const uniqueParts = (...parts) => [...new Set(parts.map((part) => part?.trim()).filter(Boolean))]
+const retryableGeocoderStatuses = new Set(["UNKNOWN_ERROR", "OVER_QUERY_LIMIT", "ERROR"])
+const wait = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 
 export const isSupportedCountry = (countryCode) => {
   return countryCode === "US" || countryCode === "GB" || countryCode === "UK"
@@ -106,12 +108,28 @@ export const autoDetectUserLocation = async () => {
 
 export const reverseGeocodeAddress = async (latitude, longitude) => {
   const maps = await loadGoogleMaps()
-  const results = await new Promise((resolve, reject) => {
-    new maps.Geocoder().geocode({ location: { lat: latitude, lng: longitude } }, (items, status) => {
-      if (status === "OK" && items?.length) resolve(items)
-      else reject(new Error("No address was found for these coordinates."))
-    })
-  })
+  const geocoder = new maps.Geocoder()
+  let results
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await wait(attempt * 500)
+    try {
+      results = await new Promise((resolve, reject) => {
+        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (items, status) => {
+          if (status === "OK" && items?.length) {
+            resolve(items)
+            return
+          }
+          const error = new Error(status === "ZERO_RESULTS" ? "No address was found for these coordinates." : "Address lookup failed.")
+          error.geocoderStatus = status
+          reject(error)
+        })
+      })
+      break
+    } catch (error) {
+      const retryable = retryableGeocoderStatuses.has(error?.geocoderStatus)
+      if (!retryable || attempt === 2) throw error
+    }
+  }
   const components = results[0].address_components || []
   const countryEntry = components.find((item) => item.types.includes("country"))
   const route = component(components, "route")
