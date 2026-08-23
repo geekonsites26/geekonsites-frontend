@@ -34,6 +34,19 @@ const component = (components, ...types) => {
 const uniqueParts = (...parts) => [...new Set(parts.map((part) => part?.trim()).filter(Boolean))]
 const retryableGeocoderStatuses = new Set(["UNKNOWN_ERROR", "OVER_QUERY_LIMIT", "ERROR"])
 const wait = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+const locationOptions = { enableHighAccuracy: true, maximumAge: 0 }
+
+const readCurrentPosition = (timeout) => new Promise((resolve, reject) => {
+  navigator.geolocation.getCurrentPosition(
+    (position) => resolve({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : Number.POSITIVE_INFINITY,
+    }),
+    reject,
+    { ...locationOptions, timeout }
+  )
+})
 
 export const isSupportedCountry = (countryCode) => {
   return countryCode === "US" || countryCode === "GB" || countryCode === "UK"
@@ -44,30 +57,25 @@ export const normalizeCountryCode = (countryCode) => {
   return countryCode
 }
 
-export const getBrowserLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject("Geolocation is not supported by this browser.")
-      return
-    }
+export const getBrowserLocation = async () => {
+  if (!navigator.geolocation) throw new Error("Geolocation is not supported by this browser.")
+  const first = await readCurrentPosition(8000)
+  if (first.accuracy <= 75) return first
+  try {
+    const second = await readCurrentPosition(5000)
+    return second.accuracy < first.accuracy ? second : first
+  } catch {
+    return first
+  }
+}
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        })
-      },
-      (error) => {
-        reject(error)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
-    )
-  })
+export const isMateriallyDifferentOrBetterLocation = (previous, next) => {
+  if (!previous || !next) return false
+  const latitudeMeters = (next.latitude - previous.latitude) * 111320
+  const longitudeMeters = (next.longitude - previous.longitude) * 111320 * Math.cos(previous.latitude * Math.PI / 180)
+  const distanceMeters = Math.hypot(latitudeMeters, longitudeMeters)
+  const materiallyBetter = Number.isFinite(next.accuracy) && (!Number.isFinite(previous.accuracy) || next.accuracy <= previous.accuracy * 0.8)
+  return materiallyBetter || distanceMeters >= 15
 }
 
 export const detectCountryFromCoordinates = async (latitude, longitude) => {
@@ -106,11 +114,11 @@ export const autoDetectUserLocation = async () => {
   return location
 }
 
-export const reverseGeocodeAddress = async (latitude, longitude) => {
+export const reverseGeocodeAddress = async (latitude, longitude, { maxAttempts = 3 } = {}) => {
   const maps = await loadGoogleMaps()
   const geocoder = new maps.Geocoder()
   let results
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (attempt > 0) await wait(attempt * 500)
     try {
       results = await new Promise((resolve, reject) => {
@@ -127,7 +135,7 @@ export const reverseGeocodeAddress = async (latitude, longitude) => {
       break
     } catch (error) {
       const retryable = retryableGeocoderStatuses.has(error?.geocoderStatus)
-      if (!retryable || attempt === 2) throw error
+      if (!retryable || attempt === maxAttempts - 1) throw error
     }
   }
   const components = results[0].address_components || []

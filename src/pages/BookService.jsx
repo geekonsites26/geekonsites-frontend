@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useLocation, useNavigate } from "react-router-dom"
 import { getLocation } from "../utils/location"
-import { getBrowserLocation, isSupportedCountry, reverseGeocodeAddress } from "../services/locationService"
+import { getBrowserLocation, isMateriallyDifferentOrBetterLocation, isSupportedCountry, reverseGeocodeAddress } from "../services/locationService"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import {
   Laptop, Printer, Wifi, User, Phone, MapPin, CreditCard,
@@ -395,7 +395,18 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
       localStorage.setItem("gos_latitude", String(coordinates.latitude))
       localStorage.setItem("gos_longitude", String(coordinates.longitude))
       try {
-        const address = await reverseGeocodeAddress(coordinates.latitude, coordinates.longitude)
+        let address
+        try {
+          address = await reverseGeocodeAddress(coordinates.latitude, coordinates.longitude)
+        } catch (geocodeError) {
+          if (geocodeError?.geocoderStatus !== "ZERO_RESULTS") throw geocodeError
+          const freshCoordinates = await getBrowserLocation()
+          if (!isMateriallyDifferentOrBetterLocation(coordinates, freshCoordinates)) throw geocodeError
+          address = await reverseGeocodeAddress(freshCoordinates.latitude, freshCoordinates.longitude, { maxAttempts: 1 })
+          setCustomerCoordinates(freshCoordinates)
+          localStorage.setItem("gos_latitude", String(freshCoordinates.latitude))
+          localStorage.setItem("gos_longitude", String(freshCoordinates.longitude))
+        }
         setHouseAddress(address.houseAddress)
         setStreetAddress(address.streetAddress)
         setCity(address.city)
