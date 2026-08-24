@@ -7,6 +7,7 @@ import { useRegion } from "../utils/location"
 import MobileBottomNav from "../components/layout/MobileBottomNav"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import BrandLogo from "../components/common/BrandLogo"
+import DashboardLoader from "../components/ui/DashboardLoader"
 
 const STATUS_LABELS = {
   PENDING: "Pending",
@@ -124,6 +125,8 @@ export default function CustomerDashboard() {
     { label: "Profile", icon: User },
   ]
 
+  if (loading) return <DashboardLoader />
+
   return (
     <div className="min-h-screen bg-gos-off-white text-gos-charcoal">
       <header className="sticky top-0 z-40 border-b border-gos-border bg-white/95 backdrop-blur-xl" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -156,17 +159,13 @@ export default function CustomerDashboard() {
         <main className="relative min-w-0 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-7 lg:px-8 lg:pb-10">
           {view !== "Home" && <DashboardReturnLink force onClick={() => { setView("Home"); navigate("/customer-dashboard", { replace: true }) }} className="-ml-2 mb-2" />}
           {loadError && <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><span>{loadError}</span><button type="button" onClick={loadBookings} className="flex h-8 w-8 shrink-0 items-center justify-center" aria-label="Retry"><RefreshCw size={15} /></button></div>}
-          {loading ? <LoadingState /> : view === "Home" ? <HomeView name={name} stats={stats} booking={currentBooking} navigate={navigate} openBookings={() => setView("Bookings")} openProfile={() => setView("Profile")} /> : view === "Bookings" ? <BookingsView bookings={visibleBookings} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} navigate={navigate} onBack={() => setView("Home")} /> : <ProfileView name={name} email={email} phone={phone} region={region} logout={logout} navigate={navigate} onBack={() => setView("Home")} />}
+          {view === "Home" ? <HomeView name={name} stats={stats} booking={currentBooking} navigate={navigate} openBookings={() => setView("Bookings")} openProfile={() => setView("Profile")} /> : view === "Bookings" ? <BookingsView bookings={visibleBookings} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} navigate={navigate} onBack={() => setView("Home")} /> : <ProfileView name={name} email={email} phone={phone} region={region} logout={logout} navigate={navigate} onBack={() => setView("Home")} />}
         </main>
       </div>
 
       <MobileBottomNav />
     </div>
   )
-}
-
-function LoadingState() {
-  return <div className="mx-auto flex min-h-[65dvh] max-w-5xl items-center justify-center"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><BrandLogo className="mx-auto h-auto w-48" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold text-gos-blue-deep">Preparing your dashboard</p><p className="mt-1 text-xs font-semibold text-gos-muted">Loading bookings and account updates</p></div></div>
 }
 
 function PageHeading({ eyebrow, title, text, onBack }) {

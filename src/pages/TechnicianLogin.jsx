@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { motion } from "framer-motion"
+import { Capacitor } from "@capacitor/core"
 import { loginUser } from "../services/authService"
 import AuthHeader from "../components/auth/AuthHeader"
 import {
@@ -21,6 +22,7 @@ import {
 } from "lucide-react"
 
 export default function TechnicianLogin() {
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -150,10 +152,10 @@ setTimeout(() => {
               <div>
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-cyan-300">Technician portal</p>
                 <h2 className="text-3xl md:text-4xl font-black">
-                  Welcome back.
+                  {nativeAndroid ? "Technician Sign In" : "Welcome back."}
                 </h2>
                 <p className="mt-2 text-cyan-100/50 text-sm md:text-base">
-                  Login with your company-issued technician account.
+                  {nativeAndroid ? "Access assigned service jobs." : "Sign in using your registered personal email."}
                 </p>
               </div>
 
@@ -184,7 +186,7 @@ setTimeout(() => {
             <form onSubmit={handleLogin} className="mt-7 space-y-5">
               <div>
                 <label className="text-sm text-cyan-100/70">
-                  Official GOS Email
+                  Email
                 </label>
 
                 <div className="relative mt-2">
@@ -194,10 +196,11 @@ setTimeout(() => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="yourname@gos.com"
+                    placeholder="yourname@example.com"
                     className="w-full bg-[#0b1628] border border-white/10 focus:border-cyan-400/60 rounded-2xl pl-12 pr-4 py-4 text-white outline-none placeholder:text-cyan-100/25"
                   />
                 </div>
+                <p className="mt-2 text-xs leading-5 text-cyan-100/50">Use the personal email address you registered with GeekOnSites.</p>
               </div>
 
               <div>
@@ -242,6 +245,7 @@ setTimeout(() => {
 
                 <Link
                   to="/forgot-password"
+                  state={{ role: "TECHNICIAN" }}
                   className="text-sm text-cyan-300 hover:text-cyan-200"
                 >
                   Forgot password?
@@ -289,6 +293,15 @@ setTimeout(() => {
                 Apply as Technician
               </Link>
             </p>
+
+            {nativeAndroid && (
+              <p className="text-center text-cyan-100/45 mt-3 text-sm">
+                Customer?{" "}
+                <Link to="/customer-login" className="text-cyan-300 font-semibold hover:text-cyan-200">
+                  Customer Sign In
+                </Link>
+              </p>
+            )}
           </div>
         </motion.section>
       </div>

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { Capacitor } from "@capacitor/core"
 import { getBookingById } from "../services/bookingService"
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
   Clock3,
   CreditCard,
   Download,
@@ -13,6 +15,7 @@ import {
   Mail,
   MapPin,
   ReceiptText,
+  Share2,
   ShieldCheck,
   UserCheck,
   Wrench,
@@ -23,12 +26,15 @@ import {
   generateInvoiceByBookingId,
   getInvoiceByBookingId,
 } from "../services/invoiceService"
+import { saveAndSharePdf } from "../services/nativeFile"
+import { SkeletonInvoice } from "../components/ui/Skeleton"
 
 export default function InvoiceDetails() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const { invoiceId } = useParams()
   const invoiceRef = useRef(null)
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
 
   const [invoice, setInvoice] = useState(null)
   const [downloading, setDownloading] = useState(false)
@@ -60,6 +66,7 @@ export default function InvoiceDetails() {
         customerEmail: finalBooking.customerEmail || "N/A",
         country: finalBooking.country === "UK" || finalBooking.currency === "GBP" ? "UK" : "US",
         technicianName: finalBooking.technicianName || "Technician Pending",
+        serviceMode: finalBooking.serviceMode === "REMOTE" ? "Remote Support" : "On-site Visit",
         technicianRole:
           finalBooking.serviceMode === "REMOTE"
           ? "Remote Support Specialist"
@@ -270,7 +277,20 @@ pdf.text(`${invoice.currency}${invoice.totalAmount}`, 165, y)
       285
     )
 
-    pdf.save(`${invoice.invoiceNumber || "GeekOnSites-Invoice"}.pdf`)
+    // Repaint the output with the same clean, card-based hierarchy as the
+    // on-screen invoice. This intentionally leaves all invoice calculations
+    // and values above untouched; only the final PDF presentation changes.
+    renderInvoicePdf(pdf, invoice, logoData)
+
+    const fileName = `GeekOnSites-Invoice-${invoice.invoiceNumber || "receipt"}`
+    if (nativeAndroid) {
+      // jsPDF's .save() relies on a browser download link, which does nothing
+      // inside the Android WebView. Write the file and hand it to the native
+      // share sheet instead so the customer can actually save or send it.
+      await saveAndSharePdf(pdf, fileName, { title: "GeekOnSites Invoice", text: `Invoice ${invoice.invoiceNumber}` })
+    } else {
+      pdf.save(`${fileName}.pdf`)
+    }
   } catch (error) {
     console.error("PDF download failed:", error)
     alert("PDF download failed. Please check console error.")
@@ -281,13 +301,90 @@ pdf.text(`${invoice.currency}${invoice.totalAmount}`, 165, y)
 
   if (!invoice) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><img src={logo} alt="GeekOnSites" className="mx-auto h-auto w-48 object-contain" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">Preparing your invoice</p></div></main>
+      <main className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep">
+        <div className="w-full max-w-sm">
+          <img src={logo} alt="GeekOnSites" className="mx-auto h-auto w-40 object-contain" />
+          <p className="mt-3 text-center text-sm font-extrabold">Preparing your invoice</p>
+          <SkeletonInvoice dark={false} className="mt-4" />
+        </div>
+      </main>
     )
   }
 
   const isAdvanceInvoice =
     invoice.paymentStatus === "PARTIALLY_PAID" ||
     Number(invoice.remainingAmount) > 0
+
+  if (nativeAndroid) {
+    return (
+      <main className="native-invoice-page min-h-[100dvh] overflow-x-hidden bg-[#f4f7f9] pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-gos-charcoal">
+        <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-[#dfe8ed] bg-[#f8fbfc]/95 px-3 pb-3 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl">
+          <button type="button" onClick={() => navigate(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gos-off-white text-gos-blue-deep" aria-label="Go back"><ChevronLeft size={19} /></button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-extrabold leading-tight text-gos-blue-deep">Invoice {invoice.invoiceNumber}</p>
+            <p className="truncate text-[11px] font-semibold text-gos-muted">{invoice.bookingId}</p>
+          </div>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-700"><CheckCircle2 size={11} />{isAdvanceInvoice ? "Advance Paid" : "Paid"}</span>
+        </header>
+
+        <div className="space-y-3 px-3 py-3.5">
+          <section className="flex items-center gap-3 rounded-2xl border border-gos-border bg-white p-4">
+            <img src={logo} alt="GeekOnSites" className="h-9 w-auto shrink-0 object-contain" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black text-gos-blue-deep">{invoice.invoiceNumber}</p>
+              <p className="truncate text-[11px] font-semibold text-gos-muted">{invoice.country === "UK" ? "United Kingdom" : "United States"} · {invoice.invoiceDate}</p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gos-border bg-white p-3.5">
+            <div className="mb-1 flex items-center gap-2 text-gos-blue-deep"><ReceiptText size={15} className="text-gos-turquoise" /><h2 className="text-xs font-extrabold uppercase tracking-[0.08em]">Summary</h2></div>
+            <NativePriceRow label="Service" value={invoice.serviceType} />
+            <NativePriceRow label="Booking ID" value={invoice.bookingId} />
+            <NativePriceRow label="Support mode" value={invoice.serviceMode} />
+            {invoice.technicianName && invoice.technicianName !== "Technician Pending" && <NativePriceRow label="Technician" value={invoice.technicianName} />}
+          </section>
+
+          <InvoiceInfoRow icon={UserCheck} title="Customer" lines={[invoice.customerName, invoice.customerEmail]} />
+
+          <section className="rounded-2xl border border-gos-border bg-white p-3.5">
+            <div className="mb-2 flex items-center gap-2 text-gos-blue-deep"><FileText size={15} className="text-gos-turquoise" /><h2 className="text-xs font-extrabold uppercase tracking-[0.08em]">Service summary</h2></div>
+            <p className="text-xs font-semibold leading-6 text-gos-muted">{invoice.issueDescription}</p>
+            <div className="mt-3 space-y-1.5">
+              {invoice.workPerformed.map((item, index) => (
+                <div key={index} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" /><p className="text-xs font-semibold leading-5 text-gos-charcoal">{item}</p></div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gos-border bg-white p-3.5">
+            <div className="mb-2 flex items-center gap-2 text-gos-blue-deep"><ReceiptText size={15} className="text-gos-turquoise" /><h2 className="text-xs font-extrabold uppercase tracking-[0.08em]">Payment breakdown</h2></div>
+            <NativePriceRow label="Service amount" value={`${invoice.currency}${invoice.serviceAmount}`} />
+            <NativePriceRow label="Platform fee" value={`${invoice.currency}${invoice.platformFee}`} />
+            <NativePriceRow label="Advance paid" value={`${invoice.currency}${invoice.advanceAmount}`} />
+            {Number(invoice.remainingAmount) > 0 && <NativePriceRow label="Remaining balance" value={`${invoice.currency}${invoice.remainingAmount}`} />}
+            <NativePriceRow label="Payment method" value={invoice.paymentMethod} />
+            <NativePriceRow label={Number(invoice.remainingAmount) > 0 ? "Amount paid today" : "Total paid"} value={`${invoice.currency}${invoice.totalAmount}`} total />
+          </section>
+
+          <section className="flex gap-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
+            <ShieldCheck size={17} className="mt-0.5 shrink-0 text-emerald-600" />
+            <p className="text-xs font-semibold leading-5 text-emerald-800">{isAdvanceInvoice ? "Your advance payment is confirmed and saved in booking history. The remaining balance is payable after service." : "Meeting access has been closed and this invoice is saved in your booking history."}</p>
+          </section>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gos-border bg-white/95 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-xl">
+          <div className="mx-auto grid max-w-lg grid-cols-3 gap-2">
+            <button onClick={downloadInvoice} disabled={downloading} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-gos-blue-deep text-[11px] font-black text-white disabled:opacity-60">
+              {downloading ? <Download size={15} className="animate-pulse" /> : <Share2 size={15} />}
+              {downloading ? "Preparing" : "Share / Save PDF"}
+            </button>
+            <button onClick={() => navigate("/my-bookings")} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-gos-border bg-white text-[11px] font-black text-gos-blue-deep"><Home size={15} className="text-gos-turquoise" />Bookings</button>
+            <button onClick={() => navigate("/book-service")} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-gos-border bg-white text-[11px] font-black text-gos-blue-deep"><CreditCard size={15} className="text-gos-turquoise" />Book Again</button>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="gos-service-flow invoice-details-page relative min-h-screen overflow-x-hidden bg-[#edf2f5] px-3 pb-20 pt-14 text-gos-charcoal sm:px-5 sm:pt-16 lg:px-8 lg:pt-20">
@@ -538,6 +635,179 @@ function PriceRow({ label, value, total }) {
       <span className={total ? "text-green-300" : "text-white"}>{value}</span>
     </div>
   )
+}
+
+function InvoiceInfoRow({ icon: Icon, title, lines }) {
+  return (
+    <section className="flex items-center gap-3 rounded-2xl border border-gos-border bg-white p-3.5">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eaf7f5] text-gos-turquoise"><Icon size={16} /></span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-gos-muted">{title}</p>
+        {lines.filter(Boolean).map((line) => <p key={line} className="mt-0.5 truncate text-xs font-bold text-gos-blue-deep">{line}</p>)}
+      </div>
+    </section>
+  )
+}
+
+function NativePriceRow({ label, value, total }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 border-b border-gos-border py-2 last:border-b-0 ${total ? "text-sm font-black text-gos-blue-deep" : "text-xs font-semibold text-gos-muted"}`}>
+      <span>{label}</span>
+      <span className={total ? "text-emerald-600" : "text-gos-charcoal"}>{value}</span>
+    </div>
+  )
+}
+
+function renderInvoicePdf(pdf, invoice, logoData) {
+  const pageWidth = 210
+  const pageHeight = 297
+  const margin = 8
+  const contentWidth = pageWidth - margin * 2
+  const navy = [8, 48, 82]
+  const teal = [11, 145, 154]
+  const green = [12, 123, 83]
+  const border = [205, 221, 231]
+  const pale = [247, 250, 252]
+  const mint = [235, 249, 242]
+
+  const pageBackground = () => {
+    pdf.setFillColor(255, 255, 255)
+    pdf.rect(0, 0, pageWidth, pageHeight, "F")
+  }
+  const setText = (size = 8, color = navy, style = "normal") => {
+    pdf.setFont("helvetica", style)
+    pdf.setFontSize(size)
+    pdf.setTextColor(...color)
+  }
+  const roundedCard = (x, y, width, height, fill = pale, stroke = border) => {
+    pdf.setFillColor(...fill)
+    pdf.setDrawColor(...stroke)
+    pdf.setLineWidth(0.35)
+    pdf.roundedRect(x, y, width, height, 1.5, 1.5, "FD")
+  }
+  const safeLines = (value, width) => pdf.splitTextToSize(String(value || "N/A"), width)
+  const detailCard = (x, y, width, title, items) => {
+    const wrapped = items.map(([label, value]) => [label, safeLines(value, width - 6)])
+    const height = Math.max(35, 8 + wrapped.reduce((sum, [, lines]) => sum + 4 + lines.length * 3.4, 0))
+    roundedCard(x, y, width, height)
+    setText(7.2, teal, "bold")
+    pdf.text(title, x + 3, y + 5)
+    let lineY = y + 10
+    wrapped.forEach(([label, lines]) => {
+      setText(5.7, [83, 108, 126], "bold")
+      pdf.text(label, x + 3, lineY)
+      setText(6.7, navy, "bold")
+      pdf.text(lines, x + 3, lineY + 3)
+      lineY += 4 + lines.length * 3.4
+    })
+    return height
+  }
+  const sectionHeader = (title, x, y) => {
+    setText(7.5, navy, "bold")
+    pdf.text(title, x + 3, y + 6)
+  }
+
+  pageBackground()
+  pdf.addImage(logoData, "PNG", margin, 8, 48, 13)
+  setText(13, navy, "bold")
+  pdf.text("GeekOnSites", 58, 13)
+  setText(6.3, teal, "bold")
+  pdf.text("Tech Experts at Your Doorstep", 58, 18)
+  setText(5.8, [83, 108, 126])
+  pdf.text(["www.geekonsites.com", "support@geekonsites.com", invoice.country === "UK" ? "United Kingdom" : "United States"], 58, 23)
+
+  roundedCard(160, 7, 42, 25, mint, [168, 224, 193])
+  setText(5.5, green, "bold")
+  pdf.text(Number(invoice.remainingAmount) > 0 ? "ADVANCE INVOICE" : "PAID INVOICE", 181, 13, { align: "center" })
+  setText(8.5, navy, "bold")
+  pdf.text(safeLines(invoice.invoiceNumber, 36), 181, 19, { align: "center" })
+  pdf.setFillColor(...green)
+  pdf.roundedRect(171, 25, 20, 4.8, 2.2, 2.2, "F")
+  setText(5.3, [255, 255, 255], "bold")
+  pdf.text(String(invoice.paymentStatus || "PAID"), 181, 28.3, { align: "center" })
+  pdf.setDrawColor(...border)
+  pdf.line(margin, 36, pageWidth - margin, 36)
+
+  const gap = 2
+  const cardWidth = (contentWidth - gap * 2) / 3
+  const cardsY = 40
+  const heights = [
+    detailCard(margin, cardsY, cardWidth, "Customer", [["Name", invoice.customerName], ["Email", invoice.customerEmail], ["Booking ID", invoice.bookingId]]),
+    detailCard(margin + cardWidth + gap, cardsY, cardWidth, "Technician", [["Name", invoice.technicianName], ["Role", invoice.technicianRole], ["Session ID", invoice.sessionId]]),
+    detailCard(margin + (cardWidth + gap) * 2, cardsY, cardWidth, "Session", [["Date", invoice.invoiceDate], ["Duration", invoice.sessionDuration], ["Service", invoice.serviceType]]),
+  ]
+  let y = cardsY + Math.max(...heights) + 3
+
+  const issueLines = safeLines(invoice.issueDescription, contentWidth - 6)
+  const workRows = invoice.workPerformed.map((item) => safeLines(item, (contentWidth - 14) / 2))
+  const workHeight = Math.ceil(workRows.length / 2) * 7
+  const resolutionLines = safeLines(invoice.resolutionNotes, contentWidth - 12)
+  const serviceHeight = 18 + issueLines.length * 3.5 + workHeight + 9 + resolutionLines.length * 3.5
+  roundedCard(margin, y, contentWidth, serviceHeight)
+  sectionHeader("Service Summary", margin, y)
+  setText(6.5, navy)
+  pdf.text(issueLines, margin + 3, y + 11)
+  let workY = y + 13 + issueLines.length * 3.5
+  workRows.forEach((lines, index) => {
+    const column = index % 2
+    const row = Math.floor(index / 2)
+    const x = margin + 3 + column * (contentWidth / 2)
+    const rowY = workY + row * 7
+    pdf.setDrawColor(...border)
+    pdf.line(x, rowY + 4.7, x + contentWidth / 2 - 5, rowY + 4.7)
+    pdf.setDrawColor(...green)
+    pdf.circle(x + 1.2, rowY + 1.5, 0.8, "S")
+    setText(5.9, navy)
+    pdf.text(lines, x + 3.2, rowY + 2.2)
+  })
+  const resolutionY = workY + workHeight
+  roundedCard(margin + 3, resolutionY, contentWidth - 6, 6 + resolutionLines.length * 3.5, [239, 252, 252], [125, 211, 213])
+  setText(5.4, teal, "bold")
+  pdf.text("RESOLUTION NOTES", margin + 6, resolutionY + 3.3)
+  setText(5.7, navy)
+  pdf.text(resolutionLines, margin + 6, resolutionY + 6.5)
+  y += serviceHeight + 3
+
+  const rows = [
+    ["Service Amount", `${invoice.currency}${invoice.serviceAmount}`],
+    ["Platform Fee", `${invoice.currency}${invoice.platformFee}`],
+    ["Advance Paid", `${invoice.currency}${invoice.advanceAmount}`],
+    ...(Number(invoice.remainingAmount) > 0 ? [["Remaining Balance", `${invoice.currency}${invoice.remainingAmount}`]] : []),
+    ["Payment Method", invoice.paymentMethod],
+  ]
+  const paymentHeight = 14 + rows.length * 7 + 9
+  if (y + paymentHeight + 18 > pageHeight - 7) {
+    pdf.addPage()
+    pageBackground()
+    y = 10
+  }
+  roundedCard(margin, y, contentWidth, paymentHeight)
+  sectionHeader("Payment Breakdown", margin, y)
+  let rowY = y + 11
+  rows.forEach(([label, value]) => {
+    setText(6.2, [83, 108, 126])
+    pdf.text(label, margin + 3, rowY)
+    setText(6.2, navy, "bold")
+    pdf.text(safeLines(value, 75), pageWidth - margin - 3, rowY, { align: "right" })
+    pdf.setDrawColor(...border)
+    pdf.line(margin + 3, rowY + 2.5, pageWidth - margin - 3, rowY + 2.5)
+    rowY += 7
+  })
+  setText(8.5, navy, "bold")
+  pdf.text(Number(invoice.remainingAmount) > 0 ? "Amount Paid Today" : "Total Paid", margin + 3, rowY + 1)
+  setText(9.5, green, "bold")
+  pdf.text(`${invoice.currency}${invoice.totalAmount}`, pageWidth - margin - 3, rowY + 1, { align: "right" })
+  y += paymentHeight + 3
+
+  const completionText = Number(invoice.remainingAmount) > 0
+    ? "Your advance payment is confirmed and saved in booking history. The remaining balance is payable after service."
+    : "Meeting access has been closed and invoice details are saved in booking history."
+  const completionLines = safeLines(completionText, contentWidth - 16)
+  roundedCard(margin, y, contentWidth, 10 + completionLines.length * 3.3, mint, [168, 224, 193])
+  setText(6.5, green, "bold")
+  pdf.text(Number(invoice.remainingAmount) > 0 ? "Secure Advance Payment" : "Secure Completion", margin + 5, y + 5)
+  setText(5.7, [41, 104, 77])
+  pdf.text(completionLines, margin + 5, y + 9)
 }
 
 function imageDataUrl(source) {

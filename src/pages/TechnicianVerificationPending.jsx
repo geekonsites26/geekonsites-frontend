@@ -65,7 +65,7 @@ export default function TechnicianVerificationPending() {
     "US/UK work eligibility review",
     "Skill and experience assessment",
     "Admin approval process",
-    "Official @gos.com account creation",
+    "Registered personal email confirmation",
   ]
 
   return (
@@ -137,7 +137,7 @@ export default function TechnicianVerificationPending() {
               {[
                 ["24-72 hrs", "Review Time", Clock3],
                 ["Pending", "Current Status", ShieldCheck],
-                ["@gos.com", "After Approval", LockKeyhole],
+                ["Personal email", "Sign-in Email", LockKeyhole],
               ].map(([value, label, Icon]) => (
                 <motion.div
                   key={label}
@@ -155,9 +155,8 @@ export default function TechnicianVerificationPending() {
               <h3 className="text-xl font-bold">What happens next?</h3>
 
               <p className="text-cyan-100/55 mt-3 leading-relaxed">
-                Once approved, GeekOnSite will issue your official technician
-                account like <span className="text-cyan-300">firstname.lastname@gos.com</span>.
-                Only approved technicians can access the technician dashboard.
+                Once approved, use the personal email address you registered
+                with GeekOnSites. Only approved technicians can access the technician dashboard.
               </p>
             </div>
           </motion.section>

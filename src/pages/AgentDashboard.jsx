@@ -17,6 +17,7 @@ import { getAllContactMessages, updateContactMessageStatus } from "../services/c
 import RevenueChart from "../components/agent/RevenueChart"
 import BookingChart from "../components/agent/BookingChart"
 import StatusToast from "../components/ui/StatusToast"
+import DashboardLoader from "../components/ui/DashboardLoader"
 import {
   Activity,
   ArrowLeft,
@@ -69,6 +70,19 @@ const currencySymbol = (currency) => {
 const getMode = (booking) => {
   if (booking.serviceMode) return booking.serviceMode
   return booking.remoteSessionRequired ? "REMOTE" : "ONSITE"
+}
+
+// Mirrors the backend compatibility check in BookingService.assignTechnician
+// so the UI never offers a technician the API would reject for the
+// booking's service mode (REMOTE/ONSITE/HYBRID). A technician with no mode
+// set (or "REMOTE_AND_ONSITE") is treated as approved for both.
+const isTechnicianEligibleForBookingMode = (technician, booking) => {
+  const bookingMode = getMode(booking)
+  const technicianMode = (technician.serviceMode || "REMOTE_AND_ONSITE").toUpperCase()
+  if (bookingMode === "REMOTE") return technicianMode !== "ONSITE_ONLY"
+  if (bookingMode === "ONSITE") return technicianMode !== "REMOTE_ONLY"
+  if (bookingMode === "HYBRID") return technicianMode === "REMOTE_AND_ONSITE"
+  return true
 }
 
 const getLocation = (booking) =>
@@ -581,6 +595,11 @@ const [modeFilter, setModeFilter] = useState("ALL")
     const unassignedBookings = bookings.filter(isUnassigned)
     const availableCount = technicians.filter((tech) => tech.availabilityStatus === "AVAILABLE").length
     const isReassigning = Boolean(selectedBooking) && !isUnassigned(selectedBooking)
+    // Only technicians approved for the selected booking's service mode are
+    // shown, so the list can never offer one the backend would reject.
+    const eligibleTechnicians = selectedBooking
+      ? technicians.filter((tech) => isTechnicianEligibleForBookingMode(tech, selectedBooking))
+      : []
 
     return (
       <Panel title="Assign Technician" subtitle="Assign or reassign technicians for backend bookings">
@@ -657,8 +676,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  {technicians.length ? (
-                    technicians.map((tech) => {
+                  {eligibleTechnicians.length ? (
+                    eligibleTechnicians.map((tech) => {
                       const available = tech.availabilityStatus === "AVAILABLE"
                       const selected = String(selectedTechnicianId) === String(tech.id)
 
@@ -707,6 +726,8 @@ const [modeFilter, setModeFilter] = useState("ALL")
                         </label>
                       )
                     })
+                  ) : technicians.length ? (
+                    <EmptyState title="No technicians approved for this service mode" text={`No technician on file is approved for ${getMode(selectedBooking)} bookings.`} />
                   ) : (
                     <EmptyState title="No technicians on file" text="Approved technicians will appear here once they register." />
                   )}
@@ -1054,7 +1075,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
 
   if (loading) {
     return (
-      <DashboardLoader label="Preparing agent workspace" />
+      <DashboardLoader />
     )
   }
 
@@ -1309,7 +1330,6 @@ function PeriodStrip({ title, data = {}, timezone }) {
   return <CompactSection title={title}><div className="grid grid-cols-3 divide-x divide-y divide-slate-200 sm:grid-cols-6 sm:divide-y-0">{fields.map(([label, value]) => <div key={label} className="px-2 py-2 text-center"><p className="text-lg font-black text-[#071d3d]">{value ?? 0}</p><p className="text-[9px] font-bold uppercase text-slate-500">{label}</p></div>)}</div><p className="mt-2 text-right text-[9px] font-semibold text-slate-400">Calendar day · {timezone || "server timezone"}</p></CompactSection>
 }
 
-function DashboardLoader({ label }) { return <div className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><img src={logo} alt="GeekOnSites" className="mx-auto h-auto w-48 object-contain" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">{label}</p><p className="mt-1 text-xs font-semibold text-gos-muted">Secure workspace loading</p></div></div> }
 
 function Panel({ title, subtitle, actions, children }) {
   return (
