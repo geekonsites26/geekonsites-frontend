@@ -76,7 +76,11 @@ export async function apiRequest(endpoint, options = {}) {
     : await response.text().catch(() => "")
 
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+    // 401 means the stored credentials are missing/invalid. A 403 means the
+    // authenticated account is not allowed to perform this particular action;
+    // clearing the shared token on 403 left the dashboard mounted and caused
+    // every subsequent admin request to be sent without Authorization.
+    if (response.status === 401) {
       clearAuth()
     }
 

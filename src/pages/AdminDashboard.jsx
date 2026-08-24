@@ -83,6 +83,12 @@ const technicianSupportsBooking = (technician, booking) => {
   return technicianMode === "REMOTE_AND_ONSITE"
 }
 
+const approvalEmailStatus = (legacyStatus) => {
+  if (legacyStatus === "EMAIL_SENT") return "Sent"
+  if (legacyStatus === "EMAIL_FAILED") return "Failed"
+  return "Not sent"
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const { logoutCustomer } = useCustomerAuth()
@@ -257,7 +263,7 @@ setNotifications(
       ))
       showPopup("Technician approval notice queued successfully")
     } catch (error) {
-      showPopup(error?.message || "Failed to resend setup email")
+      showPopup(error?.message || "Failed to resend approval notice")
     } finally {
       technicianActionLocks.current.delete(id)
       setTechnicianActions((current) => {
@@ -793,7 +799,7 @@ setNotifications(
                 label="Availability"
                 value={tech.availabilityStatus || "N/A"}
               />
-              <MiniInfo label="Legacy email status" value={tech.onboardingStatus?.replaceAll("_", " ") || "NOT STARTED"} />
+              <MiniInfo label="Approval email status" value={approvalEmailStatus(tech.onboardingStatus)} />
               <MiniInfo
                 label="Rating"
                 value={tech.rating ? `${tech.rating} / 5` : "N/A"}
@@ -852,7 +858,7 @@ setNotifications(
                   {technicianActions[tech.id] === "REJECTING" ? "Rejecting..." : "Reject"}
                 </button>
               )}
-              {tech.verificationStatus === "APPROVED" && tech.onboardingStatus && tech.onboardingStatus !== "PASSWORD_SET" && (
+              {tech.verificationStatus === "APPROVED" && (
                 <button
                   type="button"
                   onClick={() => handleResendOnboarding(tech.id)}
@@ -862,9 +868,6 @@ setNotifications(
                 >
                   {technicianActions[tech.id] === "RESENDING" ? "Sending..." : "Resend Approval Notice"}
                 </button>
-              )}
-              {tech.onboardingStatus === "PASSWORD_SET" && (
-                <span className="inline-flex items-center rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-3 text-sm font-black text-green-300">Legacy setup complete</span>
               )}
             </div>
           </div>
