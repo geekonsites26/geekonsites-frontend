@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Bell, CalendarCheck, CheckCheck, CheckCircle2, ChevronRight, CreditCard, FileText, MapPin, Navigation, PlayCircle, RefreshCw, UserCheck, Video, Volume2, VolumeX } from "lucide-react"
+import { Bell, CalendarCheck, CheckCheck, CheckCircle2, ChevronRight, CreditCard, FileText, MapPin, Navigation, PlayCircle, RefreshCw, Star, UserCheck, Video, Volume2, VolumeX, XCircle } from "lucide-react"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import { getMyNotifications, markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
+import { getMyBookings } from "../services/bookingService"
+import { formatLocalDateTime } from "../utils/dateTime"
 
 const eventStyle = (title = "") => {
   const value = title.toLowerCase()
@@ -10,29 +12,32 @@ const eventStyle = (title = "") => {
   if (value.includes("assigned") || value.includes("accepted")) return { icon: UserCheck, color: "bg-violet-50 text-violet-700", label: "Technician" }
   if (value.includes("on the way")) return { icon: Navigation, color: "bg-amber-50 text-amber-700", label: "Journey" }
   if (value.includes("arrived")) return { icon: MapPin, color: "bg-cyan-50 text-cyan-700", label: "Arrival" }
-  if (value.includes("started")) return { icon: PlayCircle, color: "bg-indigo-50 text-indigo-700", label: "Service" }
   if (value.includes("remote") || value.includes("meeting")) return { icon: Video, color: "bg-fuchsia-50 text-fuchsia-700", label: "Remote" }
+  if (value.includes("started")) return { icon: PlayCircle, color: "bg-indigo-50 text-indigo-700", label: "Service" }
   if (value.includes("payment")) return { icon: CreditCard, color: "bg-emerald-50 text-emerald-700", label: "Payment" }
   if (value.includes("invoice")) return { icon: FileText, color: "bg-slate-100 text-slate-700", label: "Invoice" }
+  if (value.includes("cancel")) return { icon: XCircle, color: "bg-red-50 text-red-700", label: "Cancelled" }
+  if (value.includes("rating") || value.includes("review")) return { icon: Star, color: "bg-amber-50 text-amber-700", label: "Feedback" }
   if (value.includes("completed") || value.includes("closed")) return { icon: CheckCircle2, color: "bg-emerald-50 text-emerald-700", label: "Completed" }
   return { icon: Bell, color: "bg-gos-off-white text-gos-turquoise", label: "Update" }
 }
 
 const relativeTime = (dateValue) => {
-  if (!dateValue) return "Recently"
+  if (!dateValue) return ""
   const date = new Date(dateValue)
-  if (Number.isNaN(date.getTime())) return "Recently"
+  if (Number.isNaN(date.getTime())) return ""
   const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000))
   if (seconds < 60) return "Just now"
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`
+  if (seconds < 172800) return "Yesterday"
   return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined })
 }
 
 export default function Notifications() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
+  const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -51,8 +56,13 @@ export default function Notifications() {
     try {
       quiet ? setRefreshing(true) : setLoading(true)
       setError("")
-      const data = await getMyNotifications()
-      const items = Array.isArray(data) ? data : []
+      const [data, bookingData] = await Promise.all([getMyNotifications(), getMyBookings()])
+      setBookings(Array.isArray(bookingData) ? bookingData : [])
+      const items = [...(Array.isArray(data) ? data : [])].sort((a, b) => {
+        const left = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+        const right = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+        return right - left
+      })
       const newItems = feedInitialized.current ? items.filter((item) => !knownIds.current.has(item.id)) : []
       knownIds.current = new Set(items.map((item) => item.id))
       feedInitialized.current = true
@@ -128,7 +138,7 @@ export default function Notifications() {
   }
 
   return (
-    <main className="min-h-screen bg-[#edf2f5] pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal sm:pt-[calc(4rem+env(safe-area-inset-top))]">
+    <main className="gos-notifications-page min-h-screen bg-[#edf2f5] pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal sm:pt-[calc(4rem+env(safe-area-inset-top))]">
       {liveAlert && <button type="button" onClick={() => { const alertItem = liveAlert; setLiveAlert(null); openNotification(alertItem) }} className="fixed left-3 right-3 top-[calc(4rem+env(safe-area-inset-top))] z-[80] mx-auto flex max-w-md items-start gap-3 rounded-md border border-gos-turquoise/30 bg-white p-4 text-left shadow-[var(--gos-shadow-md)]" role="alert"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eaf7f5] text-gos-turquoise"><Bell size={17} /></span><span className="min-w-0 flex-1"><strong className="block truncate text-sm font-extrabold text-gos-blue-deep">{liveAlert.title || "Service update"}</strong><span className="mt-1 line-clamp-2 block text-xs font-semibold leading-5 text-gos-charcoal">{liveAlert.message}</span></span><ChevronRight size={16} className="mt-2 shrink-0 text-gos-muted" /></button>}
       <section className="border-b border-gos-border bg-white">
         <div className="mx-auto max-w-4xl px-4 pb-5 pt-2 sm:px-6 sm:pb-7">
@@ -155,7 +165,7 @@ export default function Notifications() {
             return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`relative flex w-full items-start gap-3 border-b border-gos-border px-3 py-4 text-left transition last:border-b-0 hover:bg-gos-off-white sm:gap-4 sm:px-5 ${notification.isRead ? "bg-white" : "bg-[#f4fbfa]"}`}>
               {!notification.isRead && <span className="absolute left-0 top-0 h-full w-0.5 bg-gos-turquoise" />}
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${style.color}`}><Icon size={18} /></span>
-              <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><strong className="text-sm font-extrabold text-gos-blue-deep">{notification.title || "Service update"}</strong><time className="shrink-0 text-[10px] font-bold text-gos-muted">{relativeTime(notification.createdAt)}</time></span><span className="mt-1 block text-xs font-semibold leading-5 text-gos-charcoal">{notification.message || "Your booking has a new update."}</span><span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">{style.label} <ChevronRight size={12} /></span></span>
+              <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><strong className="text-sm font-extrabold text-gos-blue-deep">{notification.title || "Service update"}</strong><time className="shrink-0 text-[10px] font-bold text-gos-muted">{formatLocalDateTime(notification.createdAt, bookings.find((booking) => String(booking.id) === String(notification.bookingId)) || notification)}</time></span><span className="mt-1 block text-xs font-semibold leading-5 text-gos-charcoal">{notification.message || "Your booking has a new update."}</span><span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">{style.label} <ChevronRight size={12} /></span></span>
             </button>
           })}
         </section> : <div className="rounded-md border border-dashed border-gos-border bg-white px-5 py-12 text-center"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gos-off-white text-gos-turquoise"><Bell size={22} /></span><h2 className="mt-4 font-['Cormorant_Garamond'] text-3xl font-bold text-gos-blue-deep">No updates yet.</h2><p className="mt-2 text-sm font-semibold text-gos-muted">Booking and technician activity will appear here automatically.</p></div>}

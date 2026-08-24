@@ -24,6 +24,7 @@ import useLiveTechnicianLocation from "../hooks/useLiveTechnicianLocation"
 import { hasNativeTechnicianTracking } from "../services/technicianTrackingService"
 import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { apiRequest } from "../services/api"
+import { formatLocalDateTime } from "../utils/dateTime"
 import {
   Activity,
   Bell,
@@ -119,6 +120,11 @@ const mapBookingToJob = (booking) => {
         : "Medium",
     status: statusToLabel[booking.bookingStatus] || "New",
     bookingStatus: booking.bookingStatus || "PENDING",
+    bookingTimezone: booking.bookingTimezone || booking.timezone || booking.timeZone,
+    country: booking.country,
+    state: booking.state,
+    customerLatitude: booking.customerLatitude,
+    customerLongitude: booking.customerLongitude,
     supportType,
     paymentStatus: booking.paymentStatus || "PENDING",
     currency: getCurrencySymbol(booking.currency),
@@ -936,9 +942,10 @@ const saveMeetingLink = async (job) => {
                   <h3 className="font-black">{notification.title || "Notification"}</h3>
 
                   <p className="text-xs text-cyan-100/40">
-                    {notification.createdAt
-                      ? new Date(notification.createdAt).toLocaleString()
-                      : ""}
+                    {notification.createdAt ? formatLocalDateTime(
+                      notification.createdAt,
+                      jobs.find((job) => String(job.bookingId) === String(notification.bookingId)) || notification
+                    ) : ""}
                   </p>
                 </div>
 

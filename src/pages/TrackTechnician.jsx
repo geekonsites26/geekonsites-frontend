@@ -28,6 +28,8 @@ import {
   Zap,
 } from "lucide-react"
 import { getBookingTracking } from "../services/bookingService"
+import { SkeletonList, SkeletonMapPanel } from "../components/ui/Skeleton"
+import { formatLocalTime } from "../utils/dateTime"
 
 const mapContainerStyle = {
   width: "100%",
@@ -298,7 +300,12 @@ useEffect(() => {
     window.open(url, "_blank")
   }
 
-  const technicianPhone = booking?.technicianPhone || booking?.technicianMobile
+  // The technician dashboard opens this same tracking screen for its own
+  // "Track" action, but passes the technician's OWN phone number in
+  // `booking.technicianPhone`. A technician viewer must not be offered a
+  // "call/message the technician" action that would just contact themselves.
+  const viewerIsTechnician = String(localStorage.getItem("gos_role") || "").toUpperCase() === "TECHNICIAN"
+  const technicianPhone = viewerIsTechnician ? null : (booking?.technicianPhone || booking?.technicianMobile)
 
   const callTechnician = () => {
     if (!technicianPhone) return
@@ -362,10 +369,11 @@ const shareTracking = async () => {
 
   if (loading && !booking) {
     return (
-      <main className="min-h-screen bg-gos-off-white px-4 pt-24 text-gos-blue-deep">
-        <div className="mx-auto max-w-md rounded-xl border border-gos-border bg-white p-6 text-center shadow-sm">
-          <RefreshCcw className="mx-auto mb-3 animate-spin text-gos-turquoise" size={22} />
-          <p className="font-bold">Loading live tracking...</p>
+      <main className="min-h-screen bg-gos-off-white px-4 pb-10 pt-24 text-gos-blue-deep">
+        <div className="mx-auto max-w-md space-y-3">
+          <p className="text-center text-sm font-extrabold text-gos-blue-deep">Loading live tracking...</p>
+          <SkeletonMapPanel />
+          <SkeletonList count={2} />
         </div>
       </main>
     )
@@ -781,7 +789,7 @@ const shareTracking = async () => {
 
             {lastUpdated && (
               <p className="mt-4 text-xs text-slate-500">
-                Last updated: {lastUpdated.toLocaleTimeString()}
+                Last updated: {formatLocalTime(lastUpdated, booking)}
               </p>
             )}
           </div>

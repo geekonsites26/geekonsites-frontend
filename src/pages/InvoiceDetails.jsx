@@ -28,6 +28,7 @@ import {
 } from "../services/invoiceService"
 import { saveAndSharePdf } from "../services/nativeFile"
 import { SkeletonInvoice } from "../components/ui/Skeleton"
+import { formatLocalDateTime } from "../utils/dateTime"
 
 export default function InvoiceDetails() {
   const navigate = useNavigate()
@@ -110,8 +111,8 @@ paymentType: finalBooking.paymentType || "FULL",
 
 paymentStatus: storedInvoice.paymentStatus || finalBooking.paymentStatus || "PAID",
         invoiceDate: storedInvoice.issuedAt || finalBooking.invoiceGeneratedAt
-          ? new Date(storedInvoice.issuedAt || finalBooking.invoiceGeneratedAt).toLocaleDateString("en-GB")
-          : new Date().toLocaleDateString("en-GB"),
+          ? formatLocalDateTime(storedInvoice.issuedAt || finalBooking.invoiceGeneratedAt, finalBooking)
+          : formatLocalDateTime(new Date(), finalBooking),
       }
 
       setInvoice(invoiceData)

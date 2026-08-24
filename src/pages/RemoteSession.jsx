@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Browser } from "@capacitor/browser"
+import { Capacitor } from "@capacitor/core"
 import {
   AlertTriangle,
   CalendarClock,
@@ -24,20 +25,27 @@ import {
 } from "lucide-react"
 import { getBookingById, provisionRemoteSession } from "../services/bookingService"
 import { getRemoteChatMessages, sendRemoteChatMessage } from "../services/remoteChatService"
+import { formatLocalTime } from "../utils/dateTime"
 
 export default function RemoteSession() {
   const navigate = useNavigate()
   const { state } = useLocation()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
 
   const storedBooking = (() => {
     try { return JSON.parse(localStorage.getItem("currentBooking")) } catch { return null }
   })()
   const [booking, setBooking] = useState(state?.booking || storedBooking)
-  const technician = state?.technician || {
-    name: booking?.technicianName || "GeekOnSites support team",
-    role: "Verified remote support professional",
-    phone: "",
-  }
+  // The technician dashboard navigates here with `state.technician` set to the
+  // TECHNICIAN'S OWN profile (for its own use elsewhere), not the customer's.
+  // Reusing it unconditionally previously showed a technician viewer their own
+  // name/phone as "the person you are meeting". Derive the counterparty from
+  // the viewer's own role instead so each side always sees the other party.
+  const viewerRole = String(localStorage.getItem("gos_role") || "CUSTOMER").toUpperCase()
+  const isTechnicianViewer = viewerRole === "TECHNICIAN"
+  const technician = isTechnicianViewer
+    ? { name: booking?.customerName || "Customer", role: "Service customer", phone: booking?.customerPhone || "" }
+    : (state?.technician || { name: booking?.technicianName || "GeekOnSites support team", role: "Verified remote support professional", phone: booking?.technicianPhone || "" })
 
   const [seconds, setSeconds] = useState(0)
   const [meetingJoined, setMeetingJoined] = useState(false)
@@ -158,7 +166,9 @@ export default function RemoteSession() {
 
   const joinMeeting = async () => {
     if (paymentRequired) {
-      navigate("/payment", { state: { booking } })
+      // Only the customer can pay; a technician viewing an unpaid booking has
+      // nothing to complete here and must wait for the customer instead.
+      if (!isTechnicianViewer) navigate("/payment", { state: { booking } })
       return
     }
 
@@ -244,26 +254,146 @@ export default function RemoteSession() {
     return <main className="flex min-h-screen items-center justify-center bg-gos-off-white px-4 pt-20"><div className="w-full max-w-md rounded-lg border border-gos-border bg-white p-7 text-center shadow-[var(--gos-shadow-md)]"><h1 className="font-['Cormorant_Garamond'] text-4xl font-bold text-gos-blue-deep">Remote booking unavailable.</h1><p className="mt-3 text-sm font-semibold text-gos-muted">Open the remote session from your customer dashboard after payment is confirmed.</p><button type="button" onClick={() => navigate("/customer-dashboard?view=bookings")} className="mt-6 min-h-11 rounded-md bg-gos-blue-deep px-5 text-sm font-extrabold text-white">View my bookings</button></div></main>
   }
 
+  const fileInputs = (
+    <>
+      <input id="screenshot-upload" type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+      <input id="file-share-upload" type="file" className="hidden" multiple onChange={handleFileUpload} />
+    </>
+  )
+
+  if (nativeAndroid) {
+    const quickActions = [
+      technician.phone ? { icon: Phone, label: "Call", action: () => { window.location.href = `tel:${technician.phone}` } } : null,
+      { icon: Upload, label: "Photo", action: () => document.getElementById("screenshot-upload")?.click() },
+      { icon: FolderOpen, label: "Files", action: () => document.getElementById("file-share-upload")?.click() },
+      { icon: MessageCircle, label: "Chat", action: () => document.getElementById("live-chat-box")?.scrollIntoView({ behavior: "smooth", block: "start" }) },
+    ].filter(Boolean)
+
+    return (
+      <main className="native-remote-session min-h-[100dvh] overflow-x-hidden bg-[#f4f7f9] pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-gos-charcoal">
+        {fileInputs}
+
+        <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-[#dfe8ed] bg-[#f8fbfc]/95 px-3 pb-3 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl">
+          <button type="button" onClick={() => navigate(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gos-off-white text-gos-blue-deep" aria-label="Go back"><ChevronLeft size={19} /></button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-extrabold leading-tight text-gos-blue-deep">Remote Support Session</p>
+            <p className="truncate text-[11px] font-semibold text-gos-muted">Booking GOS-{booking.id} · {booking.serviceType}</p>
+          </div>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ${meetingFailed ? "bg-red-50 text-red-700" : meetingPending ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{meetingStatusLabel}</span>
+        </header>
+
+        <div className="space-y-3 px-3 py-3.5">
+          <section className="flex items-center gap-3 rounded-2xl border border-gos-border bg-white p-4 shadow-[0_4px_14px_rgba(8,43,91,.06)]">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eaf7f5] text-lg font-black text-gos-turquoise">{technician.name.charAt(0)}</span>
+            <div className="min-w-0 flex-1">
+              <strong className="block truncate text-sm text-gos-blue-deep">{technician.name}</strong>
+              <span className="mt-0.5 block truncate text-xs font-semibold text-gos-muted">{technician.role}</span>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-[10px] font-extrabold text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Online</span>
+          </section>
+
+          <button
+            type="button"
+            onClick={joinMeeting}
+            disabled={(!paymentRequired && meetingPending) || (paymentRequired && isTechnicianViewer)}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gos-blue-deep px-5 text-sm font-black text-white shadow-[0_10px_24px_rgba(8,43,91,.22)] transition disabled:cursor-wait disabled:opacity-60"
+          >
+            {paymentRequired ? <CreditCard size={19} /> : <Video size={19} />}
+            {paymentRequired ? (isTechnicianViewer ? "Awaiting Customer Payment" : "Complete Payment") : meetingPending ? (provisioning ? "Creating Meet Link..." : "Preparing Meeting") : "Join Google Meet"}
+            {!paymentRequired && !meetingPending && <ExternalLink size={16} />}
+          </button>
+
+          {!paymentRequired && meetingPending && (
+            <div className={`rounded-xl border p-3 text-xs font-semibold leading-5 ${meetingFailed ? "border-amber-200 bg-amber-50 text-amber-800" : "border-gos-border bg-white text-gos-muted"}`}>
+              {meetingFailed
+                ? "The secure meeting could not be created automatically. You do not need to pay again."
+                : "Payment confirmed. The secure meeting is being created and this screen refreshes automatically."}
+              {meetingFailed && <button type="button" onClick={prepareMeeting} disabled={provisioning} className="remote-meeting-retry mt-2 flex min-h-10 w-full items-center justify-center rounded-lg bg-gos-blue-deep px-4 text-xs font-extrabold text-white disabled:opacity-60">{provisioning ? "Creating Meet Link..." : "Retry Meet Link"}</button>}
+            </div>
+          )}
+
+          {!meetingPending && booking.remoteSessionLink && (
+            <button type="button" onClick={copyMeetingLink} className="remote-copy-link flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gos-border bg-white text-xs font-extrabold text-gos-blue-deep">
+              <Copy size={15} />{copied ? "Meeting link copied" : "Copy meeting link"}
+            </button>
+          )}
+
+          <section className="grid grid-cols-4 gap-1 rounded-2xl border border-gos-border bg-white p-2.5">
+            {quickActions.map(({ icon: Icon, label, action }) => (
+              <button key={label} type="button" onClick={action} className="flex flex-col items-center gap-1.5 rounded-xl py-2 text-gos-blue-deep active:bg-gos-off-white">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eaf7f5] text-gos-turquoise"><Icon size={17} /></span>
+                <span className="text-[9px] font-bold">{label}</span>
+              </button>
+            ))}
+          </section>
+
+          {uploadedFiles.length > 0 && (
+            <section className="rounded-2xl border border-gos-border bg-white p-3.5">
+              <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.1em] text-gos-muted">Uploaded files</p>
+              <div className="space-y-1.5">
+                {uploadedFiles.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-gos-off-white px-3 py-2">
+                    <p className="min-w-0 truncate text-xs font-semibold text-gos-charcoal">{file.name}</p>
+                    <button type="button" onClick={() => removeUploadedFile(index)} className="shrink-0 text-gos-muted"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="rounded-2xl border border-gos-border bg-white p-3.5">
+            <div className="mb-2 flex items-center gap-2 text-gos-blue-deep"><FileText size={15} className="text-gos-turquoise" /><h2 className="text-xs font-extrabold uppercase tracking-[0.08em]">Issue notes</h2></div>
+            <p className="text-xs font-semibold leading-6 text-gos-muted">{booking.issueDescription}</p>
+          </section>
+
+          <section id="live-chat-box" className="scroll-mt-16 rounded-2xl border border-gos-border bg-white p-3.5">
+            <div className="mb-3 flex items-center gap-2 text-gos-blue-deep"><MessageCircle size={16} className="text-gos-turquoise" /><h2 className="text-sm font-extrabold">Live Chat</h2></div>
+            <div className="h-[220px] space-y-2.5 overflow-y-auto rounded-xl border border-gos-border bg-gos-off-white p-3">
+              {chat.length === 0 && <p className="py-8 text-center text-xs font-semibold text-gos-muted">No messages yet. Start the booking conversation here.</p>}
+              {chat.map((item) => (
+                <div key={item.id} className={`flex ${item.senderRole === currentRole ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${item.senderRole === currentRole ? "bg-gos-blue-deep text-white" : "border border-gos-border bg-white text-gos-charcoal"}`}>
+                    <p className="mb-1 text-[9px] font-black uppercase tracking-wide opacity-65">{item.senderRole === currentRole ? "You" : item.senderRole === "TECHNICIAN" ? "Technician" : "Customer"}</p>
+                    <p>{item.message}</p>
+                    <p className="mt-1 text-[9px] opacity-60">{item.createdAt ? formatLocalTime(item.createdAt, booking) : ""}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {chatError && <p className="mt-2 text-xs font-semibold text-red-600">{chatError}</p>}
+            <div className="mt-3 flex gap-2">
+              <input
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage() } }}
+                placeholder="Type message..."
+                className="min-h-11 w-full rounded-xl border border-gos-border bg-white px-3.5 text-sm text-gos-charcoal outline-none placeholder:text-gos-muted focus:border-gos-turquoise"
+              />
+              <button onClick={sendMessage} disabled={!message.trim() || chatSending || paymentRequired} className="min-h-11 shrink-0 rounded-xl bg-gos-turquoise px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
+                {chatSending ? "..." : "Send"}
+              </button>
+            </div>
+          </section>
+
+          <section className="flex gap-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
+            <Shield size={17} className="mt-0.5 shrink-0 text-emerald-600" />
+            <p className="text-xs font-semibold leading-5 text-emerald-800">This meeting is unique to this booking. Do not share it outside this support session, and never share OTPs or passwords.</p>
+          </section>
+
+          <button type="button" onClick={endSession} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-sm font-extrabold text-red-700">
+            <Power size={16} /> End Session
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="gos-service-flow remote-session-page relative min-h-screen overflow-hidden bg-[#020817] px-3 pb-20 pt-16 text-white sm:px-5 sm:pt-20 lg:px-6 lg:pt-20">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_34%)]" />
 
       <section className="relative mx-auto max-w-7xl">
-        <input
-          id="screenshot-upload"
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileUpload}
-        />
-
-        <input
-          id="file-share-upload"
-          type="file"
-          className="hidden"
-          multiple
-          onChange={handleFileUpload}
-        />
+        {fileInputs}
 
         <div className="mb-5 flex items-center justify-between">
           <button
@@ -299,10 +429,11 @@ export default function RemoteSession() {
             <div className="mt-5 space-y-3">
               <button
                 onClick={paymentRequired ? joinMeeting : goToMeetingPanel}
+                disabled={paymentRequired && isTechnicianViewer}
                 className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-4 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-blue-500 disabled:cursor-wait disabled:opacity-55"
               >
                 {paymentRequired ? <CreditCard size={20} /> : <Video size={20} />}
-                {paymentRequired ? "Complete Payment" : meetingPending ? "View Meeting Status" : "Go to Google Meet"}
+                {paymentRequired ? (isTechnicianViewer ? "Awaiting Customer Payment" : "Complete Payment") : meetingPending ? "View Meeting Status" : "Go to Google Meet"}
               </button>
 
               {technician.phone && <a
@@ -310,7 +441,7 @@ export default function RemoteSession() {
                 className="flex w-full items-center justify-center gap-3 rounded-2xl border border-green-400/20 bg-green-400/10 px-5 py-4 text-sm font-black text-green-300 transition hover:bg-green-400/15"
               >
                 <Phone size={19} />
-                Call Technician
+                Call {isTechnicianViewer ? "Customer" : "Technician"}
               </a>}
 
               <button
@@ -443,8 +574,9 @@ export default function RemoteSession() {
 
                   {paymentRequired && (
                     <div className="mt-5 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100/80">
-                      Complete the secure payment to confirm this booking and
-                      generate its Google Meet session.
+                      {isTechnicianViewer
+                        ? "Waiting for the customer to complete payment. The Google Meet session will be created automatically once payment is confirmed."
+                        : "Complete the secure payment to confirm this booking and generate its Google Meet session."}
                     </div>
                   )}
 
@@ -483,11 +615,11 @@ export default function RemoteSession() {
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     <button
                       onClick={joinMeeting}
-                      disabled={!paymentRequired && meetingPending}
+                      disabled={(!paymentRequired && meetingPending) || (paymentRequired && isTechnicianViewer)}
                       className="inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-7 py-4 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-blue-500 disabled:cursor-wait disabled:opacity-55"
                     >
                       {paymentRequired ? <CreditCard size={20} /> : <Video size={20} />}
-                      {paymentRequired ? "Continue to Payment" : meetingPending ? "Creating Meet Link" : "Join Google Meet"}
+                      {paymentRequired ? (isTechnicianViewer ? "Awaiting Customer Payment" : "Continue to Payment") : meetingPending ? "Creating Meet Link" : "Join Google Meet"}
                       <ExternalLink size={18} />
                     </button>
 
@@ -629,7 +761,7 @@ export default function RemoteSession() {
                       >
                         <p className="mb-1 text-[10px] font-black uppercase tracking-wide opacity-65">{item.senderRole === currentRole ? "You" : item.senderRole === "TECHNICIAN" ? "Technician" : "Customer"}</p>
                         <p>{item.message}</p>
-                        <p className="mt-1 text-[9px] opacity-60">{item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</p>
+                        <p className="mt-1 text-[9px] opacity-60">{item.createdAt ? formatLocalTime(item.createdAt, booking) : ""}</p>
                       </div>
                     </div>
                   ))}

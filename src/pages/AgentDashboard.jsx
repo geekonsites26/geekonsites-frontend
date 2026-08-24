@@ -13,6 +13,7 @@ import {
 import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { apiRequest } from "../services/api"
+import { formatLocalDateTime } from "../utils/dateTime"
 import { getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
 import RevenueChart from "../components/agent/RevenueChart"
 import BookingChart from "../components/agent/BookingChart"
@@ -1013,11 +1014,10 @@ const [modeFilter, setModeFilter] = useState("ALL")
               </p>
 
               <p className="mt-2 text-xs text-cyan-100/40">
-                {notification.createdAt
-                  ? new Date(
-                      notification.createdAt
-                    ).toLocaleString()
-                  : ""}
+                {notification.createdAt ? formatLocalDateTime(
+                  notification.createdAt,
+                  bookings.find((booking) => String(booking.id) === String(notification.bookingId)) || notification
+                ) : ""}
               </p>
             </div>
           </button>

@@ -25,6 +25,7 @@ import {
 } from "../services/bookingService"
 import { deleteContactMessage, getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
 import { executeAdminRefund, getAdminRefunds, rejectAdminRefund, reviewAdminRefund } from "../services/refundService"
+import { formatLocalDateTime } from "../utils/dateTime"
 import {
   Activity,
   BarChart3,
@@ -564,7 +565,9 @@ setNotifications(
       text: `Booking GOS-${booking.id} is ${
         statusLabel[booking.bookingStatus] || booking.bookingStatus
       }`,
-      time: booking.updatedAt || booking.createdAt || "Recently",
+      time: booking.updatedAt || booking.createdAt
+        ? formatLocalDateTime(booking.updatedAt || booking.createdAt, booking)
+        : "Recently",
     }))
 
     const technicianLogs = technicians.slice(0, 8).map((tech) => ({
@@ -685,7 +688,7 @@ setNotifications(
               {(booking.country === "UK" || booking.country === "GB" || booking.country === "United Kingdom") && (
                 <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-4 sm:grid-cols-3">
                   <MiniInfo label="UK early-service consent" value={booking.ukEarlyServiceConsent ? "Yes" : "No"} />
-                  <MiniInfo label="Consent timestamp" value={booking.ukEarlyServiceConsentAt ? new Date(booking.ukEarlyServiceConsentAt).toLocaleString() : "Not provided"} />
+                  <MiniInfo label="Consent timestamp" value={booking.ukEarlyServiceConsentAt ? formatLocalDateTime(booking.ukEarlyServiceConsentAt, booking) : "Not provided"} />
                   <MiniInfo label="Consent text/version" value={booking.ukEarlyServiceConsentTextVersion || "Not provided"} />
                 </div>
               )}
@@ -1057,7 +1060,7 @@ setNotifications(
         {visible.length ? visible.map((session) => <article key={session.id} className="rounded-lg border border-white/10 bg-[#0b1628] p-4 md:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-['Cormorant_Garamond'] text-2xl font-bold">GOS-{session.id}</h3><StatusBadge status={session.remoteSessionStatus || "PAYMENT_PENDING"} /><StatusBadge status={session.bookingStatus} /></div><p className="mt-2 text-sm font-bold text-cyan-100/80">{session.customerName || "Customer"} · {session.serviceType || "Remote support"}</p><p className="mt-1 break-all text-xs text-cyan-100/45">{session.customerEmail || "No customer email"}</p></div>
-            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[460px]"><MiniInfo label="Payment" value={session.paymentStatus} /><MiniInfo label="Scheduled" value={session.remoteSessionScheduledStart ? new Date(session.remoteSessionScheduledStart).toLocaleString() : "Pending"} /><MiniInfo label="Technician" value={session.technicianName || "Unassigned"} /></div>
+            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[460px]"><MiniInfo label="Payment" value={session.paymentStatus} /><MiniInfo label="Scheduled" value={session.remoteSessionScheduledStart ? formatLocalDateTime(session.remoteSessionScheduledStart, session) : "Pending"} /><MiniInfo label="Technician" value={session.technicianName || "Unassigned"} /></div>
           </div>
           {session.remoteSessionProvisioningError && <p className="mt-3 rounded-md border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200">{session.remoteSessionProvisioningError}</p>}
           <div className="mt-4 flex flex-wrap gap-2">{session.remoteSessionLink && <a href={session.remoteSessionLink} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cyan-400 px-4 text-xs font-black text-black"><ExternalLink size={14} /> Open Google Meet</a>}<button type="button" onClick={() => retryRemoteSession(session.id)} disabled={session.paymentStatus !== "PAID"} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/10 px-4 text-xs font-black text-cyan-100 disabled:opacity-40"><RefreshCw size={14} /> {session.remoteSessionLink ? "Refresh status" : "Provision meeting"}</button></div>
@@ -1192,11 +1195,10 @@ setNotifications(
               </p>
 
               <p className="mt-2 text-xs text-cyan-100/40">
-                {notification.createdAt
-                  ? new Date(
-                      notification.createdAt
-                    ).toLocaleString()
-                  : ""}
+                {notification.createdAt ? formatLocalDateTime(
+                  notification.createdAt,
+                  bookings.find((booking) => String(booking.id) === String(notification.bookingId)) || notification
+                ) : ""}
               </p>
             </div>
           </div>
