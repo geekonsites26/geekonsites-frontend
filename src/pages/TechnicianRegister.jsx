@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
+import { Capacitor } from "@capacitor/core"
 import { createTechnician } from "../services/technicianService"
 import { getLocation } from "../utils/location"
 import AuthHeader from "../components/auth/AuthHeader"
@@ -53,6 +54,7 @@ const serviceSkills = [
 
 export default function TechnicianRegister() {
   const navigate = useNavigate()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
   const initialRegion = getLocation()
 
   const [step, setStep] = useState(0)
@@ -401,8 +403,7 @@ export default function TechnicianRegister() {
 
               <p className="mt-6 text-cyan-100/60 text-lg leading-relaxed max-w-2xl">
                 Apply with your personal email. After HR approval, GeekOnSites
-                will assign your official @gos.com technician account and enable
-                dashboard access.
+                will enable dashboard access for that registered email.
               </p>
 
               <div className="mt-9 rounded-[32px] bg-[#020817] border border-white/10 p-6 relative overflow-hidden">
@@ -410,7 +411,7 @@ export default function TechnicianRegister() {
                   <FeatureCard icon={BriefcaseBusiness} title="HR Review" value="Required" />
                   <FeatureCard icon={Laptop} title="Remote Jobs" value="Supported" />
                   <FeatureCard icon={MapPin} title="Service Area" value="US & UK" />
-                  <FeatureCard icon={Star} title="Approval" value="@gos.com" />
+                  <FeatureCard icon={Star} title="Approval" value="Verified access" />
                 </div>
               </div>
 
@@ -434,10 +435,10 @@ export default function TechnicianRegister() {
               <div>
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-cyan-300">Technician portal</p>
                 <h2 className="text-3xl md:text-4xl font-black">
-                  Apply as technician.
+                  {nativeAndroid ? "Technician Registration" : "Apply as technician."}
                 </h2>
                 <p className="mt-2 text-cyan-100/50 text-sm md:text-base">
-                  Personal email now. Company mail after approval.
+                  {nativeAndroid ? "Apply to provide GeekOnSites services." : "Personal email now. Company mail after approval."}
                 </p>
               </div>
 
@@ -917,7 +918,7 @@ export default function TechnicianRegister() {
                 to="/technician-login"
                 className="text-cyan-300 font-semibold hover:text-cyan-200"
               >
-                Login with @gos.com
+                Login with your registered email
               </Link>
             </p>
           </div>

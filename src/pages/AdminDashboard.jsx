@@ -4,6 +4,7 @@ import { getAllAgents, createAgent } from "../services/agentService"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import BrandLogo from "../components/common/BrandLogo"
 import StatusToast from "../components/ui/StatusToast"
+import DashboardLoader from "../components/ui/DashboardLoader"
 import {
   getAdminDashboardStats,
   getAdminNotifications,
@@ -254,7 +255,7 @@ setNotifications(
       setTechnicians((current) => current.map((technician) =>
         String(technician.id) === String(id) ? { ...technician, ...updatedTechnician } : technician
       ))
-      showPopup("Technician setup email queued successfully")
+      showPopup("Technician approval notice queued successfully")
     } catch (error) {
       showPopup(error?.message || "Failed to resend setup email")
     } finally {
@@ -792,7 +793,7 @@ setNotifications(
                 label="Availability"
                 value={tech.availabilityStatus || "N/A"}
               />
-              <MiniInfo label="Onboarding" value={tech.onboardingStatus?.replaceAll("_", " ") || "NOT STARTED"} />
+              <MiniInfo label="Legacy email status" value={tech.onboardingStatus?.replaceAll("_", " ") || "NOT STARTED"} />
               <MiniInfo
                 label="Rating"
                 value={tech.rating ? `${tech.rating} / 5` : "N/A"}
@@ -836,7 +837,7 @@ setNotifications(
                   aria-busy={technicianActions[tech.id] === "APPROVING"}
                   className="rounded-2xl bg-green-400 px-5 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {technicianActions[tech.id] === "APPROVING" ? "Starting..." : "Start Onboarding"}
+                  {technicianActions[tech.id] === "APPROVING" ? "Approving..." : "Approve Technician"}
                 </button>
               )}
 
@@ -859,11 +860,11 @@ setNotifications(
                   aria-busy={technicianActions[tech.id] === "RESENDING"}
                   className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {technicianActions[tech.id] === "RESENDING" ? "Sending..." : "Resend Setup Email"}
+                  {technicianActions[tech.id] === "RESENDING" ? "Sending..." : "Resend Approval Notice"}
                 </button>
               )}
               {tech.onboardingStatus === "PASSWORD_SET" && (
-                <span className="inline-flex items-center rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-3 text-sm font-black text-green-300">Account Activated</span>
+                <span className="inline-flex items-center rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-3 text-sm font-black text-green-300">Legacy setup complete</span>
               )}
             </div>
           </div>
@@ -1320,7 +1321,7 @@ setNotifications(
 
   if (loading) {
     return (
-      <DashboardLoader label="Preparing admin operations" />
+      <DashboardLoader />
     )
   }
 
@@ -1555,7 +1556,6 @@ function EmptyState({ title }) {
   )
 }
 
-function DashboardLoader({ label }) { return <div className="flex min-h-dvh items-center justify-center bg-[#edf2f5] px-5 text-gos-blue-deep"><div className="w-full max-w-sm rounded-lg border border-gos-border bg-white p-6 text-center shadow-sm"><BrandLogo className="mx-auto h-auto w-48" /><div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-gos-border"><span className="block h-full w-1/2 animate-pulse rounded-full bg-gos-turquoise" /></div><p className="mt-4 text-sm font-extrabold">{label}</p><p className="mt-1 text-xs font-semibold text-gos-muted">Secure workspace loading</p></div></div> }
 
 function SupportStatus({ status }) {
   const styles = status === "NEW" ? "border-amber-400/30 bg-amber-500/10 text-amber-300" : status === "RESOLVED" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" : "border-cyan-400/20 bg-cyan-500/10 text-cyan-300"
