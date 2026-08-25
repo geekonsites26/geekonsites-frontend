@@ -1,5 +1,10 @@
 {
   "appId": "com.asitech.geekonsites",
   "appName": "GeekOnSites",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
 }

@@ -16,6 +16,7 @@ const api = await import("../src/services/api.js")
 const { safeNotificationPath } = await import("../src/utils/notificationRoute.js")
 const { normalizeNotifications } = await import("../src/utils/notifications.js")
 const { classifyTechnicianBooking, normalizeBookingStatus } = await import("../src/utils/technicianJobs.js")
+const { remoteSessionReady, validGoogleMeetLink } = await import("../src/utils/remoteSession.js")
 
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
@@ -75,4 +76,13 @@ test("accepted remote and onsite bookings classify as Active, not Completed", ()
     assert.equal(classifyTechnicianBooking({ bookingStatus: status }), "active")
   }
   assert.equal(classifyTechnicianBooking({ bookingStatus: "SERVICE_COMPLETED" }), "completed")
+})
+
+test("remote sessions expose only ready backend Google Meet links", () => {
+  const booking = { paymentStatus: "PAID", remoteSessionStatus: "READY", remoteSessionLink: "https://meet.google.com/abc-defg-hij" }
+  assert.equal(remoteSessionReady(booking), true)
+  assert.match(validGoogleMeetLink(booking.remoteSessionLink), /^https:\/\/meet\.google\.com\//)
+  assert.equal(remoteSessionReady({ ...booking, paymentStatus: "PENDING" }), false)
+  assert.equal(remoteSessionReady({ ...booking, remoteSessionLink: "https://evil.example/room" }), false)
+  assert.equal(validGoogleMeetLink("javascript:alert(1)"), "")
 })

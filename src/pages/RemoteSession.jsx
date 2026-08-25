@@ -26,6 +26,8 @@ import {
 import { getBookingById, provisionRemoteSession } from "../services/bookingService"
 import { getRemoteChatMessages, sendRemoteChatMessage } from "../services/remoteChatService"
 import { formatLocalTime } from "../utils/dateTime"
+import { completeTechnicianService, startTechnicianRemoteSession } from "../services/technicianService"
+import { validGoogleMeetLink } from "../utils/remoteSession"
 
 export default function RemoteSession() {
   const navigate = useNavigate()
@@ -55,6 +57,7 @@ export default function RemoteSession() {
   const [provisioning, setProvisioning] = useState(false)
   const [chatSending, setChatSending] = useState(false)
   const [chatError, setChatError] = useState("")
+  const [completing, setCompleting] = useState(false)
   const provisionAttempted = useRef(false)
 
   const [chat, setChat] = useState([])
@@ -114,7 +117,7 @@ export default function RemoteSession() {
   }, [booking?.id, booking?.paymentStatus])
 
   const prepareMeeting = async () => {
-    if (!booking?.id || booking?.paymentStatus !== "PAID" || provisioning) return
+    if (!isTechnicianViewer || !booking?.id || booking?.paymentStatus !== "PAID" || provisioning) return
 
     setProvisioning(true)
     try {
@@ -131,7 +134,9 @@ export default function RemoteSession() {
   useEffect(() => {
     if (
       booking?.id &&
+      isTechnicianViewer &&
       booking?.paymentStatus === "PAID" &&
+      ["TECHNICIAN_ACCEPTED", "REMOTE_SESSION_STARTED"].includes(booking?.bookingStatus) &&
       !booking?.remoteSessionLink &&
       !provisionAttempted.current
     ) {
@@ -154,7 +159,8 @@ export default function RemoteSession() {
   ]
 
   const paymentRequired = booking?.paymentStatus !== "PAID"
-  const meetingPending = paymentRequired || !booking?.remoteSessionLink || booking?.remoteSessionStatus !== "READY"
+  const safeMeetingLink = validGoogleMeetLink(booking?.remoteSessionLink)
+  const meetingPending = paymentRequired || !safeMeetingLink || !["READY", "STARTED", "IN_PROGRESS"].includes(booking?.remoteSessionStatus)
   const meetingFailed = ["FAILED", "SETUP_REQUIRED", "PROVISIONING_FAILED"].includes(booking?.remoteSessionStatus)
   const meetingStatusLabel = paymentRequired
     ? "Payment Required"
@@ -178,10 +184,15 @@ export default function RemoteSession() {
 
     setMeetingJoined(true)
     try {
-      await Browser.open({ url: booking.remoteSessionLink })
+      if (isTechnicianViewer && booking.bookingStatus === "TECHNICIAN_ACCEPTED") {
+        const started = await startTechnicianRemoteSession(booking.id, safeMeetingLink)
+        setBooking(started)
+        localStorage.setItem("currentBooking", JSON.stringify(started))
+      }
+      await Browser.open({ url: safeMeetingLink })
     } catch (error) {
       console.error("Unable to open Google Meet externally:", error)
-      window.location.href = booking.remoteSessionLink
+      window.location.href = safeMeetingLink
     }
   }
 
@@ -191,7 +202,7 @@ export default function RemoteSession() {
       return
     }
 
-    await navigator.clipboard.writeText(booking.remoteSessionLink)
+    await navigator.clipboard.writeText(safeMeetingLink)
     setCopied(true)
 
     setTimeout(() => {
@@ -230,17 +241,32 @@ export default function RemoteSession() {
     }
   }
 
-  const endSession = () => {
-    navigate("/session-summary", {
-      state: {
-        booking,
-        technician,
-        sessionDuration: sessionTime,
-        meetingJoined,
-        workPerformed: workNotes,
-        uploadedFiles: uploadedFiles.map((file) => file.name),
-      },
-    })
+  const endSession = async () => {
+    if (!isTechnicianViewer) {
+      navigate(-1)
+      return
+    }
+    if (completing || !["REMOTE_SESSION_STARTED", "SERVICE_STARTED"].includes(booking?.bookingStatus)) return
+    setCompleting(true)
+    try {
+      const completedBooking = await completeTechnicianService(booking.id)
+      setBooking(completedBooking)
+      localStorage.setItem("currentBooking", JSON.stringify(completedBooking))
+      navigate("/session-summary", {
+        state: {
+          booking: completedBooking,
+          technician,
+          sessionDuration: sessionTime,
+          meetingJoined,
+          workPerformed: workNotes,
+          uploadedFiles: uploadedFiles.map((file) => file.name),
+        },
+      })
+    } catch (error) {
+      alert(error.message || "Remote service could not be completed.")
+    } finally {
+      setCompleting(false)
+    }
   }
 
   const goToMeetingPanel = () => {
@@ -308,11 +334,11 @@ export default function RemoteSession() {
               {meetingFailed
                 ? "The secure meeting could not be created automatically. You do not need to pay again."
                 : "Payment confirmed. The secure meeting is being created and this screen refreshes automatically."}
-              {meetingFailed && <button type="button" onClick={prepareMeeting} disabled={provisioning} className="remote-meeting-retry mt-2 flex min-h-10 w-full items-center justify-center rounded-lg bg-gos-blue-deep px-4 text-xs font-extrabold text-white disabled:opacity-60">{provisioning ? "Creating Meet Link..." : "Retry Meet Link"}</button>}
+              {meetingFailed && isTechnicianViewer && <button type="button" onClick={prepareMeeting} disabled={provisioning} className="remote-meeting-retry mt-2 flex min-h-10 w-full items-center justify-center rounded-lg bg-gos-blue-deep px-4 text-xs font-extrabold text-white disabled:opacity-60">{provisioning ? "Creating Meet Link..." : "Retry Meet Link"}</button>}
             </div>
           )}
 
-          {!meetingPending && booking.remoteSessionLink && (
+          {!meetingPending && safeMeetingLink && (
             <button type="button" onClick={copyMeetingLink} className="remote-copy-link flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gos-border bg-white text-xs font-extrabold text-gos-blue-deep">
               <Copy size={15} />{copied ? "Meeting link copied" : "Copy meeting link"}
             </button>
@@ -380,8 +406,8 @@ export default function RemoteSession() {
             <p className="text-xs font-semibold leading-5 text-emerald-800">This meeting is unique to this booking. Do not share it outside this support session, and never share OTPs or passwords.</p>
           </section>
 
-          <button type="button" onClick={endSession} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-sm font-extrabold text-red-700">
-            <Power size={16} /> End Session
+          <button type="button" onClick={endSession} disabled={isTechnicianViewer && (!["REMOTE_SESSION_STARTED", "SERVICE_STARTED"].includes(booking?.bookingStatus) || completing)} className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-extrabold disabled:cursor-not-allowed disabled:opacity-50 ${isTechnicianViewer ? "bg-emerald-600 text-white" : "border border-gos-border bg-white text-gos-blue-deep"}`}>
+            <Power size={15} /> {isTechnicianViewer ? completing ? "Completing..." : "Complete Remote Service" : "Leave Session"}
           </button>
         </div>
       </main>
@@ -541,10 +567,11 @@ export default function RemoteSession() {
 
                   <button
                     onClick={endSession}
-                    className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/15 px-5 py-2 text-sm font-bold text-red-300 transition hover:bg-red-500/25"
+                    disabled={isTechnicianViewer && (!["REMOTE_SESSION_STARTED", "SERVICE_STARTED"].includes(booking?.bookingStatus) || completing)}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-45 ${isTechnicianViewer ? "bg-emerald-600 text-white" : "border border-white/15 bg-white/5 text-slate-200"}`}
                   >
                     <Power className="h-4 w-4" />
-                    End Session
+                    {isTechnicianViewer ? completing ? "Completing..." : "Complete Remote Service" : "Leave Session"}
                   </button>
                 </div>
               </div>
@@ -585,7 +612,7 @@ export default function RemoteSession() {
                       <p>{meetingFailed
                         ? "The secure meeting could not be created automatically. You do not need to pay again."
                         : "Payment is confirmed. The secure meeting is being created and this page refreshes automatically."}</p>
-                      {meetingFailed && (
+                      {meetingFailed && isTechnicianViewer && (
                         <button
                           type="button"
                           onClick={prepareMeeting}
@@ -598,16 +625,16 @@ export default function RemoteSession() {
                     </div>
                   )}
 
-                  {!meetingPending && booking.remoteSessionLink && (
+                  {!meetingPending && safeMeetingLink && (
                     <div className="mt-5 rounded-xl border border-green-500/25 bg-green-500/10 p-4">
                       <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-green-300">
                         Google Meet Ready
                       </p>
                       <a
-                        href={booking.remoteSessionLink}
+                        href={safeMeetingLink}
                         className="mt-2 block break-all text-sm font-bold text-gos-blue-deep underline decoration-gos-turquoise underline-offset-4"
                       >
-                        {booking.remoteSessionLink}
+                        {safeMeetingLink}
                       </a>
                     </div>
                   )}

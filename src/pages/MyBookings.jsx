@@ -294,9 +294,9 @@ export default function MyBookings() {
           {filtered.map((booking) => {
             const Icon = getIcon(booking.serviceType)
             const readableStatus = statusLabel[booking.bookingStatus] || booking.bookingStatus || "Pending"
-            const supportType = booking.remoteSessionRequired ? "remote" : "onsite"
+            const supportType = booking.remoteSessionRequired || booking.serviceMode === "REMOTE" ? "remote" : "onsite"
             const remotePaid = supportType === "remote" && booking.paymentStatus === "PAID"
-            const remoteReady = remotePaid && booking.remoteSessionStatus === "READY" && Boolean(booking.remoteSessionLink)
+            const remoteReady = remotePaid && ["READY", "STARTED", "IN_PROGRESS"].includes(booking.remoteSessionStatus) && (() => { try { const url = new URL(booking.remoteSessionLink); return url.protocol === "https:" && url.hostname === "meet.google.com" } catch { return false } })()
             const bookingRefund = refunds.find((refund) => refund.bookingId === booking.id)
 
             return (

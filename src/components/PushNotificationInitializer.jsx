@@ -22,6 +22,17 @@ export default function PushNotificationInitializer() {
     const start = async () => {
       await PushNotifications.removeAllListeners()
 
+      if (Capacitor.getPlatform() === "android") {
+        await PushNotifications.createChannel({
+          id: "gos_alerts",
+          name: "GeekOnSites alerts",
+          description: "Booking assignments and service updates",
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+        })
+      }
+
       await PushNotifications.addListener("registration", async ({ value }) => {
         if (!active || !value) return
         localStorage.setItem("gos_push_token", value)

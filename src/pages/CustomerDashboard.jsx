@@ -8,6 +8,7 @@ import MobileBottomNav from "../components/layout/MobileBottomNav"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import BrandLogo from "../components/common/BrandLogo"
 import DashboardLoader from "../components/ui/DashboardLoader"
+import { remoteSessionReady } from "../utils/remoteSession"
 
 const STATUS_LABELS = {
   PENDING: "Pending",
@@ -46,9 +47,6 @@ const isRemoteBooking = (booking) => Boolean(booking?.remoteSessionRequired) || 
 const hasRequiredPayment = (booking) => isRemoteBooking(booking)
   ? booking?.paymentStatus === "PAID"
   : ["PAID", "PARTIALLY_PAID", "BALANCE_PENDING"].includes(booking?.paymentStatus)
-const remoteSessionReady = (booking) => hasRequiredPayment(booking)
-  && booking?.remoteSessionStatus === "READY"
-  && Boolean(booking?.remoteSessionLink)
 
 export default function CustomerDashboard() {
   const navigate = useNavigate()

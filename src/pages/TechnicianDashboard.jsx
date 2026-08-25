@@ -176,6 +176,9 @@ export default function TechnicianDashboard() {
   const [notificationsMuted, setNotificationsMuted] = useState(() => localStorage.getItem("gos_technician_notifications_muted") === "true")
   const [notificationRefreshing, setNotificationRefreshing] = useState(false)
   const [availabilitySaving, setAvailabilitySaving] = useState(false)
+  const [rejectJob, setRejectJob] = useState(null)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejecting, setRejecting] = useState(false)
   const knownNotificationIds = useRef(new Set())
   const popupTimer = useRef(null)
 
@@ -442,17 +445,27 @@ export default function TechnicianDashboard() {
     }
   }
 
-  const handleRejectJob = async (job) => {
+  const handleRejectJob = (job) => {
+    setRejectJob(job)
+    setRejectReason("")
+  }
+
+  const confirmRejectJob = async () => {
+    const reason = rejectReason.trim()
+    if (!rejectJob || !reason || rejecting) return
     try {
-      const reason = window.prompt("Reason for rejecting this job?")?.trim()
-      if (!reason) return
-      await rejectTechnicianJob(job.bookingId, reason)
-      setJobs((current) => current.filter((item) => String(item.bookingId) !== String(job.bookingId)))
+      setRejecting(true)
+      await rejectTechnicianJob(rejectJob.bookingId, reason)
+      setJobs((current) => current.filter((item) => String(item.bookingId) !== String(rejectJob.bookingId)))
+      setRejectJob(null)
+      setRejectReason("")
       await refreshJobs()
       showPopup("Job rejected. Customer will be reassigned.")
     } catch (error) {
       console.error(error)
       alert(error.message || "Failed to reject job.")
+    } finally {
+      setRejecting(false)
     }
   }
 
@@ -506,6 +519,10 @@ export default function TechnicianDashboard() {
 
   const handleStartRemoteSession = async (job) => {
   try {
+    if (!job.remoteMeetingLink) {
+      openRemoteSession(job)
+      return
+    }
     const updatedBooking = await startTechnicianRemoteSession(
       job.bookingId,
       job.remoteMeetingLink
@@ -1313,7 +1330,7 @@ const saveMeetingLink = async (job) => {
 
   return (
     <div className="gos-technician-portal flex h-screen w-full overflow-hidden bg-[#020817] text-white">
-      <StatusToast message={popup} branded />
+      <StatusToast message={popup} />
 
       {liveTracking && (
         <div className="fixed bottom-24 left-4 z-50 rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-4 text-sm font-bold text-green-300 shadow-2xl md:bottom-6">
@@ -1348,6 +1365,8 @@ const saveMeetingLink = async (job) => {
           </div>
         </div>
       )}
+
+      {rejectJob && <div className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/55 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="reject-job-title"><div className="w-full rounded-t-2xl bg-white p-5 pb-[max(20px,env(safe-area-inset-bottom))] text-slate-900 shadow-2xl sm:max-w-md sm:rounded-2xl"><h2 id="reject-job-title" className="text-lg font-black text-[#071d3d]">Reject GOS-{rejectJob.bookingId}</h2><p className="mt-1 text-xs leading-5 text-slate-500">Tell the operations team why you cannot take this assignment.</p><textarea value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} maxLength={500} autoFocus placeholder="Required rejection reason" className="mt-4 min-h-28 w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-red-500" /><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setRejectJob(null); setRejectReason("") }} disabled={rejecting} className="min-h-11 rounded-lg border border-slate-300 text-xs font-black text-slate-700">Cancel</button><button type="button" onClick={confirmRejectJob} disabled={!rejectReason.trim() || rejecting} className="min-h-11 rounded-lg bg-red-600 text-xs font-black text-white disabled:opacity-45">{rejecting ? "Rejecting..." : "Reject Job"}</button></div></div></div>}
 
       <aside className="hidden w-[300px] shrink-0 flex-col border-r border-cyan-500/20 bg-[#071122] p-6 lg:flex">
         <div className="mb-8">
@@ -1453,9 +1472,8 @@ const saveMeetingLink = async (job) => {
       <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-[82px] shrink-0 items-center justify-between border-b border-cyan-500/10 bg-[#071122]/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] md:min-h-[90px] md:px-6">
           <div className="min-w-0">
-            <BrandLogo className="h-7 w-auto max-w-[145px] md:h-8" />
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-cyan-100/55"><MapPin size={11} className="shrink-0 text-cyan-300" /><span className="truncate">{[technicianProfile?.city, technicianProfile?.state, technicianProfile?.country].filter(Boolean).join(", ") || "Service location not set"}</span></div>
-            <h1 className="sr-only">{activeTab}</h1>
+            <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Technician workspace</p>
+            <h1 className="truncate text-lg font-black text-white">{activeTab}</h1>
           </div>
 
           <div className="hidden w-full max-w-[360px] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-5 py-3 md:flex">
@@ -1576,10 +1594,10 @@ function JobCard({
   )
   
   return (
-    <div className="rounded-3xl border border-white/10 bg-[#0b1628] p-4 md:p-6">
-      <div className="flex flex-col gap-5">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm md:p-5">
+      <div className="flex flex-col gap-4">
         <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-50">
             {job.serviceType.includes("Laptop") ? (
               <Laptop className="h-7 w-7 text-cyan-300" />
             ) : job.serviceType.includes("WiFi") ||
@@ -1592,7 +1610,7 @@ function JobCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-black text-white md:text-xl">
+              <h3 className="text-base font-black text-[#071d3d] md:text-lg">
                 {job.customerName}
               </h3>
               {isTrackingThisJob && (
@@ -1602,17 +1620,17 @@ function JobCard({
               )}
             </div>
 
-            <p className="mt-1 text-sm text-cyan-100/60 md:text-base">
+            <p className="mt-1 text-sm font-semibold text-slate-600">
               {job.serviceType}
             </p>
             <p className="mt-1 text-xs text-cyan-300">#GOS-{job.bookingId}</p>
 
-            <div className="mt-3 flex flex-wrap gap-3 text-xs md:text-sm">
-              <span className="flex items-center gap-2 text-cyan-100/45">
+            <div className="mt-2 flex flex-wrap gap-3 text-xs">
+              {!isRemote && <span className="flex items-center gap-2 text-slate-500">
                 <MapPin className="h-4 w-4" />
                 {job.location}
-              </span>
-              <span className="flex items-center gap-2 text-cyan-100/45">
+              </span>}
+              <span className="flex items-center gap-2 text-slate-500">
                 <Clock3 className="h-4 w-4" />
                 {job.schedule}
               </span>
@@ -1620,7 +1638,7 @@ function JobCard({
           </div>
         </div>
 
-        <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-400">
+        <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
           {job.issueDescription}
         </p>
 
@@ -1649,19 +1667,19 @@ function JobCard({
           <Badge type={job.status}>{job.status}</Badge>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap">
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
           {canAccept && (
             <>
               <button
                 onClick={onAccept}
-                className="rounded-xl bg-cyan-400 px-4 py-3 text-sm font-black text-black hover:bg-cyan-300"
+                className="min-h-10 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700"
               >
-                Accept
+                Accept Job
               </button>
 
               <button
                 onClick={onReject}
-                className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300 hover:bg-red-500/20"
+                className="min-h-10 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-black text-red-700 hover:bg-red-100"
               >
                 Reject
               </button>
@@ -1700,18 +1718,18 @@ function JobCard({
           {canComplete && (
             <button
               onClick={onComplete}
-              className="rounded-xl bg-green-400 px-4 py-3 text-sm font-black text-black"
+              className="min-h-10 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white"
             >
-              Complete Job
+              {isRemote ? "Complete Remote Service" : "Complete Service"}
             </button>
           )}
 
           {canRemote && (
             <button
               onClick={onRemote}
-              className="flex items-center justify-center gap-2 rounded-xl border border-cyan-500/20 bg-[#071122] px-4 py-3 text-sm font-bold text-cyan-300 hover:border-cyan-400/40"
+              className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-xs font-black text-white hover:bg-cyan-700"
             >
-              Remote
+              Open Remote Session
               <ArrowRight className="h-4 w-4" />
             </button>
           )}
@@ -1728,7 +1746,7 @@ function JobCard({
 
           <a
             href={job.customerPhone ? `tel:${job.customerPhone}` : undefined}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#071122] px-4 py-3 text-sm text-cyan-100/80"
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700"
           >
             <Phone className="h-4 w-4" />
             Call
