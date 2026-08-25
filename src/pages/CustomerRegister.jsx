@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { Capacitor } from "@capacitor/core"
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, MapPin, Phone, ShieldCheck, User } from "lucide-react"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { setLocation, useRegion } from "../utils/location"
@@ -14,6 +15,7 @@ const passwordRules = [
 
 export default function CustomerRegister() {
   const navigate = useNavigate()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
   const region = useRegion()
   const { registerCustomer } = useCustomerAuth()
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirmPassword: "" })
@@ -84,11 +86,11 @@ export default function CustomerRegister() {
           </div>
         </aside>
 
-        <div className="flex min-w-0 w-full items-center px-4 py-5 sm:px-8 sm:py-8 lg:bg-white lg:px-12">
-          <form onSubmit={submit} autoComplete="off" data-form-type="other" className="mx-auto min-w-0 w-full max-w-xl rounded-lg border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-md)] sm:p-7 lg:border-0 lg:p-0 lg:shadow-none">
+        <div className="gos-customer-register-panel flex min-w-0 w-full items-center px-4 py-5 sm:px-8 sm:py-8 lg:bg-white lg:px-12">
+          <form onSubmit={submit} autoComplete="off" data-form-type="other" className="gos-customer-register-form mx-auto min-w-0 w-full max-w-xl rounded-lg border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-md)] sm:p-7 lg:border-0 lg:p-0 lg:shadow-none">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-turquoise">Create your account</p>
-            <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none text-gos-blue-deep">Join GeekOnSites.</h2>
-            <p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">Use accurate details so your technician and service updates reach you.</p>
+            <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none text-gos-blue-deep">{nativeAndroid ? "Create Customer Account" : "Join GeekOnSites."}</h2>
+            <p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">{nativeAndroid ? "Book and manage GeekOnSites support." : "Use accurate details so your technician and service updates reach you."}</p>
 
             {error && <div role="alert" className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
@@ -124,7 +126,8 @@ export default function CustomerRegister() {
             <label className="mt-5 flex cursor-pointer items-start gap-3 text-xs font-semibold leading-5 text-gos-muted"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-gos-blue-deep" /><span>I agree to the GeekOnSites Terms and Privacy Policy.</span></label>
 
             <button type="submit" disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-gos-blue-deep px-5 text-sm font-extrabold text-white transition hover:bg-gos-blue disabled:cursor-wait disabled:opacity-60">{loading ? "Creating account..." : <>Create secure account <ArrowRight size={17} /></>}</button>
-            <p className="mt-5 text-center text-xs font-semibold text-gos-muted">Already registered? <Link to="/customer-login" className="font-extrabold text-gos-blue">Log in</Link></p>
+            <p className="mt-5 text-center text-xs font-semibold text-gos-muted">{nativeAndroid ? "Already have an account? " : "Already registered? "}<Link to="/customer-login" className="font-extrabold text-gos-blue">{nativeAndroid ? "Sign In" : "Log in"}</Link></p>
+            {nativeAndroid && <p className="mt-2 text-center text-[11px] font-semibold text-gos-muted">Technician? <Link to="/technician-register" className="font-extrabold text-gos-blue">Use Technician Registration</Link></p>}
           </form>
         </div>
       </section>
