@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ArrowLeft, Bell, CalendarDays, Check, ChevronRight, Circle, ClipboardList, CreditCard, FileText, Headphones, Home, Laptop, LogOut, MapPin, Monitor, Navigation, Phone, Plus, Printer, ReceiptText, RefreshCw, Search, ShieldCheck, User, Video, Wifi, X } from "lucide-react"
 import { getCustomerBookings } from "../services/bookingService"
@@ -32,6 +32,10 @@ const STATUS_LABELS = {
 
 const FILTERS = ["All", "Active", "Completed", "Cancelled"]
 const COMPLETED = new Set(["SERVICE_COMPLETED", "FULLY_PAID", "INVOICE_GENERATED", "BOOKING_CLOSED"])
+const WORK_COMPLETED = new Set([...COMPLETED, "REMAINING_PAYMENT_PENDING"])
+const hasOnsiteBalanceDue = (booking) => !isRemoteBooking(booking)
+  && Number(booking?.remainingAmount || 0) > 0
+  && (booking?.paymentStatus === "BALANCE_PENDING" || ["SERVICE_COMPLETED", "REMAINING_PAYMENT_PENDING"].includes(booking?.bookingStatus))
 
 const serviceIcon = (name = "") => {
   const value = name.toLowerCase()
@@ -68,12 +72,12 @@ export default function CustomerDashboard() {
   const email = customer?.email || ""
   const phone = customer?.phone || "Not added"
 
-  const loadBookings = async () => {
-    setLoading(true)
-    setLoadError("")
+  const loadBookings = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true)
     try {
       const data = await getCustomerBookings()
       setBookings(Array.isArray(data) ? data : [])
+      setLoadError("")
     } catch (error) {
       if (String(error?.message).includes("401")) {
         logoutCustomer()
@@ -82,15 +86,22 @@ export default function CustomerDashboard() {
       }
       setLoadError(error?.message || "Bookings could not be loaded.")
     } finally {
-      setLoading(false)
+      if (showLoader) setLoading(false)
     }
-  }
+  }, [logoutCustomer, navigate])
 
   useEffect(() => {
-    loadBookings()
-    // Initial authenticated dashboard load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    loadBookings(true)
+    const timer = window.setInterval(() => loadBookings(false), 10000)
+    const refresh = () => document.visibilityState === "visible" && loadBookings(false)
+    window.addEventListener("focus", refresh)
+    document.addEventListener("visibilitychange", refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("focus", refresh)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [loadBookings])
 
   const sortedBookings = useMemo(() => [...bookings].sort((a, b) => Number(b.id || 0) - Number(a.id || 0)), [bookings])
   const activeBookings = sortedBookings.filter((booking) => !COMPLETED.has(booking.bookingStatus) && booking.bookingStatus !== "CANCELLED")
@@ -193,7 +204,7 @@ function CurrentBooking({ booking, navigate }) {
   const paid = hasRequiredPayment(booking)
   const sessionReady = remoteSessionReady(booking)
   const onsiteAction = onsiteTrackingAction(booking)
-  const balanceDue = !remote && booking.paymentStatus === "BALANCE_PENDING" && Number(booking.remainingAmount || 0) > 0
+  const balanceDue = hasOnsiteBalanceDue(booking)
   return <article className="overflow-hidden rounded-md border border-gos-border bg-white shadow-[var(--gos-shadow-sm)]">
     <div className="grid md:grid-cols-[1fr_0.72fr]">
       <div className="p-4 sm:p-5"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#eaf7f5] text-gos-turquoise"><Icon size={21} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-base font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[10px] font-extrabold text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><p className="mt-4 flex items-center gap-2 text-xs font-bold text-gos-muted"><CalendarDays size={14} /> {scheduleText(booking)}</p><p className="mt-2 flex items-center gap-2 text-xs font-bold text-gos-muted"><MapPin size={14} /> {locationText(booking)}</p></div></div></div>
@@ -220,7 +231,7 @@ function BookingRow({ booking, navigate }) {
   const paid = hasRequiredPayment(booking)
   const sessionReady = remoteSessionReady(booking)
   const onsiteAction = onsiteTrackingAction(booking)
-  const balanceDue = !remote && booking.paymentStatus === "BALANCE_PENDING" && Number(booking.remainingAmount || 0) > 0
+  const balanceDue = hasOnsiteBalanceDue(booking)
   return <article className="rounded-md border border-gos-border bg-white p-4 shadow-[var(--gos-shadow-sm)]"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gos-off-white text-gos-blue"><Icon size={19} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-extrabold text-gos-blue-deep">{booking.serviceType || "Selected service"}</h3><p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">GOS-{booking.id}</p></div><Status status={booking.bookingStatus} /></div><div className="mt-3 grid gap-2 text-[11px] font-semibold text-gos-muted sm:grid-cols-3"><span className="flex items-center gap-1.5"><CalendarDays size={13} />{scheduleText(booking)}</span><span className="flex items-center gap-1.5"><User size={13} />{booking.technicianName || "Not assigned"}</span><span className="flex items-center gap-1.5"><MapPin size={13} />{remote ? (!paid ? "Payment required" : booking.remoteSessionStatus || "Meeting preparation in progress") : locationText(booking)}</span></div></div></div><Timeline booking={booking} compact /><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => balanceDue ? navigate("/payment", { state: { booking, bookingId: booking.id, paymentType: "REMAINING" } }) : remote && !paid ? navigate("/payment", { state: { booking } }) : (remote || onsiteAction.canTrack) && navigate(customerServiceRoute(booking), { state: { booking } })} disabled={!balanceDue && (remote ? paid && !sessionReady : !onsiteAction.canTrack)} className="flex min-h-9 items-center gap-2 rounded-md bg-gos-blue-deep px-3 text-center text-[10px] font-extrabold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-600 disabled:opacity-100">{balanceDue ? <CreditCard size={13} /> : remote ? <Video size={13} /> : <Navigation size={13} />} {balanceDue ? "Pay remaining" : remote ? (!paid ? "Complete payment" : sessionReady ? "Session" : "Preparing") : onsiteAction.label}</button><button type="button" onClick={() => navigate("/invoice", { state: { booking } })} disabled={!booking.invoiceGenerated} className="flex min-h-9 items-center gap-2 rounded-md border border-gos-border px-3 text-[10px] font-extrabold text-gos-blue disabled:opacity-45"><FileText size={13} /> Invoice</button></div></article>
 }
 
@@ -232,9 +243,9 @@ function Status({ status }) {
 
 function Timeline({ booking, compact = false }) {
   const status = booking.bookingStatus
-  const assigned = ["TECHNICIAN_ASSIGNED", "TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...COMPLETED].includes(status)
-  const started = ["SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...COMPLETED].includes(status)
-  const steps = [{ label: "Booked", active: true }, { label: "Paid", active: hasRequiredPayment(booking) }, { label: "Assigned", active: assigned }, { label: "Started", active: started }, { label: "Complete", active: COMPLETED.has(status) }]
+  const assigned = ["TECHNICIAN_ASSIGNED", "TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...WORK_COMPLETED].includes(status)
+  const started = ["SERVICE_STARTED", "REMOTE_SESSION_STARTED", ...WORK_COMPLETED].includes(status)
+  const steps = [{ label: "Booked", active: true }, { label: "Advance paid", active: hasRequiredPayment(booking) }, { label: "Assigned", active: assigned }, { label: "Started", active: started }, { label: "Service done", active: WORK_COMPLETED.has(status) }]
   return <div className={`border-t border-gos-border ${compact ? "mt-3 pt-3" : "px-4 py-3 sm:px-5"}`}><div className="grid grid-cols-5">{steps.map(({ label, active }, index) => <div key={label} className="relative text-center"><span className={`relative z-10 mx-auto flex h-5 w-5 items-center justify-center rounded-full border ${active ? "border-gos-turquoise bg-gos-turquoise text-white" : "border-gos-border bg-white text-gos-border"}`}>{active ? <Check size={11} /> : <Circle size={8} />}</span>{index < steps.length - 1 && <span className={`absolute left-1/2 top-2.5 h-px w-full ${steps[index + 1].active ? "bg-gos-turquoise" : "bg-gos-border"}`} />}<span className="mt-1.5 block text-[8px] font-bold text-gos-muted">{label}</span></div>)}</div></div>
 }
 
