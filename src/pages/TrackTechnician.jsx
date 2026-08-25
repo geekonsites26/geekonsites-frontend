@@ -1,856 +1,153 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { DirectionsRenderer, GoogleMap, Marker, OverlayView, useLoadScript } from "@react-google-maps/api"
+import { ArrowLeft, CheckCircle2, Clock3, MapPin, MessageCircle, Navigation, Phone, RefreshCcw, Share2 } from "lucide-react"
 import gosVan from "../assets/map/gos-van.webp"
 import customerHome from "../assets/map/customer-home.webp"
-import {
-  GoogleMap,
-Marker,
-DirectionsRenderer,
-OverlayView,
-useLoadScript,
-} from "@react-google-maps/api"
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Clock3,
-  Home,
-  MapPin,
-  Navigation,
-  Phone,
-  RefreshCcw,
-  ShieldCheck,
-  Star,
-  Video,
-  Wrench,
-  MessageCircle,
-  Share2,
-  Car,
-  Zap,
-} from "lucide-react"
 import { getBookingTracking } from "../services/bookingService"
 import { SkeletonList, SkeletonMapPanel } from "../components/ui/Skeleton"
 import { formatLocalTime } from "../utils/dateTime"
+import { isRemoteBooking, onsiteTrackingAction, toRealPosition } from "../utils/customerBookingAction"
 
-const mapContainerStyle = {
-  width: "100%",
-  height: "100%",
-}
-
-const regionCenter = (country) => country === "UK" ? { lat: 54.5, lng: -3.2 } : { lat: 39.8, lng: -98.5 }
-
-const mapOptions = {
-  disableDefaultUI: true,
-  zoomControl: true,
-  streetViewControl: false,
-  mapTypeControl: false,
-  fullscreenControl: false,
-
-  gestureHandling: "greedy",
-  draggable: true,
-  scrollwheel: true,
-
-  clickableIcons: false,
-  keyboardShortcuts: false,
-
-  rotateControl: false,
-  tilt: 0,
-
-  mapTypeId: "roadmap",
-}
-
-const carGosIcon = (heading = 0) => ({
-  url: gosVan,
-  scaledSize: new window.google.maps.Size(70, 70),
-  anchor: new window.google.maps.Point(35, 35),
-  rotation: heading,
-})
-
-const customerHomeIcon = () => ({
-  url: customerHome,
-  scaledSize: new window.google.maps.Size(65, 65),
-  anchor: new window.google.maps.Point(32, 32),
-})
-
-const statusLabel = {
-  PENDING: "Pending",
-  PAYMENT_COMPLETED: "Payment Completed",
-  ASSIGNMENT_PENDING: "Assignment Pending",
-  TECHNICIAN_ASSIGNED: "Technician Assigned",
-  TECHNICIAN_ACCEPTED: "Technician Accepted",
-  TECHNICIAN_ON_THE_WAY: "Technician On The Way",
-  TECHNICIAN_ARRIVED: "Technician Arrived",
-  SERVICE_STARTED: "Service Started",
-  REMOTE_SESSION_STARTED: "Remote Session Started",
-  SERVICE_COMPLETED: "Service Completed",
-  REMAINING_PAYMENT_PENDING: "Payment Pending",
-  FULLY_PAID: "Fully Paid",
-  BOOKING_CLOSED: "Booking Closed",
-  CANCELLED: "Cancelled",
-}
+const mapStyle = { width: "100%", height: "100%" }
+const mapOptions = { disableDefaultUI: true, zoomControl: true, gestureHandling: "greedy", clickableIcons: false }
+const ORDER = ["BOOKING_CONFIRMED", "TECHNICIAN_ASSIGNED", "TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "SERVICE_COMPLETED"]
+const ALIASES = { PENDING: "BOOKING_CONFIRMED", PAYMENT_COMPLETED: "BOOKING_CONFIRMED", ASSIGNMENT_PENDING: "BOOKING_CONFIRMED", ASSIGNED: "TECHNICIAN_ASSIGNED", ACCEPTED: "TECHNICIAN_ACCEPTED", ON_THE_WAY: "TECHNICIAN_ON_THE_WAY", ARRIVED: "TECHNICIAN_ARRIVED", IN_PROGRESS: "SERVICE_STARTED", COMPLETED: "SERVICE_COMPLETED", FULLY_PAID: "SERVICE_COMPLETED", BOOKING_CLOSED: "SERVICE_COMPLETED" }
+const STEPS = [["Booking confirmed", "BOOKING_CONFIRMED"], ["Technician assigned", "TECHNICIAN_ASSIGNED"], ["Technician accepted", "TECHNICIAN_ACCEPTED"], ["On the way", "TECHNICIAN_ON_THE_WAY"], ["Arrived", "TECHNICIAN_ARRIVED"], ["Service in progress", "SERVICE_STARTED"], ["Service completed", "SERVICE_COMPLETED"]]
+const bookingStatus = (booking) => { const value = String(booking?.bookingStatus || booking?.status || "").toUpperCase(); return ALIASES[value] || value || "BOOKING_CONFIRMED" }
+const customerIcon = () => ({ url: customerHome, scaledSize: new window.google.maps.Size(42, 42), anchor: new window.google.maps.Point(21, 21) })
 
 export default function TrackTechnician() {
   const navigate = useNavigate()
   const { bookingId } = useParams()
   const { state } = useLocation()
-
   const [booking, setBooking] = useState(state?.booking || null)
-  const [animatedTechnicianPosition, setAnimatedTechnicianPosition] = useState(null)
-
-  const animationDuration = 6000
+  const [marker, setMarker] = useState(null)
   const [directions, setDirections] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [distanceText, setDistanceText] = useState("Not started")
-  const [etaText, setEtaText] = useState("Not started")
+  const [distance, setDistance] = useState("Not available yet")
+  const [eta, setEta] = useState("Not available yet")
+  const [loading, setLoading] = useState(!state?.booking)
+  const [error, setError] = useState("")
   const [lastUpdated, setLastUpdated] = useState(null)
   const mapRef = useRef(null)
-  const lastRoutePointRef = useRef(null)
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-  })
-
+  const animationRef = useRef(null)
+  const markerRef = useRef(null)
   const trackingId = bookingId || booking?.id
+  const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY })
+  const customerPosition = useMemo(() => toRealPosition(booking?.customerLatitude, booking?.customerLongitude), [booking?.customerLatitude, booking?.customerLongitude])
+  const technicianPosition = useMemo(() => toRealPosition(booking?.technicianLatitude, booking?.technicianLongitude), [booking?.technicianLatitude, booking?.technicianLongitude])
+  const status = bookingStatus(booking)
+  const statusIndex = Math.max(0, ORDER.indexOf(status))
+  const action = onsiteTrackingAction(booking)
+  const journeyLive = ["TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED"].includes(status)
 
-  const customerPosition = useMemo(() => {
-    if (booking?.customerLatitude && booking?.customerLongitude) {
-      return {
-        lat: Number(booking.customerLatitude),
-        lng: Number(booking.customerLongitude),
-      }
-    }
-
-    return regionCenter(booking?.country)
-  }, [booking])
-
-  const technicianPosition = useMemo(() => {
-    if (booking?.technicianLatitude && booking?.technicianLongitude) {
-      return {
-        lat: Number(booking.technicianLatitude),
-        lng: Number(booking.technicianLongitude),
-      }
-    }
-
-    return null
-  }, [booking])
-
-  useEffect(() => {
-  if (!technicianPosition) return
-
-  if (!animatedTechnicianPosition) {
-    setAnimatedTechnicianPosition(technicianPosition)
-    return
-  }
-
-  const startLat = animatedTechnicianPosition.lat
-  const startLng = animatedTechnicianPosition.lng
-  const endLat = technicianPosition.lat
-  const endLng = technicianPosition.lng
-
-  const startTime = performance.now()
-
-  const animate = (currentTime) => {
-    const elapsed = currentTime - startTime
-    const progress = Math.min(elapsed / animationDuration, 1)
-
-    const lat = startLat + (endLat - startLat) * progress
-    const lng = startLng + (endLng - startLng) * progress
-
-    setAnimatedTechnicianPosition({ lat, lng })
-
-    if (progress < 1) {
-      requestAnimationFrame(animate)
-    }
-  }
-
-  requestAnimationFrame(animate)
-}, [technicianPosition])
-
-  const isRemote =
-    booking?.serviceMode === "REMOTE" ||
-    booking?.remoteSessionRequired ||
-    booking?.supportType === "remote"
-
-  const readableStatus =
-    statusLabel[booking?.bookingStatus] ||
-    booking?.status ||
-    "Tracking Booking"
-
-  const journeyActive = [
-    "TECHNICIAN_ON_THE_WAY",
-    "TECHNICIAN_ARRIVED",
-    "SERVICE_STARTED",
-  ].includes(booking?.bookingStatus)
-
-  const displayedEta = journeyActive && technicianPosition ? etaText : "Not started"
-  const displayedDistance = journeyActive && technicianPosition ? distanceText : "Not started"
-
-  useEffect(() => {
-  if (!trackingId) return
-
-  loadTracking()
-
-  const timer = window.setInterval(() => loadTracking(false), 5000)
-  const refreshWhenVisible = () => document.visibilityState === "visible" && loadTracking(false)
-  document.addEventListener("visibilitychange", refreshWhenVisible)
-  return () => {
-    window.clearInterval(timer)
-    document.removeEventListener("visibilitychange", refreshWhenVisible)
-  }
-}, [trackingId])
-
- useEffect(() => {
-  if (
-    !isLoaded ||
-    !window.google ||
-    !animatedTechnicianPosition ||
-    !customerPosition ||
-    isRemote
-  ) {
-    return
-  }
-
-  const last = lastRoutePointRef.current
-
-  if (last) {
-    const moved =
-      Math.abs(last.lat - animatedTechnicianPosition.lat) +
-      Math.abs(last.lng - animatedTechnicianPosition.lng)
-
-    if (moved < 0.0008) {
-      return
-    }
-  }
-
-  lastRoutePointRef.current = animatedTechnicianPosition
-
-  const directionsService = new window.google.maps.DirectionsService()
-
-  directionsService.route(
-    {
-      origin: animatedTechnicianPosition,
-      destination: customerPosition,
-      travelMode: window.google.maps.TravelMode.DRIVING,
-      provideRouteAlternatives: false,
-    },
-    (result, status) => {
-      if (status === window.google.maps.DirectionsStatus.OK && result) {
-  setDirections(result)
-
-  const leg = result.routes?.[0]?.legs?.[0]
-
-  if (leg) {
-    setDistanceText(leg.distance?.text || "Distance unavailable")
-    setEtaText(leg.duration?.text || "ETA unavailable")
-  } else {
-    setDistanceText("Distance unavailable")
-    setEtaText("ETA unavailable")
-  }
-} else {
-  setDistanceText("Distance unavailable")
-  setEtaText("ETA unavailable")
-}
-    }
-  )
-}, [isLoaded, animatedTechnicianPosition, customerPosition, isRemote])
-
-useEffect(() => {
-  if (
-    !mapRef.current ||
-    !animatedTechnicianPosition ||
-    !customerPosition ||
-    isRemote
-  ) {
-    return
-  }
-
-  const bounds = new window.google.maps.LatLngBounds()
-
-  bounds.extend(animatedTechnicianPosition)
-  bounds.extend(customerPosition)
-
-  mapRef.current.fitBounds(bounds, 90)
-
-  setTimeout(() => {
-    if (mapRef.current && mapRef.current.getZoom() < 14) {
-      mapRef.current.setZoom(14)
-    }
-  }, 400)
-}, [animatedTechnicianPosition, customerPosition, isRemote])
-
-  const loadTracking = async (showLoader = true) => {
+  const loadTracking = useCallback(async (showLoader = true) => {
     if (!trackingId) return
-
     try {
       if (showLoader) setLoading(true)
-
+      setError("")
       const data = await getBookingTracking(trackingId)
+      if (isRemoteBooking(data)) {
+        navigate("/remote-session", { replace: true, state: { booking: data } })
+        return
+      }
       setBooking(data)
       setLastUpdated(new Date())
-    } catch (error) {
-      console.error(error)
+    } catch (requestError) {
+      setError(requestError?.message || "Tracking information is temporarily unavailable.")
     } finally {
       if (showLoader) setLoading(false)
     }
-  }
+  }, [navigate, trackingId])
 
-  const openGoogleNavigation = () => {
-    if (!technicianPosition || !customerPosition) return
+  useEffect(() => {
+    if (isRemoteBooking(booking)) {
+      navigate("/remote-session", { replace: true, state: { booking } })
+    }
+  }, [booking, navigate])
 
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${technicianPosition.lat},${technicianPosition.lng}&destination=${customerPosition.lat},${customerPosition.lng}&travelmode=driving`
+  useEffect(() => {
+    loadTracking()
+    const timer = window.setInterval(() => loadTracking(false), 5000)
+    const onVisible = () => document.visibilityState === "visible" && loadTracking(false)
+    document.addEventListener("visibilitychange", onVisible)
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible) }
+  }, [loadTracking])
 
-    window.open(url, "_blank")
-  }
+  useEffect(() => {
+    if (!technicianPosition) return
+    if (!markerRef.current) { markerRef.current = technicianPosition; setMarker(technicianPosition); return }
+    if (markerRef.current.lat === technicianPosition.lat && markerRef.current.lng === technicianPosition.lng) return
+    if (animationRef.current) cancelAnimationFrame(animationRef.current)
+    const start = markerRef.current
+    const startedAt = performance.now()
+    const animate = (now) => {
+      const progress = Math.min((now - startedAt) / 1500, 1)
+      const nextMarker = { lat: start.lat + (technicianPosition.lat - start.lat) * progress, lng: start.lng + (technicianPosition.lng - start.lng) * progress }
+      markerRef.current = nextMarker
+      setMarker(nextMarker)
+      if (progress < 1) animationRef.current = requestAnimationFrame(animate)
+    }
+    animationRef.current = requestAnimationFrame(animate)
+    return () => animationRef.current && cancelAnimationFrame(animationRef.current)
+  }, [technicianPosition])
 
-  // The technician dashboard opens this same tracking screen for its own
-  // "Track" action, but passes the technician's OWN phone number in
-  // `booking.technicianPhone`. A technician viewer must not be offered a
-  // "call/message the technician" action that would just contact themselves.
-  const viewerIsTechnician = String(localStorage.getItem("gos_role") || "").toUpperCase() === "TECHNICIAN"
-  const technicianPhone = viewerIsTechnician ? null : (booking?.technicianPhone || booking?.technicianMobile)
-
-  const callTechnician = () => {
-    if (!technicianPhone) return
-    window.location.href = `tel:${technicianPhone}`
-  }
-
-  const messageTechnician = () => {
-    if (!technicianPhone) return
-    const text = encodeURIComponent(`Hello, I am contacting you about GeekOnSites booking GOS-${trackingId}.`)
-    window.location.href = `sms:${technicianPhone}?body=${text}`
-  }
-  
-  const progressPercent = isRemote
-    ? booking?.bookingStatus === "SERVICE_COMPLETED"
-      ? 100
-      : 65
-    : {
-        TECHNICIAN_ASSIGNED: 28,
-        TECHNICIAN_ACCEPTED: 42,
-        TECHNICIAN_ON_THE_WAY: 62,
-        TECHNICIAN_ARRIVED: 78,
-        SERVICE_STARTED: 90,
-        SERVICE_COMPLETED: 100,
-      }[booking?.bookingStatus] || 15
-
-const journeyStatusText = {
-  TECHNICIAN_ASSIGNED: "Technician assigned",
-  TECHNICIAN_ACCEPTED: "Technician accepted your booking",
-  TECHNICIAN_ON_THE_WAY: "Technician is on the way",
-  TECHNICIAN_ARRIVED: "Technician has arrived",
-  SERVICE_STARTED: "Service has started",
-  SERVICE_COMPLETED: "Service completed",
-}[booking?.bookingStatus] || "Booking confirmed"
-
-const liveMessage = isRemote
-  ? "Remote technician is preparing your session"
-  : booking?.bookingStatus === "TECHNICIAN_ON_THE_WAY"
-  ? "Your technician is on the way"
-  : booking?.bookingStatus === "TECHNICIAN_ARRIVED"
-  ? "Your technician has arrived"
-  : booking?.bookingStatus === "SERVICE_STARTED"
-  ? "Service has started"
-  : booking?.bookingStatus === "SERVICE_COMPLETED"
-  ? "Service completed"
-  : "Technician assignment is active"
-
-const shareTracking = async () => {
-  const trackingUrl = window.location.href
-
-  if (navigator.share) {
-    await navigator.share({
-      title: "GeekOnSites Live Tracking",
-      text: `Track my GeekOnSites technician for booking #${trackingId}`,
-      url: trackingUrl,
+  useEffect(() => {
+    if (!isLoaded || !journeyLive || !technicianPosition || !customerPosition) {
+      setDirections(null); setDistance("Not available yet"); setEta("Not available yet"); return
+    }
+    new window.google.maps.DirectionsService().route({ origin: technicianPosition, destination: customerPosition, travelMode: window.google.maps.TravelMode.DRIVING }, (result, resultStatus) => {
+      if (resultStatus === window.google.maps.DirectionsStatus.OK && result) {
+        const leg = result.routes?.[0]?.legs?.[0]
+        setDirections(result); setDistance(leg?.distance?.text || "Not available yet"); setEta(leg?.duration?.text || "Not available yet")
+      } else { setDirections(null); setDistance("Not available yet"); setEta("Not available yet") }
     })
-  } else {
-    await navigator.clipboard.writeText(trackingUrl)
-    alert("Tracking link copied.")
-  }
-}
+  }, [customerPosition, isLoaded, journeyLive, technicianPosition])
 
-  if (loading && !booking) {
-    return (
-      <main className="min-h-screen bg-gos-off-white px-4 pb-10 pt-24 text-gos-blue-deep">
-        <div className="mx-auto max-w-md space-y-3">
-          <p className="text-center text-sm font-extrabold text-gos-blue-deep">Loading live tracking...</p>
-          <SkeletonMapPanel />
-          <SkeletonList count={2} />
-        </div>
-      </main>
-    )
-  }
+  useEffect(() => {
+    if (!mapRef.current || !window.google || !customerPosition) return
+    if (!marker) { mapRef.current.panTo(customerPosition); return }
+    const bounds = new window.google.maps.LatLngBounds(); bounds.extend(customerPosition); bounds.extend(marker); mapRef.current.fitBounds(bounds, 70)
+  }, [customerPosition, marker])
 
-  if (loadError) {
-    return (
-      <main className="min-h-screen bg-gos-off-white px-4 pt-24 text-gos-blue-deep">
-        <div className="mx-auto max-w-md rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
-          <p className="font-bold text-red-700">Google Maps failed to load.</p>
-        </div>
-      </main>
-    )
-  }
+  const viewerIsTechnician = String(localStorage.getItem("gos_role") || "").toUpperCase() === "TECHNICIAN"
+  const technicianPhone = viewerIsTechnician ? null : booking?.technicianPhone || booking?.technicianMobile
+  const call = () => technicianPhone && (window.location.href = `tel:${technicianPhone}`)
+  const message = () => technicianPhone && (window.location.href = `sms:${technicianPhone}?body=${encodeURIComponent(`Hello, I am contacting you about GeekOnSites booking GOS-${trackingId}.`)}`)
+  const share = async () => { const data = { title: "GeekOnSites tracking", text: `Track booking GOS-${trackingId}`, url: window.location.href }; if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(data.url) }
 
-  return (
-  <main className="gos-service-flow tracking-page relative min-h-screen max-w-full overflow-x-hidden bg-gos-off-white pb-28 text-gos-blue-deep lg:pb-8">
-      <header className="sticky top-0 z-50 border-b border-gos-border bg-white/95 px-3 py-2.5 text-gos-blue-deep backdrop-blur-xl sm:px-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gos-border bg-gos-off-white text-gos-blue-deep"
-            aria-label="Go back"
-          >
-            <ArrowLeft size={20} />
-          </button>
-
-          <div className="text-center">
-
-  <div className="flex items-center justify-center gap-2">
-
-    <span className="h-3 w-3 animate-pulse rounded-full bg-green-400"></span>
-
-    <p className="text-xs font-black uppercase tracking-[0.18em] text-green-300">
-      LIVE TRACKING
-    </p>
-
-  </div>
-
-  <h1 className="mt-1 text-lg font-black">
-    Booking #{booking?.id}
-  </h1>
-
-</div>
-
-          <button
-            onClick={() => loadTracking()}
-            disabled={loading}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gos-border bg-gos-off-white text-gos-blue-deep disabled:opacity-60"
-            aria-label="Refresh tracking"
-          >
-            <RefreshCcw size={18} className={loading ? "animate-spin" : ""} />
-          </button>
-        </div>
-      </header>
-
-      <section className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[1.25fr_0.75fr] lg:gap-5 lg:px-4 lg:py-5">
-        <div className="overflow-hidden border-y border-gos-border bg-white shadow-sm lg:rounded-2xl lg:border">
-        <div className="relative h-[52vh] min-h-[340px] max-h-[560px] lg:h-[calc(100vh-120px)] lg:max-h-none">
-           {isLoaded ? (
-  <>
-    <GoogleMap
-    onLoad={(map) => {
-      mapRef.current = map
-    }}
-    
-      mapContainerStyle={mapContainerStyle}
-      center={animatedTechnicianPosition || customerPosition}
-      zoom={15}
-      options={mapOptions}
-    >
-      {customerPosition && (
-        <Marker
-          position={customerPosition}
-          icon={customerHomeIcon()}
-        />
-      )}
-
-     {animatedTechnicianPosition && (
-  <OverlayView
-    position={animatedTechnicianPosition}
-    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-  >
-    <div className="relative">
-      <span className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-cyan-400/30" />
-
-      <img
-  src={gosVan}
-  alt="GOS"
-  style={{
-    width: "68px",
-    height: "68px",
-    transform: `translate(-50%, -50%) rotate(${booking?.technicianHeading || 0}deg)`,
-  }}
-/>
-    </div>
-  </OverlayView>
-)}
-
-      {directions && !isRemote && (
-        <DirectionsRenderer
-          directions={directions}
-          options={{
-            suppressMarkers: true,
-            polylineOptions: {
-              strokeColor: "#06b6d4",
-              strokeWeight: 6,
-              strokeOpacity: 0.95,
-            },
-          }}
-        />
-      )}
-    </GoogleMap>
-
-   <div className="absolute left-3 top-3 z-30 rounded-lg border border-white/10 bg-[#071122]/95 px-3 py-2 shadow-lg backdrop-blur-xl">
-  <div className="flex items-center gap-2">
-    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-cyan-400 text-black">
-      <Zap size={16} />
-    </div>
-
-    <div>
-      <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
-        {isRemote ? "Remote Ready" : journeyActive ? "Arriving In" : "Journey"}
-      </p>
-
-      <h3 className="text-base font-black">
-        {isRemote ? "Now" : displayedEta}
-      </h3>
-    </div>
-  </div>
-</div>
-
-<div className="hidden">
-  <p className="text-xs font-black text-black">
-  {
-    booking?.bookingStatus === "TECHNICIAN_ASSIGNED"
-      ? "👨‍🔧 Technician assigned"
-      : booking?.bookingStatus === "TECHNICIAN_ON_THE_WAY"
-      ? "🚗 Technician is on the way"
-      : booking?.bookingStatus === "TECHNICIAN_ARRIVED"
-      ? "📍 Technician has arrived"
-      : booking?.bookingStatus === "SERVICE_STARTED"
-      ? "🛠️ Service has started"
-      : booking?.bookingStatus === "SERVICE_COMPLETED"
-      ? "✅ Service completed"
-      : "📦 Booking confirmed"
-  }
-</p>
-</div>
-    
-    <div className="absolute bottom-3 left-3 right-3 z-30 max-w-fit rounded-lg border border-green-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur sm:bottom-4 sm:left-4 sm:right-auto">
-      <p className="text-xs font-bold text-green-800">{journeyStatusText}</p>
-    </div>
-
-    {/* Floating Actions */}
-
-    <div className="absolute right-3 top-3 z-30 flex flex-col gap-2">
-
-      <button
-        type="button"
-        onClick={callTechnician}
-        disabled={!technicianPhone}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-green-500 shadow-lg transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-slate-300"
-        aria-label="Call technician"
-      >
-        <Phone className="h-5 w-5 text-black" />
-      </button>
-
-      <button
-        onClick={messageTechnician}
-        disabled={!technicianPhone}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-400 shadow-lg transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-slate-300"
-        aria-label="Message technician"
-      >
-        <MessageCircle className="h-5 w-5 text-black" />
-      </button>
-
-      {!isRemote && (
-  <button
-    onClick={openGoogleNavigation}
-    className="min-h-10 rounded-lg bg-white px-2 text-xs font-black text-black"
-  >
-    Route
-  </button>
-)}
-
-    </div>
-
-  </>
-) : (
-              <div className="flex h-full items-center justify-center">
-                <p className="font-black text-cyan-300">Loading map...</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="relative z-30 -mt-5 space-y-3 rounded-t-2xl bg-gos-off-white px-3 pt-3 lg:mt-0 lg:rounded-none lg:bg-transparent lg:px-0 lg:pt-0">
-          <div className="rounded-xl border border-gos-border bg-white p-4 shadow-lg">
-
-  <div className="flex items-center gap-4">
-
-    <div className="relative">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/10 text-xl font-black text-cyan-300">
-        {booking?.technicianName?.charAt(0) || "T"}
+  if (loading && !booking) return <Loading />
+  return <main className="min-h-screen bg-gos-off-white pb-24 text-gos-blue-deep">
+    <header className="sticky top-0 z-50 border-b border-gos-border bg-white/95 px-4 py-3 backdrop-blur"><div className="mx-auto flex max-w-6xl items-center justify-between">
+      <button type="button" onClick={() => navigate(-1)} className="flex h-10 w-10 items-center justify-center rounded-full border border-gos-border bg-white" aria-label="Go back"><ArrowLeft size={19} /></button>
+      <div className="text-center"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-gos-turquoise">Onsite service</p><h1 className="text-base font-black">Track Technician</h1><p className="text-[10px] font-bold text-gos-muted">GOS-{booking?.id || trackingId}</p></div>
+      <button type="button" onClick={() => loadTracking()} disabled={loading} className="flex h-10 w-10 items-center justify-center rounded-full border border-gos-border bg-white disabled:opacity-50" aria-label="Refresh tracking"><RefreshCcw size={17} className={loading ? "animate-spin" : ""} /></button>
+    </div></header>
+    <div className="mx-auto grid max-w-6xl gap-4 p-3 sm:p-4 lg:grid-cols-[1.25fr_0.75fr]">
+      <section className="overflow-hidden rounded-2xl border border-gos-border bg-white shadow-sm"><div className="h-[46vh] min-h-80 max-h-[560px]">
+        {loadError ? <MapMessage text="Google Maps could not load." /> : !customerPosition ? <MapMessage text="The service location is not available yet." /> : isLoaded ? <GoogleMap onLoad={(map) => { mapRef.current = map }} mapContainerStyle={mapStyle} center={marker || customerPosition} zoom={marker ? 14 : 15} options={mapOptions}>
+          <Marker position={customerPosition} icon={customerIcon()} />
+          {marker && <OverlayView position={marker} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}><div className="relative -translate-x-1/2 -translate-y-1/2"><span className="absolute inset-1 animate-ping rounded-full bg-gos-turquoise/20" /><img src={gosVan} alt="GeekOnSites technician vehicle" className="relative h-11 w-11 object-contain drop-shadow-md" /></div></OverlayView>}
+          {directions && <DirectionsRenderer directions={directions} options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#0b9e9a", strokeWeight: 5, strokeOpacity: 0.9 } }} />}
+        </GoogleMap> : <MapMessage text="Loading map…" />}
+      </div><div className="grid grid-cols-2 border-t border-gos-border"><Metric icon={Clock3} label="Estimated arrival" value={journeyLive ? eta : "Journey not started"} /><Metric icon={Navigation} label="Distance" value={journeyLive ? distance : "Journey not started"} border /></div></section>
+      <div className="space-y-4">
+        {error && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">{error}</div>}
+        <section className="rounded-2xl border border-gos-border bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gos-turquoise">Current status</p><h2 className="mt-1 text-lg font-black">{action.label}</h2></div>{journeyLive && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700">LIVE</span>}</div>
+          <p className="mt-2 text-xs font-semibold text-gos-muted">Status updates come from your assigned technician. This page refreshes automatically.</p>
+          <div className="mt-4 flex items-center gap-3 rounded-xl bg-gos-off-white p-3"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-white font-black shadow-sm">{booking?.technicianName?.charAt(0) || "T"}</div><div className="min-w-0"><p className="truncate text-sm font-black">{booking?.technicianName || "Technician assignment in progress"}</p><p className="text-[11px] font-semibold text-gos-muted">{booking?.technicianName ? "Verified GeekOnSites professional" : "We’ll show details once assigned"}</p></div></div>
+          <div className="mt-3 grid grid-cols-3 gap-2"><Contact icon={Phone} label="Call" onClick={call} disabled={!technicianPhone} /><Contact icon={MessageCircle} label="Message" onClick={message} disabled={!technicianPhone} /><Contact icon={Share2} label="Share" onClick={share} /></div>
+        </section>
+        <section className="rounded-2xl border border-gos-border bg-white p-4 shadow-sm"><h2 className="text-sm font-black">Service progress</h2><div className="mt-3 space-y-1">{STEPS.map(([label, value], index) => <Step key={value} label={label} complete={statusIndex >= index} current={statusIndex === index} />)}</div>{lastUpdated && <p className="mt-3 border-t border-gos-border pt-3 text-[10px] font-semibold text-gos-muted">Last updated {formatLocalTime(lastUpdated, booking)}</p>}</section>
+        <div className="rounded-xl border border-gos-border bg-white p-3 text-xs font-semibold text-gos-muted"><MapPin size={15} className="mr-2 inline text-gos-turquoise" />Location and ETA appear only when real booking and technician coordinates are available.</div>
       </div>
-
-      <span className="absolute bottom-1 right-1 h-5 w-5 rounded-full border-2 border-[#071122] bg-green-400 animate-bounce"/>
     </div>
-
-    <div className="flex-1">
-
-      <p className="text-xs font-black tracking-[0.25em] text-cyan-300 uppercase">
-        TECHNICIAN
-      </p>
-
-      <h2 className="text-xl font-black">
-        {booking?.technicianName || "Assigning..."}
-      </h2>
-
-      <p className="mt-1 text-sm text-slate-400">
-  {booking?.technicianVerificationStatus === "APPROVED"
-    ? "Verified GeekOnSites Professional"
-    : "GeekOnSites Technician"}
-</p>
-
-<div className="mt-2 flex items-center gap-2">
-  ⭐{" "}
-  <span className="font-bold">
-    {booking?.technicianRating ?? "New"}
-  </span>
-
-  <span className="text-slate-500">•</span>
-
-  <span>
-    {booking?.technicianCompletedJobs ?? 0} Jobs
-  </span>
-</div>
-
-    </div>
-
-  </div>
-
-  <div className="mt-4 grid grid-cols-2 gap-2">
-
-    <Info
-      icon={Clock3}
-      label="ETA"
-      value={isRemote ? "Ready" : displayedEta}
-    />
-
-    <Info
-      icon={Navigation}
-      label="Distance"
-      value={isRemote ? "Remote" : displayedDistance}
-    />
-
-  </div>
-
-  <div className="mt-4 rounded-lg bg-cyan-500/10 p-3">
-
-    <p className="text-xs font-black tracking-[0.18em] uppercase text-cyan-300">
-      LIVE STATUS
-    </p>
-
-    <h3 className="mt-2 text-xl font-black">
-      {liveMessage}
-    </h3>
-
-    <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-
-      <div
-        className="h-full rounded-full bg-cyan-400 transition-all duration-700"
-        style={{
-          width: `${progressPercent}%`,
-        }}
-      />
-
-    </div>
-
-    <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-slate-400">
-
-  <span>Booked</span>
-
-  <span>Assigned</span>
-
-  <span>Accepted</span>
-
-  <span>Journey</span>
-
-  <span>Arrived</span>
-
-  <span>Service</span>
-
-  <span>Done</span>
-
-</div>
-
-  </div>
-
-  <div className="mt-4 grid grid-cols-4 gap-2">
-
-    <button
-      type="button"
-      onClick={callTechnician}
-      disabled={!technicianPhone}
-      className="flex min-h-10 items-center justify-center rounded-lg bg-green-500 px-1 text-xs font-black text-black disabled:bg-slate-200 disabled:text-slate-500"
-    >
-      Call
-    </button>
-
-    <button
-      type="button"
-      onClick={messageTechnician}
-      disabled={!technicianPhone}
-      className="min-h-10 rounded-lg bg-cyan-400 px-1 text-xs font-black text-black"
-    >
-      Chat
-    </button>
-
-    <button
-      onClick={shareTracking}
-      className="min-h-10 rounded-lg border border-gos-border px-1 text-xs font-black"
-    >
-      Share
-    </button>
-
-    <button
-      onClick={openGoogleNavigation}
-      className="min-h-10 rounded-lg border border-gos-border bg-white px-1 text-xs font-black text-gos-blue-deep"
-    >
-      Route
-    </button>
-
-  </div>
-
-</div>
-
-          <div className="rounded-xl border border-gos-border bg-white p-4">
-            <h3 className="text-lg font-black">Live Status</h3>
-
-            <div className="mt-4 space-y-3">
-              <Step active title="Booking Confirmed" />
-              <Step
-                active={[
-                  "PAYMENT_COMPLETED",
-                  "ASSIGNMENT_PENDING",
-                  "TECHNICIAN_ASSIGNED",
-                 "TECHNICIAN_ACCEPTED",
-                 "TECHNICIAN_ON_THE_WAY",
-                 "TECHNICIAN_ARRIVED",
-                 "SERVICE_STARTED",
-                 "REMOTE_SESSION_STARTED",
-                 "SERVICE_COMPLETED",
-                ].includes(booking?.bookingStatus)}
-                title="Payment Verified"
-              />
-              <Step
-                active={[
-                    "TECHNICIAN_ASSIGNED",
-                    "TECHNICIAN_ACCEPTED",
-                    "TECHNICIAN_ON_THE_WAY",
-                    "TECHNICIAN_ARRIVED",
-                    "SERVICE_STARTED",
-                    "REMOTE_SESSION_STARTED",
-                    "SERVICE_COMPLETED",
-                ].includes(booking?.bookingStatus)}
-                title="Technician Assigned"
-              />
-              <Step
-                active={[
-                   "TECHNICIAN_ACCEPTED",
-                   "TECHNICIAN_ON_THE_WAY",
-                   "TECHNICIAN_ARRIVED",
-                   "SERVICE_STARTED",
-                   "REMOTE_SESSION_STARTED",
-                   "SERVICE_COMPLETED",
-                ].includes(booking?.bookingStatus)}
-                title="Technician Accepted"
-              />
-              <Step
-                active={[
-                  "TECHNICIAN_ON_THE_WAY",
-                  "TECHNICIAN_ARRIVED",
-                  "SERVICE_STARTED",
-                  "REMOTE_SESSION_STARTED",
-                  "SERVICE_COMPLETED",
-                ].includes(booking?.bookingStatus)}
-                title={isRemote ? "Remote Session Ready" : "Technician On The Way"}
-              />
-              <Step
-                active={[
-                    "TECHNICIAN_ARRIVED",
-                    "SERVICE_STARTED",
-                    "REMOTE_SESSION_STARTED",
-                    "SERVICE_COMPLETED",
-                ].includes(booking?.bookingStatus)}
-                title="Technician Arrived"
-              />
-              <Step
-                active={[
-                  "SERVICE_STARTED",
-                  "REMOTE_SESSION_STARTED",
-                  "SERVICE_COMPLETED",
-                ].includes(booking?.bookingStatus)}
-                title="Service Started"
-              />
-              <Step
-                active={booking?.bookingStatus === "SERVICE_COMPLETED"}
-                title="Service Completed"
-              />
-            </div>
-
-            {lastUpdated && (
-              <p className="mt-4 text-xs text-slate-500">
-                Last updated: {formatLocalTime(lastUpdated, booking)}
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-cyan-500/10 bg-[#071122]/95 p-3 backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={() => navigate("/my-bookings")}
-            className="flex items-center justify-center gap-1 rounded-2xl border border-white/10 py-3 text-xs font-black"
-          >
-            <Home size={15} />
-            Bookings
-          </button>
-
-          <button
-            onClick={() => loadTracking()}
-            disabled={loading}
-            className="flex items-center justify-center gap-1 rounded-2xl border border-white/10 py-3 text-xs font-black"
-          >
-            <RefreshCcw size={15} className={loading ? "animate-spin" : ""} />
-            {loading ? "Updating" : "Refresh"}
-          </button>
-
-          <button
-            onClick={isRemote ? undefined : openGoogleNavigation}
-            className="flex items-center justify-center gap-1 rounded-2xl bg-cyan-400 py-3 text-xs font-black text-black"
-          >
-            <Navigation size={15} />
-            {isRemote ? "Remote" : "Route"}
-          </button>
-        </div>
-      </div>
-    </main>
-  )
+  </main>
 }
 
-function Info({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-lg border border-gos-border bg-gos-off-white p-3">
-      <Icon className="mb-2 h-5 w-5 text-cyan-300" />
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-black">{value}</p>
-    </div>
-  )
-}
-
-function Step({ active, title }) {
-  return (
-    <div className="flex items-center gap-3 border-b border-gos-border py-2.5 last:border-b-0">
-      <div
-        className={`flex h-6 w-6 items-center justify-center rounded-full ${
-          active ? "bg-green-400 text-black" : "bg-white/10 text-slate-500"
-        }`}
-      >
-        {active && <CheckCircle2 size={15} />}
-      </div>
-      <p className={active ? "font-black text-white" : "font-bold text-slate-500"}>
-        {title}
-      </p>
-    </div>
-  )
-}
+function Loading() { return <main className="min-h-screen bg-gos-off-white px-4 pb-10 pt-24"><div className="mx-auto max-w-md space-y-3"><p className="text-center text-sm font-extrabold text-gos-blue-deep">Loading onsite tracking…</p><SkeletonMapPanel /><SkeletonList count={2} /></div></main> }
+function MapMessage({ text }) { return <div className="flex h-full items-center justify-center bg-slate-100 p-6 text-center text-sm font-bold text-gos-muted">{text}</div> }
+function Metric({ icon: Icon, label, value, border }) { return <div className={`p-3 ${border ? "border-l border-gos-border" : ""}`}><p className="flex items-center gap-1.5 text-[10px] font-bold text-gos-muted"><Icon size={13} className="text-gos-turquoise" />{label}</p><p className="mt-1 text-sm font-black">{value}</p></div> }
+function Contact({ icon: Icon, label, onClick, disabled }) { return <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-gos-border bg-white text-[11px] font-extrabold text-gos-blue disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"><Icon size={14} />{label}</button> }
+function Step({ label, complete, current }) { return <div className={`flex items-center gap-3 rounded-lg px-2 py-2 ${current ? "bg-teal-50" : ""}`}><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${complete ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>{complete ? <CheckCircle2 size={14} /> : <span className="h-2 w-2 rounded-full bg-current" />}</span><p className={`text-xs ${current ? "font-black text-gos-blue-deep" : complete ? "font-bold text-slate-700" : "font-semibold text-slate-400"}`}>{label}</p></div> }
