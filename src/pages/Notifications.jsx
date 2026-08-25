@@ -5,6 +5,7 @@ import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import { getMyNotifications, markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { getMyBookings } from "../services/bookingService"
 import { formatLocalDateTime } from "../utils/dateTime"
+import { safeNotificationPath } from "../utils/notificationRoute"
 
 const eventStyle = (title = "") => {
   const value = title.toLowerCase()
@@ -114,7 +115,7 @@ export default function Notifications() {
       setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, isRead: true } : item))
       try { await markNotificationAsRead(notification.id) } catch { loadNotifications(true) }
     }
-    navigate(notification.actionUrl || "/customer-dashboard?view=bookings")
+    navigate(safeNotificationPath(notification.actionUrl || "/customer-dashboard?view=bookings", "CUSTOMER"))
   }
 
   const markAllRead = async () => {

@@ -14,6 +14,7 @@ import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { apiRequest } from "../services/api"
 import { formatLocalDateTime } from "../utils/dateTime"
+import { safeNotificationPath } from "../utils/notificationRoute"
 import { getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
 import RevenueChart from "../components/agent/RevenueChart"
 import BookingChart from "../components/agent/BookingChart"
@@ -235,9 +236,11 @@ const [modeFilter, setModeFilter] = useState("ALL")
   }
 
   const openAgentNotification = async (notification) => {
-    if (notification.isRead) return
     setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, isRead: true } : item))
-    try { await markNotificationAsRead(notification.id) } catch { loadAgentNotifications(true) }
+    if (!notification.isRead) {
+      try { await markNotificationAsRead(notification.id) } catch { loadAgentNotifications(true) }
+    }
+    navigate(safeNotificationPath(notification.actionUrl, "AGENT"))
   }
 
   const markAllAgentNotificationsRead = async () => {
@@ -984,17 +987,17 @@ const [modeFilter, setModeFilter] = useState("ALL")
         <button type="button" onClick={markAllAgentNotificationsRead} disabled={!unreadCount} className="min-h-10 rounded-md bg-cyan-400 px-3 text-xs font-black text-black disabled:opacity-40">Mark all read</button>
       </div>
     </div>
-    <div className="space-y-4">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1628]">
       {notifications.length ? (
         notifications.map((notification) => (
           <button
             type="button"
             onClick={() => openAgentNotification(notification)}
             key={notification.id}
-            className={`flex w-full gap-4 rounded-2xl border p-5 text-left ${
+            className={`flex w-full gap-4 border-b border-white/10 p-4 text-left transition last:border-b-0 hover:bg-white/[0.03] ${
               notification.isRead
-                ? "border-white/10 bg-[#0b1628]"
-                : "border-cyan-500/30 bg-cyan-500/5"
+                ? "bg-transparent"
+                : "bg-cyan-500/[0.06]"
             }`}
           >
             <div className="relative shrink-0">

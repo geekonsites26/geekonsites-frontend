@@ -80,6 +80,7 @@ export default function Navbar() {
     : profile.role === "Agent"
       ? "/agent-dashboard?view=notifications"
       : "/notifications"
+  const hasProfileRoute = profile.role === "Customer" || profile.role === "Technician"
 
   return (
     <>
@@ -94,7 +95,7 @@ export default function Navbar() {
         </div>
       )}
 
-      <motion.header style={{ paddingTop: "env(safe-area-inset-top)" }} animate={{ boxShadow: scrolled ? "0 12px 30px rgba(3,13,29,0.12)" : "0 2px 0 rgba(3,13,29,0.03)" }} transition={{ duration: 0.25 }} className={`fixed inset-x-0 top-0 z-50 border-b bg-white text-gos-blue-deep transition duration-300 ${scrolled ? "border-gos-border bg-white/95 backdrop-blur-xl" : "border-gos-border"}`}>
+      <motion.header style={{ paddingTop: "env(safe-area-inset-top)" }} animate={{ boxShadow: scrolled ? "0 12px 30px rgba(3,13,29,0.12)" : "0 2px 0 rgba(3,13,29,0.03)" }} transition={{ duration: 0.25 }} className={`gos-site-header fixed inset-x-0 top-0 z-50 border-b bg-white text-gos-blue-deep transition duration-300 ${scrolled ? "border-gos-border bg-white/95 backdrop-blur-xl" : "border-gos-border"}`}>
         <Container>
           <div className="flex h-14 items-center justify-between gap-2.5 sm:h-16 sm:gap-3">
             <Link to="/" onClick={closeMenus} aria-label="GeekOnSites home" className="flex min-w-0 shrink items-center">
@@ -117,7 +118,7 @@ export default function Navbar() {
               </div>
               <div className="relative">
                 <button type="button" onClick={() => { setProfileOpen(!profileOpen); setPortalOpen(false) }} className="flex h-9 w-9 items-center justify-center rounded-md border border-gos-border bg-gos-off-white text-gos-blue transition hover:border-gos-turquoise hover:bg-white" aria-label="Account menu">{profile.loggedIn ? <span className="text-xs font-extrabold">{profile.name.charAt(0).toUpperCase()}</span> : <User size={16} />}</button>
-                {profileOpen && <div className="absolute right-0 top-full mt-2 w-44 rounded-md border border-gos-border bg-white p-1.5 shadow-[var(--gos-shadow-md)] sm:w-48">{profile.loggedIn ? <><div className="border-b border-gos-border px-2.5 py-2"><p className="truncate text-xs font-extrabold text-gos-blue-deep">{profile.name}</p><p className="mt-0.5 text-[10px] font-semibold text-gos-muted">{profile.role}</p></div><MenuLink to={profile.dashboardPath} icon={LayoutDashboard} onClick={closeMenus}>Dashboard</MenuLink><MenuLink to="/profile" icon={User} onClick={closeMenus}>Profile</MenuLink>{profile.role === "Customer" && <MenuLink to="/customer-dashboard?view=bookings" icon={Calendar} onClick={closeMenus}>My bookings</MenuLink>}<button onClick={logout} className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-bold text-red-700 hover:bg-red-50"><LogOut size={15} /> Log out</button></> : <><p className="px-2.5 pb-1 pt-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-gos-muted">Account</p><MenuLink to="/customer-login" icon={Shield} onClick={closeMenus}>Log in</MenuLink><MenuLink to="/customer-register" icon={User} onClick={closeMenus}>Register</MenuLink></>}</div>}
+                {profileOpen && <div className="absolute right-0 top-full mt-2 w-44 rounded-md border border-gos-border bg-white p-1.5 shadow-[var(--gos-shadow-md)] sm:w-48">{profile.loggedIn ? <><div className="border-b border-gos-border px-2.5 py-2"><p className="truncate text-xs font-extrabold text-gos-blue-deep">{profile.name}</p><p className="mt-0.5 text-[10px] font-semibold text-gos-muted">{profile.role}</p></div><MenuLink to={profile.dashboardPath} icon={LayoutDashboard} onClick={closeMenus}>Dashboard</MenuLink>{hasProfileRoute && <MenuLink to="/profile" icon={User} onClick={closeMenus}>Profile</MenuLink>}{profile.role === "Customer" && <MenuLink to="/customer-dashboard?view=bookings" icon={Calendar} onClick={closeMenus}>My bookings</MenuLink>}<button onClick={logout} className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-bold text-red-700 hover:bg-red-50"><LogOut size={15} /> Log out</button></> : <><p className="px-2.5 pb-1 pt-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-gos-muted">Account</p><MenuLink to="/customer-login" icon={Shield} onClick={closeMenus}>Log in</MenuLink><MenuLink to="/customer-register" icon={User} onClick={closeMenus}>Register</MenuLink></>}</div>}
               </div>
               <div className="hidden md:block"><Button to="/book-service" className="min-h-9 px-3.5 py-1.5 text-[11px]">Book a Service</Button></div>
               <button type="button" onClick={() => setMobileOpen(!mobileOpen)} className="flex h-9 w-9 items-center justify-center rounded-md text-gos-blue transition hover:bg-gos-off-white lg:hidden" aria-label="Toggle navigation" aria-expanded={mobileOpen}>{mobileOpen ? <X size={20} /> : <Menu size={20} />}</button>
@@ -155,7 +156,7 @@ export default function Navbar() {
                     <p className="mb-2 mt-4 text-[9px] font-extrabold uppercase tracking-[0.14em] text-gos-muted">Your account</p>
                     <div className="overflow-hidden rounded-md border border-gos-border bg-white">
                       <Link to={profile.dashboardPath} onClick={closeMenus} className="flex min-h-10 items-center gap-2 border-b border-gos-border px-3 text-xs font-extrabold text-gos-blue-deep"><LayoutDashboard size={15} className="text-gos-turquoise" /> Dashboard</Link>
-                      <Link to="/profile" onClick={closeMenus} className="flex min-h-10 items-center gap-2 border-b border-gos-border px-3 text-xs font-extrabold text-gos-blue-deep"><User size={15} className="text-gos-turquoise" /> Profile</Link>
+                      {hasProfileRoute && <Link to="/profile" onClick={closeMenus} className="flex min-h-10 items-center gap-2 border-b border-gos-border px-3 text-xs font-extrabold text-gos-blue-deep"><User size={15} className="text-gos-turquoise" /> Profile</Link>}
                       <button type="button" onClick={logout} className="flex min-h-10 w-full items-center gap-2 px-3 text-xs font-extrabold text-red-700"><LogOut size={15} /> Log out</button>
                     </div>
                   </> : <>

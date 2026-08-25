@@ -3,6 +3,7 @@ import { loginUser, registerUser } from "../services/authService"
 import { clearAuth, getToken, getUser, setToken, setUser } from "../services/api"
 import { getLocation, setLocation } from "../utils/location"
 import { unregisterPushDevice } from "../services/notificationService"
+import { stopNativeTechnicianTracking } from "../services/technicianTrackingService"
 
 const CustomerAuthContext = createContext(null)
 
@@ -21,8 +22,11 @@ export function CustomerAuthProvider({ children }) {
     const savedUser = getUser()
 
     if (savedToken && savedUser) {
+      const restoredRole = String(savedUser.role || "").toUpperCase()
       setAuthToken(savedToken)
       setCustomer(savedUser)
+      if (restoredRole) localStorage.setItem("gos_role", restoredRole)
+      if (savedUser.id) localStorage.setItem("gos_user_id", String(savedUser.id))
     }
 
     setAuthReady(true)
@@ -125,6 +129,7 @@ export function CustomerAuthProvider({ children }) {
   }
 
   const logoutCustomer = () => {
+    stopNativeTechnicianTracking().catch(() => undefined)
     const pushToken = localStorage.getItem("gos_push_token")
     if (pushToken) {
       unregisterPushDevice(pushToken).catch(() => undefined)

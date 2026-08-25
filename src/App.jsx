@@ -13,6 +13,7 @@ import PushNotificationInitializer from "./components/PushNotificationInitialize
 import Home from "./pages/Home"
 import About from "./pages/About"
 import Contact from "./pages/Contact"
+import PortalChooser from "./pages/PortalChooser"
 import PrivacyPolicy from "./pages/PrivacyPolicy"
 import TermsConditions from "./pages/TermsConditions"
 import RefundPolicy from "./pages/RefundPolicy"
@@ -48,9 +49,10 @@ import AgentDashboard from "./pages/AgentDashboard"
 
 import AdminLogin from "./pages/AdminLogin"
 import AdminDashboard from "./pages/AdminDashboard"
-import AdminProtectedRoute from "./components/auth/AdminProtectedRoute"
+import DashboardLoader from "./components/ui/DashboardLoader"
 
 import { useCustomerAuth } from "./context/CustomerAuthContext"
+import { Capacitor } from "@capacitor/core"
 
 const shouldShowLaunchSplash = () => {
   try {
@@ -64,11 +66,7 @@ function ProtectedRoute({ children, allowedRoles, redirectTo = "/customer-login"
   const { user, token, authReady } = useCustomerAuth()
 
   if (!authReady) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#020817] text-white">
-        Loading...
-      </div>
-    )
+    return <DashboardLoader />
   }
 
   if (!token || !user) {
@@ -86,8 +84,11 @@ function ProtectedRoute({ children, allowedRoles, redirectTo = "/customer-login"
 
 function AppContent() {
   const location = useLocation()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
+  const nativeHome = location.pathname === "/" && nativeAndroid
 
   const hideLayout =
+    nativeHome ||
     [
       "/customer-login",
       "/customer-register",
@@ -104,13 +105,14 @@ function AppContent() {
       "/admin-login",
       "/admin-dashboard",
       "/remaining-payment",
+      "/portal",
     ].includes(location.pathname) ||
     location.pathname.startsWith("/track-technician") ||
     location.pathname.startsWith("/invoice")
 
   return (
-    <div className={`${hideLayout ? "" : "gos-app-shell "}min-h-screen overflow-x-hidden bg-gos-off-white text-gos-charcoal`}>
-      {!hideLayout && <Navbar />}
+    <div className={`${hideLayout ? "" : "gos-app-shell "}gos-app-root min-h-screen overflow-x-hidden bg-gos-off-white text-gos-charcoal`}>
+      {!hideLayout && !nativeAndroid && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -118,6 +120,7 @@ function AppContent() {
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/support" element={<Contact />} />
+        <Route path="/portal" element={<PortalChooser />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsConditions />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
@@ -215,9 +218,9 @@ function AppContent() {
         <Route
           path="/admin-dashboard"
           element={
-            <AdminProtectedRoute>
+            <ProtectedRoute allowedRoles={["ADMIN"]} redirectTo="/admin-login">
               <AdminDashboard />
-            </AdminProtectedRoute>
+            </ProtectedRoute>
           }
         />
 
@@ -251,7 +254,7 @@ function AppContent() {
       </Routes>
 
       {!hideLayout && <MobileBottomNav />}
-      {!hideLayout && <Footer />}
+      {!hideLayout && !nativeAndroid && <Footer />}
     </div>
   )
 }

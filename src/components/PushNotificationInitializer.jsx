@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core"
 import { PushNotifications } from "@capacitor/push-notifications"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { registerPushDevice } from "../services/notificationService"
+import { safeNotificationPath } from "../utils/notificationRoute"
 
 export default function PushNotificationInitializer() {
   const navigate = useNavigate()
@@ -37,8 +38,7 @@ export default function PushNotificationInitializer() {
       })
 
       await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
-        const target = notification?.data?.actionUrl || (role === "TECHNICIAN" ? "/technician-dashboard?view=notifications" : role === "AGENT" ? "/agent-dashboard?view=notifications" : "/notifications")
-        navigate(target)
+        navigate(safeNotificationPath(notification?.data?.actionUrl, role))
       })
 
       let permission = await PushNotifications.checkPermissions()

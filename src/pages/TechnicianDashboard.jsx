@@ -25,6 +25,7 @@ import { hasNativeTechnicianTracking } from "../services/technicianTrackingServi
 import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { apiRequest } from "../services/api"
 import { formatLocalDateTime } from "../utils/dateTime"
+import { safeNotificationPath } from "../utils/notificationRoute"
 import {
   Activity,
   Bell,
@@ -226,8 +227,11 @@ export default function TechnicianDashboard() {
   }
 
   const readNotification = async (notification) => {
-    if (!notification.read) await markNotificationAsRead(notification.id)
     setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, read: true } : item))
+    if (!notification.read) {
+      try { await markNotificationAsRead(notification.id) } catch { loadTechnicianNotifications() }
+    }
+    navigate(safeNotificationPath(notification.actionUrl, "TECHNICIAN"))
   }
 
   const readAllNotifications = async () => {
@@ -927,13 +931,14 @@ const saveMeetingLink = async (job) => {
       </div>
 
       {notifications.length ? (
-        <div className="space-y-4">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1628]">
           {notifications.map((notification) => (
             <button type="button" onClick={() => readNotification(notification)}
               key={notification.id}
-              className={`flex w-full gap-4 rounded-2xl border p-5 text-left ${notification.read ? "border-white/10 bg-[#0b1628]" : "border-cyan-400/35 bg-cyan-400/10"}`}
+              className={`relative flex w-full gap-4 border-b border-white/10 p-4 text-left transition last:border-b-0 hover:bg-white/[0.03] ${notification.read ? "bg-transparent" : "bg-cyan-400/[0.06]"}`}
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10">
+              {!notification.read && <span className="absolute left-0 top-0 h-full w-0.5 bg-cyan-400" />}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-500/10">
                 <Bell className="h-5 w-5 text-cyan-300" />
               </div>
 

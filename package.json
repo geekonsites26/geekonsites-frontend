@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test:timezone": "node --test scripts/dateTime.test.mjs",
+    "test:session": "node --test scripts/session-notifications.test.mjs",
     "validate:home": "node scripts/validate-home-responsive.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build && cap sync android",

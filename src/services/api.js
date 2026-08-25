@@ -1,4 +1,4 @@
-const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "")
+const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || "")
   .trim()
   .replace(/\/+$/, "")
   .replace(/\/api$/, "")
@@ -11,7 +11,13 @@ export const setToken = (token) => {
 }
 
 export const setUser = (user) => {
-  if (user) localStorage.setItem("gos_user", JSON.stringify(user))
+  if (user) {
+    const safeUser = { ...user }
+    delete safeUser.password
+    delete safeUser.currentPassword
+    delete safeUser.newPassword
+    localStorage.setItem("gos_user", JSON.stringify(safeUser))
+  }
 }
 
 export const getUser = () => {
