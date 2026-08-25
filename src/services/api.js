@@ -6,6 +6,15 @@ const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || "")
 
 export const getToken = () => localStorage.getItem("gos_token")
 
+export const API_TIMEOUTS = Object.freeze({
+  NORMAL: 30000,
+  OPTIONAL: 20000,
+  TRACKING: 25000,
+  CRITICAL: 60000,
+})
+
+export const isTimeoutError = (error) => error?.code === "TIMEOUT"
+
 export const getTokenRole = (token = getToken()) => {
   try {
     const payload = JSON.parse(atob(String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/")))
@@ -79,11 +88,19 @@ export const establishAuthSession = (token, user) => {
 
 export async function apiRequest(endpoint, options = {}) {
   const token = getToken()
-  const { timeoutMs = 20000, ...fetchOptions } = options
-  const timeoutController = fetchOptions.signal ? null : new AbortController()
-  const timeoutId = timeoutController
-    ? window.setTimeout(() => timeoutController.abort(), timeoutMs)
-    : null
+  const { timeoutMs = API_TIMEOUTS.NORMAL, ...fetchOptions } = options
+  const externalSignal = fetchOptions.signal
+  const timeoutController = new AbortController()
+  let timedOut = false
+  const forwardAbort = () => timeoutController.abort(externalSignal?.reason)
+  if (externalSignal) {
+    if (externalSignal.aborted) forwardAbort()
+    else externalSignal.addEventListener("abort", forwardAbort, { once: true })
+  }
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true
+    timeoutController.abort(new DOMException("Request timeout", "TimeoutError"))
+  }, timeoutMs)
 
   const headers = {
     "Content-Type": "application/json",
@@ -98,16 +115,17 @@ export async function apiRequest(endpoint, options = {}) {
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...fetchOptions,
-      signal: fetchOptions.signal || timeoutController.signal,
+      signal: timeoutController.signal,
       headers,
     })
   } catch (error) {
-    if (error?.name === "AbortError") {
+    if (timedOut || error?.name === "AbortError") {
       throw Object.assign(new Error("The request is taking longer than expected. Please try again."), { code: "TIMEOUT", cause: error })
     }
     throw Object.assign(new Error("We’re having trouble connecting right now. Please try again shortly."), { code: "NETWORK_ERROR", cause: error })
   } finally {
-    if (timeoutId) window.clearTimeout(timeoutId)
+    window.clearTimeout(timeoutId)
+    externalSignal?.removeEventListener?.("abort", forwardAbort)
   }
 
   const contentType = response.headers.get("content-type")

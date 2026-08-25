@@ -16,7 +16,6 @@ import {
   technicianOnTheWay,
   markTechnicianArrived,
   startTechnicianService,
-  startTechnicianRemoteSession,
   saveRemoteMeetingLink,
   completeTechnicianService,
 } from "../services/technicianService"
@@ -81,7 +80,7 @@ const statusToLabel = {
   SERVICE_STARTED: "Service Started",
   REMOTE_SESSION_STARTED: "Service Started",
   SERVICE_COMPLETED: "Completed",
-  REMAINING_PAYMENT_PENDING: "Completed",
+  REMAINING_PAYMENT_PENDING: "Awaiting Customer Payment",
   INVOICE_GENERATED: "Completed",
   FULLY_PAID: "Completed",
   BOOKING_CLOSED: "Completed",
@@ -171,7 +170,6 @@ export default function TechnicianDashboard() {
   const [loading, setLoading] = useState(true)
   const [activeTrackingJobId, setActiveTrackingJobId] = useState(null)
   const [journeyDisclosureJob, setJourneyDisclosureJob] = useState(null)
-  const [startingRemote, setStartingRemote] = useState(false)
   const [meetingLink, setMeetingLink] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [notificationsMuted, setNotificationsMuted] = useState(() => localStorage.getItem("gos_technician_notifications_muted") === "true")
@@ -377,6 +375,7 @@ export default function TechnicianDashboard() {
 
   const openTab = (tab) => {
     setActiveTab(tab)
+    setSearchTerm("")
     setMobileMenu(false)
 
     setTimeout(() => {
@@ -410,7 +409,7 @@ export default function TechnicianDashboard() {
   })
 
   const openRemoteSession = (job) => {
-    navigate("/remote-session", {
+    navigate(`/remote-session?bookingId=${encodeURIComponent(job.bookingId)}`, {
       state: {
         booking: buildBookingState(job),
         technician: technicianState,
@@ -519,32 +518,8 @@ export default function TechnicianDashboard() {
   }
 
   const handleStartRemoteSession = async (job) => {
-  try {
-    if (!job.remoteMeetingLink) {
-      openRemoteSession(job)
-      return
-    }
-    const updatedBooking = await startTechnicianRemoteSession(
-      job.bookingId,
-      job.remoteMeetingLink
-    )
-
-    await refreshJobs()
-
-    openRemoteSession({
-      ...job,
-      raw: updatedBooking,
-      remoteMeetingLink:
-        updatedBooking.remoteSessionLink || job.remoteMeetingLink,
-      bookingStatus: updatedBooking.bookingStatus,
-    })
-
-    showPopup("Remote session started.")
-  } catch (error) {
-    console.error(error)
-    alert(error.message || "Failed to start remote session.")
+    openRemoteSession(job)
   }
-}
 
 const saveMeetingLink = async (job) => {
   if (!meetingLink.trim()) {
@@ -1173,12 +1148,12 @@ const saveMeetingLink = async (job) => {
     return <div className="mx-auto max-w-5xl space-y-4 text-slate-900">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold text-slate-500">{greeting}</p><h1 className="truncate text-xl font-black text-[#071d3d]">{firstName}</h1><p className="mt-1 text-[10px] font-extrabold uppercase tracking-wider text-cyan-700">{serviceModeLabel}</p></div><button type="button" onClick={() => openTab("Notifications")} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-700" aria-label={`Updates, ${unreadNotificationCount} unread`}><Bell size={18} />{unreadNotificationCount > 0 && <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white">{unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}</span>}</button></div>
-        <div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-black text-[#071d3d]">Availability</p><p aria-live="polite" className="text-[10px] font-bold text-slate-500">{availabilitySaving ? "Saving…" : `${availability} · synced`}</p></div><div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1" aria-label="Technician availability">{["Available", "Busy", "Offline"].map((item) => <button key={item} type="button" disabled={availabilitySaving} aria-pressed={availability === item} onClick={() => changeAvailability(item)} className={`min-h-11 rounded-lg px-1 text-xs font-black transition disabled:opacity-60 ${availability === item ? item === "Available" ? "bg-emerald-600 text-white shadow-sm" : item === "Busy" ? "bg-amber-500 text-white shadow-sm" : "bg-slate-700 text-white shadow-sm" : "text-slate-600"}`}>{item}</button>)}</div><p className="mt-2 text-[10px] leading-4 text-slate-500">Only Available technicians can be selected by an agent for a new assignment.</p></div>
+        <div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-black text-[#071d3d]">Availability</p><p aria-live="polite" className="text-[10px] font-bold text-slate-500">{availabilitySaving ? "Saving…" : `${availability} · synced`}</p></div><div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1" aria-label="Technician availability">{["Available", "Busy", "Offline"].map((item) => <button key={item} type="button" disabled={availabilitySaving} aria-pressed={availability === item} onClick={() => changeAvailability(item)} className={`min-h-10 rounded-lg border px-1 text-xs font-black transition disabled:opacity-60 ${availability === item ? item === "Available" ? "border-emerald-600 bg-emerald-600 text-white shadow-sm" : item === "Busy" ? "border-amber-500 bg-amber-500 text-white shadow-sm" : "border-slate-400 bg-slate-200 text-slate-800 shadow-sm" : "border-transparent bg-white text-slate-600"}`}>{item}</button>)}</div><p className="mt-2 text-[10px] leading-4 text-slate-500">Only Available technicians can be selected by an agent for a new assignment.</p></div>
       </section>
       <section className="grid grid-cols-2 gap-2" aria-label="Work summary">{[["Assigned", jobs.filter((job) => classifyTechnicianBooking(job) === "jobs").length, BriefcaseBusiness], ["Active", activeCount, Activity], ["Completed", jobs.filter((job) => classifyTechnicianBooking(job) === "completed").length, CheckCircle2], ["Unread", unreadNotificationCount, Bell]].map(([label, value, Icon]) => <button type="button" onClick={() => openTab(label === "Unread" ? "Notifications" : label === "Active" ? "Active Work" : label === "Completed" ? "Completed Jobs" : "Assigned Jobs")} key={label} className="flex min-h-20 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700"><Icon size={17} /></span><span><strong className="block text-xl leading-none text-[#071d3d]">{value}</strong><span className="mt-1 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">{label}</span></span></button>)}</section>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between"><h2 className="text-sm font-black text-[#071d3d]">{currentJob?.status === "New" ? "Next job" : "Current job"}</h2>{currentJob && <span className="rounded-full bg-cyan-50 px-2 py-1 text-[9px] font-black uppercase text-cyan-700">{currentJob.supportType === "remote" ? "Remote" : "On-site"}</span>}</div>
-        {currentJob ? <div className="mt-3"><p className="text-[10px] font-black uppercase tracking-wide text-slate-500">GOS-{currentJob.bookingId} · {currentJob.status}</p><h3 className="mt-1 break-words text-base font-black text-[#071d3d]">{currentJob.serviceType}</h3><p className="mt-1 break-words text-xs text-slate-600">{currentJob.schedule}</p>{currentJob.supportType === "onsite" && <p className="mt-1 flex items-start gap-1 break-words text-xs text-slate-600"><MapPin size={13} className="mt-0.5 shrink-0" />{currentJob.location}</p>}<div className="mt-4 grid grid-cols-2 gap-2">{currentJob.status === "New" ? <><button type="button" onClick={() => handleRejectJob(currentJob)} className="min-h-11 rounded-xl border border-red-200 text-xs font-black text-red-700">Reject</button><button type="button" onClick={() => handleAcceptJob(currentJob)} className="min-h-11 rounded-xl bg-[#071d3d] text-xs font-black text-white">Accept</button></> : currentJob.supportType === "remote" ? <button type="button" onClick={() => handleStartRemoteSession(currentJob)} className="col-span-2 min-h-11 rounded-xl bg-cyan-600 text-xs font-black text-white">Open remote session</button> : <button type="button" onClick={() => currentJob.bookingStatus === "TECHNICIAN_ACCEPTED" ? handleStartJourney(currentJob) : openTab("Active Work")} className="col-span-2 min-h-11 rounded-xl bg-cyan-600 text-xs font-black text-white">{currentJob.bookingStatus === "TECHNICIAN_ACCEPTED" ? "On the way" : "Open active job"}</button>}</div></div> : <div className="py-7 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={28} /><p className="mt-2 text-sm font-black text-[#071d3d]">You’re all caught up</p><p className="mt-1 text-xs text-slate-500">New assigned jobs will appear here.</p></div>}
+        {currentJob ? <div className="mt-3"><p className="text-[10px] font-black uppercase tracking-wide text-slate-500">GOS-{currentJob.bookingId} · {currentJob.status}</p><h3 className="mt-1 break-words text-base font-black text-[#071d3d]">{currentJob.serviceType}</h3><p className="mt-1 break-words text-xs text-slate-600">{currentJob.schedule}</p>{currentJob.supportType === "onsite" && <p className="mt-1 flex items-start gap-1 break-words text-xs text-slate-600"><MapPin size={13} className="mt-0.5 shrink-0" />{currentJob.location}</p>}<div className="mt-4 grid grid-cols-2 gap-2">{currentJob.status === "New" ? <><button type="button" onClick={() => handleRejectJob(currentJob)} className="min-h-10 rounded-lg bg-red-600 px-3 text-xs font-black text-white disabled:bg-red-300">Reject</button><button type="button" onClick={() => handleAcceptJob(currentJob)} className="min-h-10 rounded-lg bg-emerald-600 px-3 text-xs font-black text-white disabled:bg-emerald-300">Accept Service</button></> : currentJob.supportType === "remote" ? <button type="button" onClick={() => handleStartRemoteSession(currentJob)} className="col-span-2 min-h-10 rounded-lg bg-emerald-600 px-4 text-xs font-black text-white">Open remote session</button> : <button type="button" onClick={() => currentJob.bookingStatus === "TECHNICIAN_ACCEPTED" ? handleStartJourney(currentJob) : openTab("Active Work")} className="col-span-2 min-h-11 rounded-xl bg-cyan-600 text-xs font-black text-white">{currentJob.bookingStatus === "TECHNICIAN_ACCEPTED" ? "On the way" : "Open active job"}</button>}</div></div> : <div className="py-7 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={28} /><p className="mt-2 text-sm font-black text-[#071d3d]">You’re all caught up</p><p className="mt-1 text-xs text-slate-500">New assigned jobs will appear here.</p></div>}
       </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-sm font-black text-[#071d3d]">Quick actions</h2><div className="mt-3 grid grid-cols-4 gap-2">{[["Jobs", BriefcaseBusiness, "Assigned Jobs"], ["Active", Navigation, "Active Work"], ["Updates", Bell, "Notifications"], ["Profile", User, "Profile"]].map(([label, Icon, tab]) => <button key={label} type="button" onClick={() => openTab(tab)} className="min-w-0 rounded-xl bg-slate-50 px-1 py-3 text-center text-[10px] font-black text-[#071d3d]"><span className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-cyan-700 shadow-sm"><Icon size={16} /></span>{label}</button>)}</div></section>
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-sm font-black text-[#071d3d]">Recent updates</h2><button type="button" onClick={() => openTab("Notifications")} className="text-xs font-black text-cyan-700">View all</button></div>{notifications.slice(0, 3).map((notification) => <button key={notification.id} type="button" onClick={() => readNotification(notification)} className={`relative flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 ${notification.isRead ? "bg-white" : "bg-cyan-50"}`}>{!notification.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-600" />}<span className="min-w-0 flex-1"><strong className="block truncate text-xs font-black text-[#071d3d]">{notification.title || "Job update"}</strong><span className="mt-0.5 block truncate text-[11px] text-slate-500">{notification.message || "Your work queue has been updated."}</span></span><ArrowRight size={14} className="shrink-0 text-slate-400" /></button>)}{!notifications.length && <div className="px-4 py-7 text-center text-xs font-semibold text-slate-500">No recent updates. New booking activity will appear here.</div>}</section>
@@ -1650,6 +1625,12 @@ function JobCard({
           {job.issueDescription}
         </p>
 
+        {job.bookingStatus === "REMAINING_PAYMENT_PENDING" && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+            Service work is finished. Waiting for the customer to pay the remaining balance before this booking is marked completed.
+          </div>
+        )}
+
         {!isRemote && (
           <div className="grid gap-3 md:grid-cols-4">
             <TrackingMini label="ETA" value={job.etaMinutes ? `${job.etaMinutes} min` : "N/A"} />
@@ -1682,12 +1663,12 @@ function JobCard({
                 onClick={onAccept}
                 className="min-h-10 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700"
               >
-                Accept Job
+                Accept Service
               </button>
 
               <button
                 onClick={onReject}
-                className="min-h-10 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-black text-red-700 hover:bg-red-100"
+                className="min-h-10 rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white hover:bg-red-700 disabled:bg-red-300"
               >
                 Reject
               </button>

@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { createStripeCheckoutSession } from "../services/paymentService"
+import { getBookingById } from "../services/bookingService"
+import { isTimeoutError } from "../services/api"
+import { checkoutAttemptKey } from "../utils/requestRecovery"
 import { getLocation } from "../utils/location"
 import {
   ArrowRight,
@@ -140,11 +143,22 @@ const paymentType = remainingPayment
     try {
       setLoading(true)
 
-    const paymentMode = remainingPayment
+const paymentMode = remainingPayment
   ? "REMAINING"
   : isRemote
     ? "FULL"
     : "ADVANCE"
+
+const attemptKey = checkoutAttemptKey(booking.id, paymentMode)
+if (sessionStorage.getItem("gos_pending_checkout") === attemptKey) {
+  const authoritativeBooking = await getBookingById(booking.id)
+  sessionStorage.removeItem("gos_pending_checkout")
+  if (["PAID", "PARTIALLY_PAID", "BALANCE_PENDING"].includes(authoritativeBooking?.paymentStatus)) {
+    localStorage.setItem("currentBooking", JSON.stringify(authoritativeBooking))
+    navigate("/customer-dashboard", { replace: true })
+    return
+  }
+}
 
 const session = await createStripeCheckoutSession(
   booking.id,
@@ -156,7 +170,11 @@ window.location.href = session.checkoutUrl
 
     } catch (error) {
       console.error(error)
-      alert("Payment failed. Please try again.")
+      if (isTimeoutError(error)) {
+        const paymentMode = remainingPayment ? "REMAINING" : isRemote ? "FULL" : "ADVANCE"
+        sessionStorage.setItem("gos_pending_checkout", checkoutAttemptKey(booking.id, paymentMode))
+      }
+      alert(error?.message || "Payment failed. Please try again.")
     } finally {
       setLoading(false)
     }

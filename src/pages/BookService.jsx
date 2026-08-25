@@ -1,9 +1,11 @@
-import { createBooking } from "../services/bookingService"
+import { createBooking, getMyBookings } from "../services/bookingService"
+import { isTimeoutError } from "../services/api"
+import { bookingAttemptKey, findBookingCreatedByAttempt } from "../utils/requestRecovery"
 import { useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useLocation, useNavigate } from "react-router-dom"
 import { getLocation } from "../utils/location"
-import { getBrowserLocation, isMateriallyDifferentOrBetterLocation, isSupportedCountry, reverseGeocodeAddress } from "../services/locationService"
+import { geocodeServiceAddress, getBrowserLocation, isMateriallyDifferentOrBetterLocation, isSupportedCountry, reverseGeocodeAddress } from "../services/locationService"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import { friendlyApiError } from "../utils/apiError"
 import {
@@ -442,7 +444,7 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
   const error = validateStep()
   if (error) return alert(error)
 
-  const cleanAddress = [houseAddress, streetAddress]
+    const cleanAddress = [houseAddress, streetAddress]
     .map((i) => i.trim())
     .filter(Boolean)
     .join(", ")
@@ -450,6 +452,15 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
   try {
     setLoading(true)
     setSubmitError("")
+
+    let resolvedCoordinates = customerCoordinates
+    if (supportMode === "Onsite" && (!Number.isFinite(resolvedCoordinates.latitude) || !Number.isFinite(resolvedCoordinates.longitude))) {
+      resolvedCoordinates = await geocodeServiceAddress(
+        [cleanAddress, city.trim(), stateRegion.trim(), postalCode.trim(), country].filter(Boolean).join(", "),
+        country,
+      )
+      setCustomerCoordinates(resolvedCoordinates)
+    }
 
     const bookingPayload = {
       customerName: customerName.trim(),
@@ -473,8 +484,8 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
       baseAmount: Number(baseAmount.toFixed(2)),
       paymentAmount: Number(totalAmount.toFixed(2)),
       currency,
-      customerLatitude: supportMode === "Onsite" ? customerCoordinates.latitude : null,
-      customerLongitude: supportMode === "Onsite" ? customerCoordinates.longitude : null,
+      customerLatitude: supportMode === "Onsite" ? resolvedCoordinates.latitude : null,
+      customerLongitude: supportMode === "Onsite" ? resolvedCoordinates.longitude : null,
 
       remoteSessionRequired: supportMode === "Remote",
 
@@ -489,13 +500,23 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
       totalAmount: Number(totalAmount.toFixed(2)),
     }
 
-    const controller = new AbortController()
-    const timeoutId = window.setTimeout(() => controller.abort(), 30000)
     let booking
-    try {
-      booking = await createBooking(bookingPayload, { signal: controller.signal })
-    } finally {
-      window.clearTimeout(timeoutId)
+    const pendingAttempt = JSON.parse(sessionStorage.getItem("gos_pending_booking_create") || "null")
+    if (pendingAttempt) {
+      const authoritativeBookings = await getMyBookings()
+      booking = findBookingCreatedByAttempt(authoritativeBookings, pendingAttempt)
+      sessionStorage.removeItem("gos_pending_booking_create")
+    }
+    if (!booking) {
+      // Captured only when the customer submits, for post-timeout reconciliation.
+      // eslint-disable-next-line react-hooks/purity
+      const attempt = { key: bookingAttemptKey({ ...bookingPayload, customerId: JSON.parse(localStorage.getItem("gos_user") || "null")?.id }), startedAt: Date.now() }
+      try {
+        booking = await createBooking(bookingPayload)
+      } catch (requestError) {
+        if (isTimeoutError(requestError)) sessionStorage.setItem("gos_pending_booking_create", JSON.stringify(attempt))
+        throw requestError
+      }
     }
 
     const completeBooking = {

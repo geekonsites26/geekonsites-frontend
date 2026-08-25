@@ -1,4 +1,4 @@
-import { apiRequest, getUser } from "./api.js"
+import { API_TIMEOUTS, apiRequest, getUser } from "./api.js"
 
 export const createBooking = async (bookingData, options = {}) => {
   const user = getUser()
@@ -21,6 +21,7 @@ export const createBooking = async (bookingData, options = {}) => {
     method: "POST",
     body: JSON.stringify(payload),
     signal: options.signal,
+    timeoutMs: API_TIMEOUTS.CRITICAL,
   })
 }
 
@@ -33,6 +34,7 @@ export const paymentSuccess = async (
     `/api/bookings/${bookingId}/payment-success/${encodeURIComponent(transactionId)}?paymentMethod=${encodeURIComponent(paymentMethod.toUpperCase())}`,
     {
       method: "PUT",
+      timeoutMs: API_TIMEOUTS.CRITICAL,
     }
   )
 }
@@ -81,6 +83,7 @@ export const submitBookingRating = async (bookingId, rating, review = "") => {
 export const getBookingTracking = async (bookingId) => {
   return apiRequest(`/api/bookings/${bookingId}/tracking`, {
     method: "GET",
+    timeoutMs: API_TIMEOUTS.TRACKING,
   })
 }
 
@@ -109,6 +112,7 @@ export const remainingPaymentSuccess = async (
     `/api/bookings/${bookingId}/remaining-payment-success/${encodeURIComponent(transactionId)}?paymentMethod=${encodeURIComponent(paymentMethod.toUpperCase())}`,
     {
       method: "PUT",
+      timeoutMs: API_TIMEOUTS.CRITICAL,
     }
   )
 }
@@ -128,5 +132,6 @@ export const closeBooking = async (bookingId) => {
 export const provisionRemoteSession = async (bookingId) => {
   return apiRequest(`/api/bookings/${bookingId}/remote-session/provision`, {
     method: "POST",
+    timeoutMs: API_TIMEOUTS.CRITICAL,
   })
 }

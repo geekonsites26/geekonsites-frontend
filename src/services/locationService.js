@@ -155,6 +155,22 @@ export const reverseGeocodeAddress = async (latitude, longitude, { maxAttempts =
   }
 }
 
+export const geocodeServiceAddress = async (address, countryCode) => {
+  const maps = await loadGoogleMaps()
+  const geocoder = new maps.Geocoder()
+  const results = await new Promise((resolve, reject) => {
+    geocoder.geocode({ address, componentRestrictions: { country: normalizeCountryCode(countryCode) === "UK" ? "GB" : "US" } }, (items, status) => {
+      if (status === "OK" && items?.length) return resolve(items)
+      reject(new Error(status === "ZERO_RESULTS" ? "We could not locate this service address. Please check it and try again." : "Address location lookup failed. Please try again."))
+    })
+  })
+  const location = results[0]?.geometry?.location
+  const latitude = location?.lat?.()
+  const longitude = location?.lng?.()
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error("The service address did not return valid map coordinates.")
+  return { latitude, longitude }
+}
+
 export const initializeUserRegion = async () => {
   if (localStorage.getItem("gos_location_source") === "manual") return getLocation()
 

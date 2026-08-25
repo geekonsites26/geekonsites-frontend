@@ -3,7 +3,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { DirectionsRenderer, GoogleMap, Marker, OverlayView, useLoadScript } from "@react-google-maps/api"
 import { ArrowLeft, CheckCircle2, Clock3, MapPin, MessageCircle, Navigation, Phone, RefreshCcw, Share2 } from "lucide-react"
 import customerHome from "../assets/map/customer-home.webp"
-import { getBookingTracking } from "../services/bookingService"
+import { getBookingTracking, updateCustomerLocation } from "../services/bookingService"
+import { geocodeServiceAddress } from "../services/locationService"
 import { SkeletonList, SkeletonMapPanel } from "../components/ui/Skeleton"
 import { formatLocalTime } from "../utils/dateTime"
 import { isRemoteBooking, onsiteTrackingAction, toRealPosition } from "../utils/customerBookingAction"
@@ -28,12 +29,15 @@ export default function TrackTechnician() {
   const [loading, setLoading] = useState(!state?.booking)
   const [error, setError] = useState("")
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [recoveredCustomerPosition, setRecoveredCustomerPosition] = useState(null)
   const mapRef = useRef(null)
   const animationRef = useRef(null)
   const markerRef = useRef(null)
+  const recoveryBookingRef = useRef(null)
   const trackingId = bookingId || booking?.id
   const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY })
-  const customerPosition = useMemo(() => toRealPosition(booking?.customerLatitude, booking?.customerLongitude), [booking?.customerLatitude, booking?.customerLongitude])
+  const storedCustomerPosition = useMemo(() => toRealPosition(booking?.customerLatitude, booking?.customerLongitude), [booking?.customerLatitude, booking?.customerLongitude])
+  const customerPosition = storedCustomerPosition || recoveredCustomerPosition
   const technicianPosition = useMemo(() => toRealPosition(booking?.technicianLatitude, booking?.technicianLongitude), [booking?.technicianLatitude, booking?.technicianLongitude])
   const status = bookingStatus(booking)
   const statusIndex = Math.max(0, ORDER.indexOf(status))
@@ -72,6 +76,22 @@ export default function TrackTechnician() {
     document.addEventListener("visibilitychange", onVisible)
     return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible) }
   }, [loadTracking])
+
+  useEffect(() => {
+    if (storedCustomerPosition || recoveredCustomerPosition || !booking?.id || isRemoteBooking(booking) || recoveryBookingRef.current === booking.id) return
+    const address = [booking.address, booking.city, booking.state, booking.postalCode, booking.country].filter(Boolean).join(", ")
+    if (!address) return
+    recoveryBookingRef.current = booking.id
+    let active = true
+    geocodeServiceAddress(address, booking.country)
+      .then(async (position) => {
+        if (!active) return
+        setRecoveredCustomerPosition({ lat: position.latitude, lng: position.longitude })
+        await updateCustomerLocation(booking.id, position.latitude, position.longitude)
+      })
+      .catch(() => { recoveryBookingRef.current = null })
+    return () => { active = false }
+  }, [booking, recoveredCustomerPosition, storedCustomerPosition])
 
   useEffect(() => {
     if (!technicianPosition) return

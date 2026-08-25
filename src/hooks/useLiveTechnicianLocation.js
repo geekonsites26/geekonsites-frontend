@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { updateTechnicianLiveLocation } from "../services/technicianService"
+import { hasNativeTechnicianTracking, startNativeTechnicianTracking, stopNativeTechnicianTracking } from "../services/technicianTrackingService"
 
 export default function useLiveTechnicianLocation({
   bookingId,
@@ -18,7 +19,13 @@ export default function useLiveTechnicianLocation({
 
     startTracking()
 
-    return () => stopTracking()
+    return () => {
+      if (!hasNativeTechnicianTracking()) stopTracking()
+      else if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
   }, [bookingId, enabled])
 
   const sendLocation = () => {
@@ -70,10 +77,22 @@ export default function useLiveTechnicianLocation({
     )
   }
 
-  const startTracking = () => {
-    stopTracking()
+  const startTracking = async () => {
     setTracking(true)
 
+    if (hasNativeTechnicianTracking()) {
+      try {
+        await startNativeTechnicianTracking(bookingId)
+        setError("")
+      } catch (err) {
+        setTracking(false)
+        setError(err?.message || "Live location permission is required for onsite tracking.")
+      }
+      return
+    }
+
+    stopTracking()
+    setTracking(true)
     sendLocation()
 
     intervalRef.current = setInterval(() => {
@@ -82,6 +101,7 @@ export default function useLiveTechnicianLocation({
   }
 
   const stopTracking = () => {
+    if (hasNativeTechnicianTracking()) stopNativeTechnicianTracking().catch(() => undefined)
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null

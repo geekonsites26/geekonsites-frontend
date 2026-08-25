@@ -6,12 +6,12 @@ export const normalizeBookingStatus = (booking = {}) => {
 }
 
 export const TECHNICIAN_DECISION_STATUSES = ["TECHNICIAN_ASSIGNED"]
-export const TECHNICIAN_ACTIVE_STATUSES = ["TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED"]
+export const TECHNICIAN_ACTIVE_STATUSES = ["TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED", "REMAINING_PAYMENT_PENDING"]
 
 export const classifyTechnicianBooking = (booking = {}) => {
   const status = normalizeBookingStatus(booking)
   if (TECHNICIAN_DECISION_STATUSES.includes(status)) return "jobs"
   if (TECHNICIAN_ACTIVE_STATUSES.includes(status)) return "active"
-  if (["SERVICE_COMPLETED", "COMPLETED", "CLOSED", "REMAINING_PAYMENT_PENDING", "INVOICE_GENERATED", "FULLY_PAID", "BOOKING_CLOSED"].includes(status)) return "completed"
+  if (["SERVICE_COMPLETED", "COMPLETED", "CLOSED", "INVOICE_GENERATED", "FULLY_PAID", "BOOKING_CLOSED"].includes(status)) return "completed"
   return "other"
 }

@@ -21,6 +21,33 @@ const { classifyTechnicianBooking, normalizeBookingStatus } = await import("../s
 const { remoteSessionReady, validGoogleMeetLink } = await import("../src/utils/remoteSession.js")
 const { createBooking } = await import("../src/services/bookingService.js")
 const { getDashboardPathForRole } = await import("../src/utils/authRouting.js")
+const { bookingAttemptKey, findBookingCreatedByAttempt } = await import("../src/utils/requestRecovery.js")
+
+test("timeout maps to the production-safe friendly message", async () => {
+  globalThis.fetch = async (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(signal.reason), { once: true })
+  })
+  await assert.rejects(
+    api.apiRequest("/api/slow", { timeoutMs: 5 }),
+    (error) => error.code === "TIMEOUT" && error.message === "The request is taking longer than expected. Please try again.",
+  )
+})
+
+test("booking timeout reconciliation finds the authoritative created booking before retry", () => {
+  const payload = { serviceMode: "ONSITE", serviceType: "Laptop Repair", bookingDate: "2026-08-25", timeSlot: "10:00 AM", customerId: 7 }
+  const attempt = { key: bookingAttemptKey(payload), startedAt: Date.parse("2026-08-25T10:00:00Z") }
+  const existing = { id: 91, ...payload, createdAt: "2026-08-25T10:00:02Z" }
+  assert.equal(findBookingCreatedByAttempt([existing], attempt)?.id, 91)
+  assert.equal(findBookingCreatedByAttempt([{ ...existing, createdAt: "2026-08-25T09:00:00Z" }], attempt), null)
+})
+
+test("tracking timeout preserves prior booking state and optional notification failures stay isolated", async () => {
+  const trackingSource = await readFile(new URL("../src/pages/TrackTechnician.jsx", import.meta.url), "utf8")
+  const dashboardSource = await readFile(new URL("../src/pages/TechnicianDashboard.jsx", import.meta.url), "utf8")
+  assert.match(trackingSource, /setError\(requestError\?\.code === "TIMEOUT" \? "Updating live location…"/)
+  assert.doesNotMatch(trackingSource, /catch[\s\S]{0,180}setBooking\(null\)/)
+  assert.match(dashboardSource, /try \{[\s\S]*getTechnicianNotifications\(\)[\s\S]*\} catch/)
+})
 
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
@@ -80,6 +107,17 @@ test("accepted remote and onsite bookings classify as Active, not Completed", ()
     assert.equal(classifyTechnicianBooking({ bookingStatus: status }), "active")
   }
   assert.equal(classifyTechnicianBooking({ bookingStatus: "SERVICE_COMPLETED" }), "completed")
+})
+
+test("onsite balance due remains active until the customer pays", async () => {
+  assert.equal(classifyTechnicianBooking({ bookingStatus: "REMAINING_PAYMENT_PENDING", paymentStatus: "BALANCE_PENDING" }), "active")
+  assert.equal(classifyTechnicianBooking({ bookingStatus: "SERVICE_COMPLETED", paymentStatus: "PAID" }), "completed")
+  const customerDashboard = await readFile(new URL("../src/pages/CustomerDashboard.jsx", import.meta.url), "utf8")
+  const bookingPage = await readFile(new URL("../src/pages/BookService.jsx", import.meta.url), "utf8")
+  assert.match(customerDashboard, /paymentType: "REMAINING"/)
+  assert.match(customerDashboard, /"Pay remaining"/)
+  assert.match(bookingPage, /geocodeServiceAddress/)
+  assert.match(bookingPage, /customerLatitude: supportMode === "Onsite" \? resolvedCoordinates\.latitude/)
 })
 
 test("remote sessions expose only ready backend Google Meet links", () => {
