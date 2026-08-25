@@ -103,9 +103,9 @@ export async function apiRequest(endpoint, options = {}) {
     })
   } catch (error) {
     if (error?.name === "AbortError") {
-      throw new Error("The server is taking too long to respond. Please try again.", { cause: error })
+      throw Object.assign(new Error("The request is taking longer than expected. Please try again."), { code: "TIMEOUT", cause: error })
     }
-    throw error
+    throw Object.assign(new Error("We’re having trouble connecting right now. Please try again shortly."), { code: "NETWORK_ERROR", cause: error })
   } finally {
     if (timeoutId) window.clearTimeout(timeoutId)
   }
@@ -127,7 +127,22 @@ export async function apiRequest(endpoint, options = {}) {
     }
 
     const serverMessage = typeof data === "string" ? data.trim() : data?.message || data?.error
-    throw new Error(serverMessage || `Request failed with status ${response.status}`)
+    const safeFallback = response.status === 401
+      ? "Incorrect email or password. Please try again."
+      : response.status === 403
+        ? "You don’t have permission to perform this action."
+        : response.status === 404
+          ? "The requested item could not be found."
+          : response.status === 409
+            ? "This item has already changed. Please refresh and try again."
+            : response.status >= 500
+              ? "Something went wrong on our side. Please try again shortly."
+              : "Please check the information provided and try again."
+    throw Object.assign(new Error(safeFallback), {
+      status: response.status,
+      code: typeof data === "object" ? data?.code : undefined,
+      safeMessage: serverMessage,
+    })
   }
 
   return data

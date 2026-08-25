@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { getLocation } from "../utils/location"
 import { getBrowserLocation, isMateriallyDifferentOrBetterLocation, isSupportedCountry, reverseGeocodeAddress } from "../services/locationService"
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
+import { friendlyApiError } from "../utils/apiError"
 import {
   Laptop, Printer, Wifi, User, Phone, MapPin, CreditCard,
   ArrowRight, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, CheckCircle2, Home,
@@ -247,6 +248,7 @@ useEffect(() => {
 
   const selectedService = serviceCategories.find((item) => item.title === service)
   const visibleServiceGroup = bookingServiceGroups.find(({ id }) => id === activeServiceGroup) || bookingServiceGroups[0]
+  const selectedModes = useMemo(() => new Set(bookingServiceGroups.filter((group) => group.services.some(([name]) => types.includes(name))).map((group) => group.mode)), [types])
   const currency = country === "UK" ? "GBP" : "USD"
   const symbol = country === "UK" ? "£" : "$"
 
@@ -323,13 +325,13 @@ const issueSpecificAddons = {
 const progressPercent = Math.round((currentStep / steps.length) * 100)
   const selectCatalogService = (name, category) => {
     const alreadySelected = types.includes(name)
-    setTypes((current) => alreadySelected ? current.filter((item) => item !== name) : [...current, name])
+    const selectedMode = visibleServiceGroup.mode
+    const compatibleNames = new Set(bookingServiceGroups.filter((group) => group.mode === selectedMode).flatMap((group) => group.services.map(([serviceName]) => serviceName)))
+    setTypes((current) => alreadySelected ? current.filter((item) => item !== name) : [...current.filter((item) => compatibleNames.has(item)), name])
     if (!alreadySelected) {
       setService(category)
-      if (!types.length) {
-        setSupportMode(visibleServiceGroup.mode)
-        if (visibleServiceGroup.mode === "Remote") setWarranty("")
-      }
+      setSupportMode(selectedMode)
+      if (selectedMode === "Remote") setWarranty("")
     }
   }
   const changeAddonQuantity = (addon, change) => setSelectedAddons((current) => {
@@ -349,6 +351,8 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
     }
     if (currentStep === 2) {
       if (!supportMode) return "Please choose Remote or On-Site support."
+      const invalidMode = types.some((name) => !bookingServiceGroups.some((group) => group.mode === supportMode && group.services.some(([serviceName]) => serviceName === name)))
+      if (invalidMode) return `This service isn’t available for ${supportMode === "Onsite" ? "onsite" : "remote"} support. Please choose another service.`
       if (supportMode === "Onsite" && !warranty) return "Please select warranty status."
     }
     if (currentStep === 4) {
@@ -517,9 +521,7 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
     })
   } catch (err) {
     console.error(err)
-    setSubmitError(err?.name === "AbortError"
-      ? "The booking server is taking too long to respond. Your details are still here; please try again."
-      : err?.message || "Booking could not be created. Please try again.")
+    setSubmitError(friendlyApiError(err, "booking"))
   } finally {
     setLoading(false)
   }
@@ -594,8 +596,8 @@ const progressPercent = Math.round((currentStep / steps.length) * 100)
                 {currentStep === 2 && (
                   <StepCard number="02" title="Support method" subtitle="Choose remote support or on-site technician">
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                      <SupportCard title="Remote Support" subtitle="Online support by appointment" icon={Monitor} active={supportMode === "Remote"} onClick={() => { setSupportMode("Remote"); setWarranty("") }} />
-                      <SupportCard title="On-Site Technician" subtitle="Technician visits your location" icon={Truck} active={supportMode === "Onsite"} onClick={() => setSupportMode("Onsite")} />
+                      <SupportCard title="Remote Support" subtitle="Online support by appointment" icon={Monitor} active={supportMode === "Remote"} disabled={types.length > 0 && !selectedModes.has("Remote")} onClick={() => { setSupportMode("Remote"); setWarranty("") }} />
+                      <SupportCard title="On-Site Technician" subtitle="Technician visits your location" icon={Truck} active={supportMode === "Onsite"} disabled={types.length > 0 && !selectedModes.has("Onsite")} onClick={() => setSupportMode("Onsite")} />
                     </div>
 
                     {supportMode === "Onsite" && (
@@ -1033,9 +1035,9 @@ function HeroMini({ icon: Icon, title }) {
   )
 }
 
-function SupportCard({ title, subtitle, icon: Icon, active, onClick }) {
+function SupportCard({ title, subtitle, icon: Icon, active, disabled, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`grid min-h-20 grid-cols-[2rem_minmax(0,1fr)] items-center gap-2 rounded-md border p-2.5 text-left transition sm:min-h-28 sm:grid-cols-[2.75rem_minmax(0,1fr)] sm:gap-3 sm:p-4 ${active ? "border-gos-turquoise bg-[#eef8f7]" : "border-gos-border bg-gos-off-white hover:border-gos-turquoise"}`}>
+    <button type="button" onClick={onClick} disabled={disabled} className={`grid min-h-20 grid-cols-[2rem_minmax(0,1fr)] items-center gap-2 rounded-md border p-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-28 sm:grid-cols-[2.75rem_minmax(0,1fr)] sm:gap-3 sm:p-4 ${active ? "border-gos-turquoise bg-[#eef8f7]" : "border-gos-border bg-gos-off-white hover:border-gos-turquoise"}`}>
       <span className={`flex h-8 w-8 items-center justify-center rounded-md sm:h-10 sm:w-10 ${active ? "bg-gos-turquoise text-white" : "bg-white text-gos-blue"}`}><Icon size={17} /></span>
       <span><span className="block text-[11px] font-extrabold leading-4 text-gos-blue-deep sm:text-sm">{title}</span><span className="mt-0.5 hidden text-xs font-semibold leading-5 text-gos-muted sm:block">{subtitle}</span></span>
     </button>

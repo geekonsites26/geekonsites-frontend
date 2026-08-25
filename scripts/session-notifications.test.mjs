@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { readFile } from "node:fs/promises"
 
 class MemoryStorage {
   values = new Map()
@@ -19,6 +20,7 @@ const { normalizeNotifications } = await import("../src/utils/notifications.js")
 const { classifyTechnicianBooking, normalizeBookingStatus } = await import("../src/utils/technicianJobs.js")
 const { remoteSessionReady, validGoogleMeetLink } = await import("../src/utils/remoteSession.js")
 const { createBooking } = await import("../src/services/bookingService.js")
+const { getDashboardPathForRole } = await import("../src/utils/authRouting.js")
 
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
@@ -110,4 +112,50 @@ test("customer booking creation cannot inherit stale technician identity", async
   assert.equal(sent.customerName, "Ashwik")
   assert.equal(sent.technicianId, null)
   assert.equal(sent.technicianName, null)
+})
+
+test("remote page separates Meet launch from technician service start and completion", async () => {
+  const source = await readFile(new URL("../src/pages/RemoteSession.jsx", import.meta.url), "utf8")
+  const joinHandler = source.slice(source.indexOf("const joinMeeting"), source.indexOf("const startRemoteService"))
+  assert.doesNotMatch(joinHandler, /startTechnicianRemoteSession/)
+  assert.match(source, /if \(!isTechnicianViewer\) \{\s*navigate\(-1\)\s*return/)
+  assert.match(source, /booking\?\.remoteSessionStartedAt/)
+  assert.match(source, /getBookingById\(authoritativeBookingId\)/)
+})
+
+test("technician opens a remote booking without implicitly starting it", async () => {
+  const source = await readFile(new URL("../src/pages/TechnicianDashboard.jsx", import.meta.url), "utf8")
+  const handler = source.slice(source.indexOf("const handleStartRemoteSession"), source.indexOf("const saveMeetingLink"))
+  assert.match(handler, /openRemoteSession\(job\)/)
+  assert.doesNotMatch(handler, /startTechnicianRemoteSession/)
+  assert.match(source, /remote-session\?bookingId=/)
+})
+
+test("all four portal roles survive canonical session restoration metadata", () => {
+  for (const [index, role] of ["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"].entries()) {
+    api.establishAuthSession(`${role.toLowerCase()}-token`, { id: index + 1, role, email: `${role.toLowerCase()}@example.com` })
+    assert.equal(api.getToken(), `${role.toLowerCase()}-token`)
+    assert.equal(api.getUser().role, role)
+    assert.equal(localStorage.getItem("gos_role"), role)
+  }
+})
+
+test("agent booking participants cannot repaint a customer session or return route", () => {
+  const customer = { id: 42, role: "CUSTOMER", email: "customer@example.com" }
+  api.establishAuthSession("customer-token", customer)
+  const completedBooking = { id: 9, agentName: "ashwik", agent: { id: 3, role: "AGENT" }, bookingStatus: "SERVICE_COMPLETED" }
+  localStorage.setItem("currentBooking", JSON.stringify(completedBooking))
+  assert.equal(api.getToken(), "customer-token")
+  assert.deepEqual(api.getUser(), customer)
+  assert.equal(localStorage.getItem("gos_role"), "CUSTOMER")
+  assert.equal(localStorage.getItem("gos_user_id"), "42")
+  assert.equal(getDashboardPathForRole(localStorage.getItem("gos_role")), "/customer-dashboard")
+})
+
+test("booking UI blocks service modes not declared by its canonical catalog group", async () => {
+  const source = await readFile(new URL("../src/pages/BookService.jsx", import.meta.url), "utf8")
+  assert.match(source, /disabled=\{types\.length > 0 && !selectedModes\.has\("Remote"\)\}/)
+  assert.match(source, /disabled=\{types\.length > 0 && !selectedModes\.has\("Onsite"\)\}/)
+  assert.match(source, /if \(invalidMode\) return `This service isn’t available/)
+  assert.match(source, /booking = await createBooking[\s\S]*navigate\("\/payment"/)
 })
