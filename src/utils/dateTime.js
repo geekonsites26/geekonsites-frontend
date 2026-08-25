@@ -114,3 +114,15 @@ export const formatLocalTime = (value, booking = {}, user = savedUserTimeContext
     timeZone, hour: "numeric", minute: "2-digit", hour12: timeZone !== "Europe/London", timeZoneName: "short",
   }).format(date)
 }
+
+export const formatNotificationTime = (value, booking = {}, user = savedUserTimeContext(), now = new Date()) => {
+  if (!value) return ""
+  const date = parseUtcTimestamp(value)
+  if (Number.isNaN(date.getTime())) return ""
+  const seconds = Math.max(0, Math.floor((new Date(now).getTime() - date.getTime()) / 1000))
+  if (seconds < 5) return "Just now"
+  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return formatLocalDateTime(date, booking, user)
+}

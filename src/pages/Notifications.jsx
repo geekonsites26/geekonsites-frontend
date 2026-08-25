@@ -4,7 +4,7 @@ import { Bell, CalendarCheck, CheckCheck, CheckCircle2, ChevronRight, CreditCard
 import DashboardReturnLink from "../components/customer/DashboardReturnLink"
 import { getMyNotifications, markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { getMyBookings } from "../services/bookingService"
-import { formatLocalDateTime } from "../utils/dateTime"
+import { formatNotificationTime } from "../utils/dateTime"
 import { safeNotificationPath } from "../utils/notificationRoute"
 import { normalizeNotifications } from "../utils/notifications"
 
@@ -164,7 +164,7 @@ export default function Notifications() {
             return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`relative flex w-full items-start gap-3 border-b border-gos-border px-3 py-4 text-left transition last:border-b-0 hover:bg-gos-off-white sm:gap-4 sm:px-5 ${notification.isRead ? "bg-white" : "bg-[#f4fbfa]"}`}>
               {!notification.isRead && <span className="absolute left-0 top-0 h-full w-0.5 bg-gos-turquoise" />}
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${style.color}`}><Icon size={18} /></span>
-              <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><strong className="text-sm font-extrabold text-gos-blue-deep">{notification.title || "Service update"}</strong><time className="shrink-0 text-[10px] font-bold text-gos-muted">{formatLocalDateTime(notification.createdAt, bookings.find((booking) => String(booking.id) === String(notification.bookingId)) || notification)}</time></span><span className="mt-1 block text-xs font-semibold leading-5 text-gos-charcoal">{notification.message || "Your booking has a new update."}</span><span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">{style.label} <ChevronRight size={12} /></span></span>
+              <span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><strong className="text-sm font-extrabold text-gos-blue-deep">{notification.title || "Service update"}</strong><time className="shrink-0 text-[10px] font-bold text-gos-muted">{formatNotificationTime(notification.createdAt, bookings.find((booking) => String(booking.id) === String(notification.bookingId)) || notification)}</time></span><span className="mt-1 block text-xs font-semibold leading-5 text-gos-charcoal">{notification.message || "Your booking has a new update."}</span><span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-gos-turquoise">{style.label} <ChevronRight size={12} /></span></span>
             </button>
           })}
         </section> : <div className="rounded-md border border-dashed border-gos-border bg-white px-5 py-12 text-center"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gos-off-white text-gos-turquoise"><Bell size={22} /></span><h2 className="mt-4 font-['Cormorant_Garamond'] text-3xl font-bold text-gos-blue-deep">No updates yet.</h2><p className="mt-2 text-sm font-semibold text-gos-muted">Booking and technician activity will appear here automatically.</p></div>}

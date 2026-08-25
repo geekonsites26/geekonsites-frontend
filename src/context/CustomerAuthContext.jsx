@@ -39,7 +39,11 @@ export function CustomerAuthProvider({ children }) {
     restore()
     setAuthReady(true)
     window.addEventListener("gos-auth-changed", restore)
-    return () => window.removeEventListener("gos-auth-changed", restore)
+    window.addEventListener("storage", restore)
+    return () => {
+      window.removeEventListener("gos-auth-changed", restore)
+      window.removeEventListener("storage", restore)
+    }
   }, [])
 
   const registerCustomer = async (data) => {
@@ -156,7 +160,13 @@ export function CustomerAuthProvider({ children }) {
   const updateCustomerProfile = (updates) => {
     setCustomer((current) => {
       if (!current) return current
-      const updated = { ...current, ...updates }
+      const updated = {
+        ...current,
+        ...(updates || {}),
+        id: current.id,
+        userId: current.userId,
+        role: current.role,
+      }
       setUser(updated)
       return updated
     })
