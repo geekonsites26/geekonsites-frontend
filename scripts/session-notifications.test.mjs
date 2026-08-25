@@ -49,6 +49,17 @@ test("tracking timeout preserves prior booking state and optional notification f
   assert.match(dashboardSource, /try \{[\s\S]*getTechnicianNotifications\(\)[\s\S]*\} catch/)
 })
 
+test("native tracking reuses canonical API configuration and keeps safe diagnostics", async () => {
+  const trackingService = await readFile(new URL("../src/services/technicianTrackingService.js", import.meta.url), "utf8")
+  const nativePlugin = await readFile(new URL("../android/app/src/main/java/com/asitech/geekonsites/TechnicianTrackingPlugin.java", import.meta.url), "utf8")
+  assert.match(trackingService, /import \{ API_BASE_URL, getToken \} from "\.\/api"/)
+  assert.doesNotMatch(trackingService, /import\.meta\.env\.VITE_API_BASE_URL/)
+  for (const code of ["MISSING_BOOKING_ID", "MISSING_AUTH_TOKEN", "MISSING_API_BASE_URL", "INSECURE_API_BASE_URL", "LOCALHOST_API_BASE_URL"]) assert.match(nativePlugin, new RegExp(code))
+  assert.doesNotMatch(nativePlugin, /" token=" \+ token/)
+  assert.match(nativePlugin, /google\.navigation:q=/)
+  assert.match(nativePlugin, /https:\/\/www\.google\.com\/maps\/dir/)
+})
+
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
   api.setUser({ id: 7, role: "TECHNICIAN", email: "tech@example.com", password: "NeverStore1!" })
@@ -116,8 +127,27 @@ test("onsite balance due remains active until the customer pays", async () => {
   const bookingPage = await readFile(new URL("../src/pages/BookService.jsx", import.meta.url), "utf8")
   assert.match(customerDashboard, /paymentType: "REMAINING"/)
   assert.match(customerDashboard, /"Pay remaining"/)
+  assert.match(customerDashboard, /setInterval\(\(\) => loadBookings\(false\), 10000\)/)
+  assert.match(customerDashboard, /window\.addEventListener\("focus", refresh\)/)
+  assert.match(customerDashboard, /WORK_COMPLETED = new Set\(\[\.\.\.COMPLETED, "REMAINING_PAYMENT_PENDING"\]\)/)
+  assert.match(customerDashboard, /\["SERVICE_COMPLETED", "REMAINING_PAYMENT_PENDING"\]\.includes/)
   assert.match(bookingPage, /geocodeServiceAddress/)
   assert.match(bookingPage, /customerLatitude: supportMode === "Onsite" \? resolvedCoordinates\.latitude/)
+})
+
+test("Maps loader selects the native key and replaces a stale mismatched script", async () => {
+  const config = await readFile(new URL("../src/utils/googleMaps.js", import.meta.url), "utf8")
+  const loader = await readFile(new URL("../src/services/locationService.js", import.meta.url), "utf8")
+  assert.match(config, /VITE_GOOGLE_MAPS_ANDROID_WEBVIEW_API_KEY \|\| import\.meta\.env\.VITE_GOOGLE_MAPS_API_KEY/)
+  assert.match(loader, /existingKey !== apiKey/)
+  assert.match(loader, /existing\.remove\(\)/)
+})
+
+test("balance-pending invoice reads the persisted advance invoice without regenerating it", async () => {
+  const source = await readFile(new URL("../src/pages/InvoiceDetails.jsx", import.meta.url), "utf8")
+  assert.match(source, /const finalPaymentDue = Number\(finalBooking\.remainingAmount \|\| 0\) > 0/)
+  assert.match(source, /if \(!finalPaymentDue\) await generateInvoiceByBookingId\(bookingId\)/)
+  assert.match(source, /const storedInvoice = await getInvoiceByBookingId\(bookingId\)/)
 })
 
 test("remote sessions expose only ready backend Google Meet links", () => {

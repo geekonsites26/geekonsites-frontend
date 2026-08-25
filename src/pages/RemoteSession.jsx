@@ -31,13 +31,16 @@ import { validGoogleMeetLink } from "../utils/remoteSession"
 
 export default function RemoteSession() {
   const navigate = useNavigate()
-  const { state } = useLocation()
+  const { state, search } = useLocation()
   const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
 
   const storedBooking = (() => {
     try { return JSON.parse(localStorage.getItem("currentBooking")) } catch { return null }
   })()
-  const [booking, setBooking] = useState(state?.booking || storedBooking)
+  const bookingIdFromUrl = new URLSearchParams(search).get("bookingId")
+  const initialBooking = state?.booking || (String(storedBooking?.id) === String(bookingIdFromUrl) ? storedBooking : null)
+  const [booking, setBooking] = useState(initialBooking)
+  const [bookingLoadError, setBookingLoadError] = useState("")
   // The technician dashboard navigates here with `state.technician` set to the
   // TECHNICIAN'S OWN profile (for its own use elsewhere), not the customer's.
   // Reusing it unconditionally previously showed a technician viewer their own
@@ -57,6 +60,7 @@ export default function RemoteSession() {
   const [provisioning, setProvisioning] = useState(false)
   const [chatSending, setChatSending] = useState(false)
   const [chatError, setChatError] = useState("")
+  const [starting, setStarting] = useState(false)
   const [completing, setCompleting] = useState(false)
   const provisionAttempted = useRef(false)
 
@@ -64,26 +68,38 @@ export default function RemoteSession() {
   const currentRole = localStorage.getItem("gos_role") || "CUSTOMER"
 
   useEffect(() => {
-    if (!meetingJoined) return undefined
+    if (!booking?.remoteSessionStartedAt) {
+      setSeconds(0)
+      return undefined
+    }
 
-    const timer = setInterval(() => {
-      setSeconds((prev) => prev + 1)
-    }, 1000)
+    const updateElapsed = () => {
+      const startedAt = new Date(booking.remoteSessionStartedAt).getTime()
+      setSeconds(Number.isFinite(startedAt) ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0)
+    }
+    updateElapsed()
+
+    const timer = setInterval(updateElapsed, 1000)
 
     return () => clearInterval(timer)
-  }, [meetingJoined])
+  }, [booking?.remoteSessionStartedAt])
 
   useEffect(() => {
-    if (!booking?.id) return
+    const authoritativeBookingId = booking?.id || bookingIdFromUrl
+    if (!authoritativeBookingId) return
     let active = true
 
-    const refreshBooking = () => getBookingById(booking.id)
+    const refreshBooking = () => getBookingById(authoritativeBookingId)
       .then((latest) => {
         if (!active) return
         setBooking(latest)
+        setBookingLoadError("")
         localStorage.setItem("currentBooking", JSON.stringify(latest))
       })
-      .catch(console.error)
+      .catch((error) => {
+        console.error(error)
+        if (active) setBookingLoadError(error.message || "Remote booking could not be loaded.")
+      })
 
     refreshBooking()
     const refreshTimer = setInterval(refreshBooking, 7000)
@@ -92,7 +108,7 @@ export default function RemoteSession() {
       active = false
       clearInterval(refreshTimer)
     }
-  }, [booking?.id])
+  }, [booking?.id, bookingIdFromUrl])
 
   useEffect(() => {
     if (!booking?.id || booking?.paymentStatus !== "PAID") return undefined
@@ -160,6 +176,7 @@ export default function RemoteSession() {
 
   const paymentRequired = booking?.paymentStatus !== "PAID"
   const safeMeetingLink = validGoogleMeetLink(booking?.remoteSessionLink)
+  const serviceStarted = ["REMOTE_SESSION_STARTED", "SERVICE_STARTED"].includes(booking?.bookingStatus)
   const meetingPending = paymentRequired || !safeMeetingLink || !["READY", "STARTED", "IN_PROGRESS"].includes(booking?.remoteSessionStatus)
   const meetingFailed = ["FAILED", "SETUP_REQUIRED", "PROVISIONING_FAILED"].includes(booking?.remoteSessionStatus)
   const meetingStatusLabel = paymentRequired
@@ -184,11 +201,6 @@ export default function RemoteSession() {
 
     setMeetingJoined(true)
     try {
-      if (isTechnicianViewer && booking.bookingStatus === "TECHNICIAN_ACCEPTED") {
-        const started = await startTechnicianRemoteSession(booking.id, safeMeetingLink)
-        setBooking(started)
-        localStorage.setItem("currentBooking", JSON.stringify(started))
-      }
       await Browser.open({ url: safeMeetingLink })
     } catch (error) {
       console.error("Unable to open Google Meet externally:", error)
@@ -269,6 +281,20 @@ export default function RemoteSession() {
     }
   }
 
+  const startRemoteService = async () => {
+    if (!isTechnicianViewer || starting || booking?.bookingStatus !== "TECHNICIAN_ACCEPTED" || !safeMeetingLink) return
+    setStarting(true)
+    try {
+      const started = await startTechnicianRemoteSession(booking.id, safeMeetingLink)
+      setBooking(started)
+      localStorage.setItem("currentBooking", JSON.stringify(started))
+    } catch (error) {
+      alert(error.message || "Remote service could not be started.")
+    } finally {
+      setStarting(false)
+    }
+  }
+
   const goToMeetingPanel = () => {
     document.getElementById("google-meet-panel")?.scrollIntoView({
       behavior: "smooth",
@@ -277,7 +303,8 @@ export default function RemoteSession() {
   }
 
   if (!booking) {
-    return <main className="flex min-h-screen items-center justify-center bg-gos-off-white px-4 pt-20"><div className="w-full max-w-md rounded-lg border border-gos-border bg-white p-7 text-center shadow-[var(--gos-shadow-md)]"><h1 className="font-['Cormorant_Garamond'] text-4xl font-bold text-gos-blue-deep">Remote booking unavailable.</h1><p className="mt-3 text-sm font-semibold text-gos-muted">Open the remote session from your customer dashboard after payment is confirmed.</p><button type="button" onClick={() => navigate("/customer-dashboard?view=bookings")} className="mt-6 min-h-11 rounded-md bg-gos-blue-deep px-5 text-sm font-extrabold text-white">View my bookings</button></div></main>
+    const unavailableMessage = bookingLoadError || (!bookingIdFromUrl ? "Open the remote session from an authenticated booking." : "")
+    return <main className="flex min-h-screen items-center justify-center bg-gos-off-white px-4 pt-20"><div className="w-full max-w-md rounded-lg border border-gos-border bg-white p-7 text-center shadow-[var(--gos-shadow-md)]"><h1 className="font-['Cormorant_Garamond'] text-4xl font-bold text-gos-blue-deep">{unavailableMessage ? "Remote booking unavailable." : "Loading remote booking..."}</h1><p className="mt-3 text-sm font-semibold text-gos-muted">{unavailableMessage || "Restoring the authoritative booking and meeting details."}</p>{unavailableMessage && <button type="button" onClick={() => navigate(isTechnicianViewer ? "/technician-dashboard?view=active" : "/customer-dashboard?view=bookings")} className="mt-6 min-h-11 rounded-md bg-gos-blue-deep px-5 text-sm font-extrabold text-white">Back to bookings</button>}</div></main>
   }
 
   const fileInputs = (
@@ -343,6 +370,15 @@ export default function RemoteSession() {
               <Copy size={15} />{copied ? "Meeting link copied" : "Copy meeting link"}
             </button>
           )}
+
+          {isTechnicianViewer && booking?.bookingStatus === "TECHNICIAN_ACCEPTED" && (
+            <button type="button" onClick={startRemoteService} disabled={starting || meetingPending} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-extrabold text-white disabled:bg-emerald-300">
+              <Power size={15} /> {starting ? "Starting..." : "Start Remote Service"}
+            </button>
+          )}
+
+          {!isTechnicianViewer && !serviceStarted && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-xs font-semibold text-amber-800">Waiting for technician to start service</p>}
+          {serviceStarted && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-xs font-semibold text-emerald-800">Remote service in progress</p>}
 
           <section className="grid grid-cols-4 gap-1 rounded-2xl border border-gos-border bg-white p-2.5">
             {quickActions.map(({ icon: Icon, label, action }) => (
@@ -561,7 +597,7 @@ export default function RemoteSession() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <SessionPill icon={Clock3} text={meetingJoined ? sessionTime : "Not Started"} />
+                  <SessionPill icon={Clock3} text={serviceStarted ? sessionTime : "Not Started"} />
                   <SessionPill icon={Wifi} text="Secure" green />
                   <SessionPill icon={Shield} text="Unique Meet Link" />
 
@@ -639,6 +675,15 @@ export default function RemoteSession() {
                     </div>
                   )}
 
+                  {isTechnicianViewer && booking?.bookingStatus === "TECHNICIAN_ACCEPTED" && (
+                    <button type="button" onClick={startRemoteService} disabled={starting || meetingPending} className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:bg-emerald-300">
+                      <Power size={17} /> {starting ? "Starting Remote Service..." : "Start Remote Service"}
+                    </button>
+                  )}
+
+                  {!isTechnicianViewer && !serviceStarted && <p className="mt-4 text-sm font-bold text-amber-700">Waiting for technician to start service</p>}
+                  {serviceStarted && <p className="mt-4 text-sm font-bold text-emerald-700">Remote service in progress</p>}
+
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     <button
                       onClick={joinMeeting}
@@ -674,7 +719,7 @@ export default function RemoteSession() {
                       meetingPending
                         ? provisioning ? "Creating Google Meet Link" : "Meet Link Pending"
                         : meetingJoined
-                          ? "Opened by Customer"
+                          ? "Google Meet Opened"
                           : "Ready"
                     }
                   />

@@ -1,4 +1,4 @@
-import { apiRequest } from "./api"
+import { API_TIMEOUTS, apiRequest } from "./api"
 
 export const getAdminDashboardStats = async () => {
   return apiRequest("/api/admin/dashboard-stats", {
@@ -23,5 +23,6 @@ export const getAdminCustomers = async () => {
 export const provisionAdminRemoteSession = async (bookingId) => {
   return apiRequest(`/api/admin/remote-sessions/${bookingId}/provision`, {
     method: "POST",
+    timeoutMs: API_TIMEOUTS.CRITICAL,
   })
 }

@@ -1,4 +1,6 @@
-const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || "")
+const PRODUCTION_API_BASE_URL = "https://geekonsites-v2-backend.onrender.com"
+
+export const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || (import.meta.env?.PROD ? PRODUCTION_API_BASE_URL : ""))
   .trim()
   .replace(/\/+$/, "")
   .replace(/\/api$/, "")
