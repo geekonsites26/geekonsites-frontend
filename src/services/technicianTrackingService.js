@@ -1,16 +1,19 @@
 import { Capacitor, registerPlugin } from "@capacitor/core"
-import { getToken } from "./api"
+import { API_BASE_URL, getToken } from "./api"
 
 const TechnicianTracking = registerPlugin("TechnicianTracking")
-const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "").replace(/\/api$/, "")
-
 export const hasNativeTechnicianTracking = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
 
 export const startNativeTechnicianTracking = async (bookingId) => {
   const token = getToken()
   if (!hasNativeTechnicianTracking()) return { tracking: false, native: false }
   if (!token) throw new Error("Technician authentication is required for live tracking.")
-  return TechnicianTracking.startTechnicianTracking({ bookingId: Number(bookingId), token, apiBaseUrl })
+  return TechnicianTracking.startTechnicianTracking({ bookingId: Number(bookingId), token, apiBaseUrl: API_BASE_URL })
+}
+
+export const openNativeCustomerNavigation = async (latitude, longitude) => {
+  if (!hasNativeTechnicianTracking()) return { opened: false, native: false }
+  return TechnicianTracking.openCustomerNavigation({ latitude: Number(latitude), longitude: Number(longitude) })
 }
 
 export const stopNativeTechnicianTracking = async () => {

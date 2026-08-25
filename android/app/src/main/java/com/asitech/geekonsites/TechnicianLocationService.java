@@ -13,6 +13,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -37,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class TechnicianLocationService extends Service {
+    private static final String TAG = "GOSTracking";
     public static final String ACTION_START = "com.asitech.geekonsites.START_TRACKING";
     public static final String ACTION_STOP = "com.asitech.geekonsites.STOP_TRACKING";
     public static final String EXTRA_BOOKING_ID = "bookingId";
@@ -102,6 +104,7 @@ public class TechnicianLocationService extends Service {
     }
 
     private void uploadLocation(Location location) {
+        Log.i(TAG, "firstFix bookingId=" + bookingId + " accuracyMeters=" + (location.hasAccuracy() ? Math.round(location.getAccuracy()) : "unknown"));
         final long currentBooking = bookingId;
         final String currentToken = token;
         final String currentBase = apiBaseUrl;
@@ -126,6 +129,7 @@ public class TechnicianLocationService extends Service {
                 connection.setFixedLengthStreamingMode(body.length);
                 try (OutputStream output = connection.getOutputStream()) { output.write(body); }
                 int response = connection.getResponseCode();
+                Log.i(TAG, "locationPut bookingId=" + currentBooking + " status=" + response);
                 if (response >= 200 && response < 300) {
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
                         StringBuilder responseBody = new StringBuilder();

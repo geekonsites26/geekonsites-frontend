@@ -86,7 +86,12 @@ export default function useLiveTechnicianLocation({
         setError("")
       } catch (err) {
         setTracking(false)
-        setError(err?.message || "Live location permission is required for onsite tracking.")
+        const code = err?.code
+        setError(code === "LOCATION_PERMISSION_DENIED" || code === "NOTIFICATION_PERMISSION_DENIED"
+          ? "Location permission is required to start your journey."
+          : code === "LOCATION_SERVICES_DISABLED"
+            ? "We couldn’t get your current location. Turn on Location Services and try again."
+            : "Live tracking couldn’t start. Please retry.")
       }
       return
     }

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import { DirectionsRenderer, GoogleMap, Marker, OverlayView, useLoadScript } from "@react-google-maps/api"
+import { DirectionsRenderer, GoogleMap, Marker, OverlayView } from "@react-google-maps/api"
 import { ArrowLeft, CheckCircle2, Clock3, MapPin, MessageCircle, Navigation, Phone, RefreshCcw, Share2 } from "lucide-react"
 import customerHome from "../assets/map/customer-home.webp"
 import { getBookingTracking, updateCustomerLocation } from "../services/bookingService"
-import { geocodeServiceAddress } from "../services/locationService"
+import { geocodeServiceAddress, loadGoogleMaps } from "../services/locationService"
 import { SkeletonList, SkeletonMapPanel } from "../components/ui/Skeleton"
 import { formatLocalTime } from "../utils/dateTime"
 import { isRemoteBooking, onsiteTrackingAction, toRealPosition } from "../utils/customerBookingAction"
+import { GOOGLE_MAPS_AUTH_FAILURE_EVENT, getGoogleMapsApiKey, installGoogleMapsAuthFailureHandler } from "../utils/googleMaps"
 
 const mapStyle = { width: "100%", height: "100%" }
 const mapOptions = { disableDefaultUI: true, zoomControl: true, gestureHandling: "greedy", clickableIcons: false }
@@ -18,6 +19,7 @@ const bookingStatus = (booking) => { const value = String(booking?.bookingStatus
 const customerIcon = () => ({ url: customerHome, scaledSize: new window.google.maps.Size(42, 42), anchor: new window.google.maps.Point(21, 21) })
 
 export default function TrackTechnician() {
+  installGoogleMapsAuthFailureHandler()
   const navigate = useNavigate()
   const { bookingId } = useParams()
   const { state } = useLocation()
@@ -30,12 +32,15 @@ export default function TrackTechnician() {
   const [error, setError] = useState("")
   const [lastUpdated, setLastUpdated] = useState(null)
   const [recoveredCustomerPosition, setRecoveredCustomerPosition] = useState(null)
+  const [mapAuthFailed, setMapAuthFailed] = useState(false)
+  const [mapLoaded, setMapLoaded] = useState(Boolean(window.google?.maps))
+  const [mapLoadError, setMapLoadError] = useState(false)
   const mapRef = useRef(null)
   const animationRef = useRef(null)
   const markerRef = useRef(null)
   const recoveryBookingRef = useRef(null)
   const trackingId = bookingId || booking?.id
-  const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY })
+  const mapsApiKey = getGoogleMapsApiKey()
   const storedCustomerPosition = useMemo(() => toRealPosition(booking?.customerLatitude, booking?.customerLongitude), [booking?.customerLatitude, booking?.customerLongitude])
   const customerPosition = storedCustomerPosition || recoveredCustomerPosition
   const technicianPosition = useMemo(() => toRealPosition(booking?.technicianLatitude, booking?.technicianLongitude), [booking?.technicianLatitude, booking?.technicianLongitude])
@@ -43,6 +48,21 @@ export default function TrackTechnician() {
   const statusIndex = Math.max(0, ORDER.indexOf(status))
   const action = onsiteTrackingAction(booking)
   const journeyLive = ["TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED"].includes(status)
+
+  useEffect(() => {
+    const onAuthFailure = () => setMapAuthFailed(true)
+    window.addEventListener(GOOGLE_MAPS_AUTH_FAILURE_EVENT, onAuthFailure)
+    return () => window.removeEventListener(GOOGLE_MAPS_AUTH_FAILURE_EVENT, onAuthFailure)
+  }, [])
+
+  useEffect(() => {
+    if (!mapsApiKey || mapLoaded) return
+    let active = true
+    loadGoogleMaps()
+      .then(() => active && setMapLoaded(true))
+      .catch(() => active && setMapLoadError(true))
+    return () => { active = false }
+  }, [mapLoaded, mapsApiKey])
 
   const loadTracking = useCallback(async (showLoader = true) => {
     if (!trackingId) return
@@ -112,7 +132,7 @@ export default function TrackTechnician() {
   }, [technicianPosition])
 
   useEffect(() => {
-    if (!isLoaded || !journeyLive || !technicianPosition || !customerPosition) {
+    if (!mapLoaded || !journeyLive || !technicianPosition || !customerPosition) {
       setDirections(null); setDistance("Not available yet"); setEta("Not available yet"); return
     }
     new window.google.maps.DirectionsService().route({ origin: technicianPosition, destination: customerPosition, travelMode: window.google.maps.TravelMode.DRIVING }, (result, resultStatus) => {
@@ -121,7 +141,7 @@ export default function TrackTechnician() {
         setDirections(result); setDistance(leg?.distance?.text || "Not available yet"); setEta(leg?.duration?.text || "Not available yet")
       } else { setDirections(null); setDistance("Not available yet"); setEta("Not available yet") }
     })
-  }, [customerPosition, isLoaded, journeyLive, technicianPosition])
+  }, [customerPosition, journeyLive, mapLoaded, technicianPosition])
 
   useEffect(() => {
     if (!mapRef.current || !window.google || !customerPosition) return
@@ -144,7 +164,7 @@ export default function TrackTechnician() {
     </div></header>
     <div className="mx-auto grid max-w-6xl gap-4 p-3 sm:p-4 lg:grid-cols-[1.25fr_0.75fr]">
       <section className="overflow-hidden rounded-2xl border border-gos-border bg-white shadow-sm"><div className="h-[46vh] min-h-80 max-h-[560px]">
-        {loadError ? <MapMessage text="Google Maps could not load." /> : !customerPosition ? <MapMessage text="The service location is not available yet." /> : isLoaded ? <GoogleMap onLoad={(map) => { mapRef.current = map }} mapContainerStyle={mapStyle} center={marker || customerPosition} zoom={marker ? 14 : 15} options={mapOptions}>
+        {!mapsApiKey || mapLoadError || mapAuthFailed ? <MapMessage text="Live map is temporarily unavailable." /> : !customerPosition ? <MapMessage text="The service location is not available yet." /> : mapLoaded ? <GoogleMap onLoad={(map) => { mapRef.current = map }} mapContainerStyle={mapStyle} center={marker || customerPosition} zoom={marker ? 14 : 15} options={mapOptions}>
           <Marker position={customerPosition} icon={customerIcon()} />
           {marker && <OverlayView position={marker} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}><div className="relative -translate-x-1/2 -translate-y-1/2"><span className="absolute inset-1 animate-ping rounded-full bg-gos-turquoise/20" /><div className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-gos-blue-deep shadow-lg" title="Technician location" role="img" aria-label="Technician's current location"><Navigation size={15} className="text-gos-turquoise" style={{ transform: `rotate(${Number(booking?.technicianHeading) || 0}deg)` }} /></div></div></OverlayView>}
           {directions && <DirectionsRenderer directions={directions} options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#0b9e9a", strokeWeight: 5, strokeOpacity: 0.9 } }} />}

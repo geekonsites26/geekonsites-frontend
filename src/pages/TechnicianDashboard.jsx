@@ -20,7 +20,7 @@ import {
   completeTechnicianService,
 } from "../services/technicianService"
 import useLiveTechnicianLocation from "../hooks/useLiveTechnicianLocation"
-import { hasNativeTechnicianTracking } from "../services/technicianTrackingService"
+import { hasNativeTechnicianTracking, openNativeCustomerNavigation } from "../services/technicianTrackingService"
 import { markAllNotificationsAsRead, markNotificationAsRead } from "../services/notificationService"
 import { apiRequest } from "../services/api"
 import { formatLocalDateTime } from "../utils/dateTime"
@@ -450,6 +450,22 @@ export default function TechnicianDashboard() {
     setRejectReason("")
   }
 
+  const openCustomerNavigation = async (job) => {
+    const latitude = Number(job.customerLatitude)
+    const longitude = Number(job.customerLongitude)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      alert("Customer location is not available yet.")
+      return
+    }
+    const fallback = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`
+    try {
+      if (hasNativeTechnicianTracking()) await openNativeCustomerNavigation(latitude, longitude)
+      else window.open(fallback, "_blank", "noopener,noreferrer")
+    } catch {
+      window.location.href = fallback
+    }
+  }
+
   const confirmRejectJob = async () => {
     const reason = rejectReason.trim()
     if (!rejectJob || !reason || rejecting) return
@@ -729,6 +745,7 @@ const saveMeetingLink = async (job) => {
               onComplete={() => handleCompleteJob(job)}
               onRemote={() => handleStartRemoteSession(job)}
               onTrack={() => openTrack(job)}
+              onNavigate={() => openCustomerNavigation(job)}
             />
           ))
         ) : (
@@ -1549,6 +1566,7 @@ function JobCard({
   onComplete,
   onRemote,
   onTrack,
+  onNavigate,
 }) {
   const isRemote = job.supportType === "remote"
   const isTrackingThisJob = String(activeTrackingJobId) === String(job.bookingId)
@@ -1724,13 +1742,10 @@ function JobCard({
           )}
 
           {canTrack && (
-            <button
-              onClick={onTrack}
-              className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#071122] px-4 py-3 text-sm font-bold text-white"
-            >
-              <Navigation className="h-4 w-4 text-cyan-300" />
-              Track
-            </button>
+            <>
+              <button onClick={onTrack} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700"><MapPin className="h-4 w-4 text-cyan-700" />Track</button>
+              <button onClick={onNavigate} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-bold text-white"><Navigation className="h-4 w-4" />Navigate</button>
+            </>
           )}
 
           <a

@@ -1,19 +1,31 @@
 import { getLocation, setLocation } from "../utils/location"
+import { GOOGLE_MAPS_SCRIPT_ID, getGoogleMapsApiKey, installGoogleMapsAuthFailureHandler } from "../utils/googleMaps"
 
 let googleMapsLoader
 
-const loadGoogleMaps = () => {
-  if (window.google?.maps?.Geocoder) return Promise.resolve(window.google.maps)
-  if (googleMapsLoader) return googleMapsLoader
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+export const loadGoogleMaps = () => {
+  const apiKey = getGoogleMapsApiKey()
   if (!apiKey) return Promise.reject(new Error("Address lookup is unavailable."))
+  const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) || document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]')
+  const existingKey = existing ? new URL(existing.src, window.location.href).searchParams.get("key") : null
+  if (existing && existingKey !== apiKey) {
+    existing.remove()
+    googleMapsLoader = undefined
+    if (window.google) delete window.google
+  } else if (window.google?.maps?.Geocoder) {
+    return Promise.resolve(window.google.maps)
+  } else if (googleMapsLoader) {
+    return googleMapsLoader
+  }
+  installGoogleMapsAuthFailureHandler()
   googleMapsLoader = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]')
-    const script = existing || document.createElement("script")
+    const matchingScript = existingKey === apiKey ? existing : null
+    const script = matchingScript || document.createElement("script")
     const finish = () => window.google?.maps?.Geocoder ? resolve(window.google.maps) : reject(new Error("Address lookup could not be loaded."))
     script.addEventListener("load", finish, { once: true })
     script.addEventListener("error", () => reject(new Error("Address lookup could not be loaded.")), { once: true })
-    if (!existing) {
+    if (!matchingScript) {
+      script.id = GOOGLE_MAPS_SCRIPT_ID
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async`
       script.async = true
       script.defer = true

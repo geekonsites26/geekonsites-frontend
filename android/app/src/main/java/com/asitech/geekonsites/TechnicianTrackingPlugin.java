@@ -4,7 +4,9 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
+import android.util.Log;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
@@ -21,6 +23,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 })
 public class TechnicianTrackingPlugin extends Plugin {
     private static final String PREFS = "technician_tracking";
+    private static final String TAG = "GOSTracking";
 
     @PluginMethod
     public void startTechnicianTracking(PluginCall call) {
@@ -51,8 +54,13 @@ public class TechnicianTrackingPlugin extends Plugin {
         Long bookingId = call.getLong("bookingId");
         String token = call.getString("token");
         String apiBaseUrl = call.getString("apiBaseUrl");
-        if (bookingId == null || token == null || token.isBlank() || apiBaseUrl == null || !apiBaseUrl.startsWith("https://") || apiBaseUrl.contains("localhost")) {
-            call.reject("Secure tracking configuration is invalid.", "INVALID_TRACKING_CONFIGURATION");
+        String validationCode = validateConfiguration(bookingId, token, apiBaseUrl);
+        String apiHost = safeHost(apiBaseUrl);
+        Log.i(TAG, "bookingId=" + (bookingId == null ? "missing" : bookingId) +
+                " tokenPresent=" + (token != null && !token.isBlank()) +
+                " apiBaseUrlHost=" + apiHost + " validationCode=" + validationCode);
+        if (!"OK".equals(validationCode)) {
+            call.reject("Live tracking couldn't start. Please retry.", validationCode);
             return;
         }
         LocationManager manager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
@@ -68,6 +76,47 @@ public class TechnicianTrackingPlugin extends Plugin {
         ContextCompat.startForegroundService(getContext(), intent);
         JSObject result = new JSObject();
         result.put("tracking", true); result.put("bookingId", bookingId);
+        call.resolve(result);
+    }
+
+    private String validateConfiguration(Long bookingId, String token, String apiBaseUrl) {
+        if (bookingId == null || bookingId < 1) return "MISSING_BOOKING_ID";
+        if (token == null || token.isBlank()) return "MISSING_AUTH_TOKEN";
+        if (apiBaseUrl == null || apiBaseUrl.isBlank()) return "MISSING_API_BASE_URL";
+        if (!apiBaseUrl.toLowerCase().startsWith("https://")) return "INSECURE_API_BASE_URL";
+        String host = safeHost(apiBaseUrl);
+        if ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "10.0.2.2".equals(host)) return "LOCALHOST_API_BASE_URL";
+        return "OK";
+    }
+
+    private String safeHost(String apiBaseUrl) {
+        if (apiBaseUrl == null || apiBaseUrl.isBlank()) return "missing";
+        try {
+            String host = Uri.parse(apiBaseUrl).getHost();
+            return host == null || host.isBlank() ? "invalid" : host;
+        } catch (Exception ignored) {
+            return "invalid";
+        }
+    }
+
+    @PluginMethod
+    public void openCustomerNavigation(PluginCall call) {
+        Double latitude = call.getDouble("latitude");
+        Double longitude = call.getDouble("longitude");
+        if (latitude == null || longitude == null) {
+            call.reject("Customer location is not available yet.", "MISSING_CUSTOMER_LOCATION");
+            return;
+        }
+        Uri googleNavigation = Uri.parse("google.navigation:q=" + latitude + "," + longitude + "&mode=d");
+        Intent mapsIntent = new Intent(Intent.ACTION_VIEW, googleNavigation).setPackage("com.google.android.apps.maps");
+        Intent selected = mapsIntent.resolveActivity(getContext().getPackageManager()) != null
+                ? mapsIntent
+                : new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + latitude + "," + longitude + "&travelmode=driving"));
+        selected.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(selected);
+        JSObject result = new JSObject();
+        result.put("opened", true);
+        result.put("provider", selected == mapsIntent ? "google-maps" : "https-fallback");
         call.resolve(result);
     }
 
