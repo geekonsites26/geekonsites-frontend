@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Wrench, CalendarCheck, Bell, User } from "lucide-react"
+import { Home, Wrench, CalendarCheck, Bell, User, UserRound } from "lucide-react"
+import { Capacitor } from "@capacitor/core"
 import { getMyNotifications } from "../../services/notificationService"
 
 export default function MobileBottomNav() {
@@ -65,16 +66,24 @@ export default function MobileBottomNav() {
     return null
   }
 
-  const items = [
+  const authenticatedCustomer = role === "CUSTOMER" && Boolean(localStorage.getItem("gos_token"))
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
+  const guestAndroidItems = [
+    { label: "Home", icon: Home, path: "/" },
+    { label: "Services", icon: Wrench, path: "/services" },
+    { label: "Book", icon: CalendarCheck, path: "/customer-login" },
+    { label: "Account", icon: UserRound, path: "/portal" },
+  ]
+  const customerItems = [
     {
       label: "Home",
       icon: Home,
       path: "/",
     },
     {
-      label: "Services",
+      label: authenticatedCustomer ? "Book" : "Services",
       icon: Wrench,
-      path: "/services",
+      path: authenticatedCustomer ? "/book-service" : "/services",
     },
     {
       label: "Bookings",
@@ -82,7 +91,7 @@ export default function MobileBottomNav() {
       path: "/customer-dashboard?view=bookings",
     },
     {
-      label: "Notify",
+      label: "Notifications",
       icon: Bell,
       path: "/notifications",
     },
@@ -92,6 +101,7 @@ export default function MobileBottomNav() {
       path: "/profile",
     },
   ]
+  const items = nativeAndroid && !authenticatedCustomer ? guestAndroidItems : customerItems
 
   const isActive = (path) => {
     if (path.startsWith("/customer-dashboard?view=bookings")) {
@@ -108,7 +118,7 @@ export default function MobileBottomNav() {
   return (
     <nav
       aria-label="Mobile primary navigation"
-      className="
+      className="gos-mobile-bottom-nav
         fixed
         bottom-0
         left-0
@@ -124,7 +134,7 @@ export default function MobileBottomNav() {
         shadow-[0_-8px_28px_rgba(11,39,66,0.10)]
       "
     >
-      <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 px-2">
+      <div className={`mx-auto grid max-w-lg gap-1 px-2 ${items.length === 4 ? "grid-cols-4" : "grid-cols-5"}`}>
         {items.map((item) => {
           const Icon = item.icon
           const active = isActive(item.path)
@@ -140,7 +150,7 @@ export default function MobileBottomNav() {
                   : "text-gos-muted hover:bg-gos-off-white hover:text-gos-turquoise"
               }`}
             >
-              <span className="relative"><Icon size={20} />{item.label === "Notify" && unread > 0 && <span className="absolute -right-2.5 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[8px] font-extrabold leading-none text-white ring-2 ring-white">{unread > 99 ? "99+" : unread}</span>}</span>
+              <span className="relative"><Icon size={20} />{item.label === "Notifications" && unread > 0 && <span className="absolute -right-2.5 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[8px] font-extrabold leading-none text-white ring-2 ring-white">{unread > 99 ? "99+" : unread}</span>}</span>
 
               <span className="mt-1 max-w-full truncate text-[9px] font-bold sm:text-[10px]">
                 {item.label}

@@ -19,8 +19,8 @@ export default function Home() {
   const { user, token, authReady } = useCustomerAuth()
   const isNativePlatform = Capacitor.isNativePlatform()
   const platform = Capacitor.getPlatform()
-  const role = String(user?.role || localStorage.getItem("gos_role") || "").toUpperCase()
-  const hasToken = Boolean(token || localStorage.getItem("gos_token"))
+  const role = String(user?.role || "").toUpperCase()
+  const hasToken = Boolean(token)
   const isCapacitorAndroid = isNativePlatform && platform === "android"
   if (isCapacitorAndroid && !authReady) return <DashboardLoader />
   if (isCapacitorAndroid && hasToken && role === "TECHNICIAN") return <Navigate to="/technician-dashboard" replace />

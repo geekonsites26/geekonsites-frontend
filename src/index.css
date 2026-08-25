@@ -11,6 +11,40 @@ html {
   text-size-adjust: 100%;
 }
 
+/* Shared branded skeleton shimmer, used by src/components/ui/Skeleton.jsx for
+   every loading state (dashboard, invoice, bookings, session, notifications)
+   instead of bare "Loading..." text. */
+.gos-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #e7edf1;
+}
+
+.gos-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(21, 179, 175, 0.16), transparent);
+  animation: gos-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+.gos-skeleton--dark {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gos-skeleton--dark::after {
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.14), transparent);
+}
+
+@keyframes gos-skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gos-skeleton::after { animation: none; }
+}
+
 /* Shared operational flow theme: checkout, receipts, invoices, and sessions. */
 .gos-service-flow {
   background: var(--gos-off-white) !important;
@@ -1839,4 +1873,359 @@ select {
   .gos-admin-login__mobile-logo { display:block; width:104px; max-height:50px; object-fit:contain; object-position:left center; margin-bottom:30px; }
   .gos-admin-login__form-heading h2 { font-size:27px; }
   .gos-admin-login__field,.gos-admin-login__submit { height:48px; }
+}
+
+/* Capacitor Android presentation. These rules are native-mode and mobile-only;
+   the responsive website and every desktop breakpoint remain unchanged. */
+@media (max-width: 1023px) {
+  html.gos-native-android,
+  html.gos-native-android body,
+  html.gos-native-android #root {
+    width: 100%;
+    min-height: 100%;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gos-native-android body {
+    overscroll-behavior-y: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Keep one natural document scroll chain in the Android WebView. Page shells
+     must grow with their content instead of creating competing viewport scrollers. */
+  .gos-native-android .gos-app-root,
+  .gos-native-android .gos-app-shell {
+    width: 100%;
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    touch-action: pan-y;
+  }
+
+  .gos-native-android .gos-mobile-site-footer { display: none !important; }
+
+  .gos-native-android .technician-secondary-menu { display: none !important; }
+  .gos-native-android .native-technician-active-job { display: flex !important; }
+
+  .gos-native-android .gos-site-header {
+    box-shadow: 0 1px 0 rgba(8, 43, 91, .10) !important;
+  }
+
+  .gos-native-android .gos-app-shell {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom) + 24px);
+  }
+
+  .gos-native-android .gos-mobile-bottom-nav,
+  .gos-native-android .technician-mobile-nav {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .gos-native-android .gos-mobile-bottom-nav a,
+  .gos-native-android .technician-mobile-nav button {
+    min-height: 52px;
+    touch-action: manipulation;
+  }
+
+  .gos-native-android input,
+  .gos-native-android select,
+  .gos-native-android textarea {
+    font-size: max(16px, 1em);
+  }
+
+  .gos-native-android .tracking-page {
+    min-height: 100dvh;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .gos-native-android .gos-auth-page,
+  .gos-native-android .gos-register-page,
+  .gos-native-android .gos-technician-auth,
+  .gos-native-android .gos-booking-page,
+  .gos-native-android .remote-session-page,
+  .gos-native-android .invoice-details-page,
+  .gos-native-android .gos-service-flow:not(.tracking-page) {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom) + 24px) !important;
+  }
+
+  .gos-native-android .gos-auth-page,
+  .gos-native-android .gos-register-page,
+  .gos-native-android .gos-technician-auth {
+    align-items: flex-start !important;
+    background: linear-gradient(180deg, #eaf7f5 0, #f4f7f9 11rem, #f4f7f9 100%) !important;
+  }
+
+  .gos-native-android .gos-auth-page > section,
+  .gos-native-android .gos-auth-page > div,
+  .gos-native-android .gos-register-page > section {
+    min-height: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .gos-native-android .gos-register-page form,
+  .gos-native-android .gos-auth-page form {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom) + 24px);
+  }
+
+  .gos-native-android .gos-register-page form {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .gos-native-android .gos-register-page > section > div,
+  .gos-native-android .gos-auth-page > div > section:last-child {
+    align-items: flex-start !important;
+    background: transparent !important;
+    padding-inline: 1rem !important;
+  }
+
+  .gos-native-android .gos-auth-page > div {
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Native customer authentication: integrated onboarding surface instead of
+     a desktop card dropped into the WebView. */
+  .gos-native-android .gos-auth-header {
+    border-bottom-color: rgba(8, 43, 91, .08) !important;
+    background: rgba(239, 248, 248, .96) !important;
+    backdrop-filter: blur(14px);
+  }
+
+  .gos-native-android .gos-auth-header > div {
+    max-width: 34rem;
+  }
+
+  .gos-native-android .gos-customer-login-panel,
+  .gos-native-android .gos-customer-register-panel {
+    position: relative;
+    display: block !important;
+    width: 100% !important;
+    padding: 1.5rem 1rem calc(5rem + env(safe-area-inset-bottom) + 24px) !important;
+    background:
+      radial-gradient(circle at 92% 2%, rgba(255, 187, 34, .16) 0 3rem, transparent 3.1rem),
+      radial-gradient(circle at 8% 5%, rgba(20, 164, 159, .13) 0 4.5rem, transparent 4.6rem),
+      linear-gradient(180deg, #edf8f7 0, #f5f8fa 12rem, #f5f8fa 100%) !important;
+  }
+
+  .gos-native-android .gos-customer-login-panel > div:first-child,
+  .gos-native-android .gos-customer-register-form > p:first-child {
+    margin-top: .35rem;
+  }
+
+  .gos-native-android .gos-customer-login-panel h2,
+  .gos-native-android .gos-customer-register-form h2 {
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif !important;
+    font-size: 2rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -.035em !important;
+    line-height: 1.08 !important;
+  }
+
+  .gos-native-android .gos-customer-login-form,
+  .gos-native-android .gos-customer-register-form {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 0 0 calc(5rem + env(safe-area-inset-bottom) + 24px) !important;
+    box-shadow: none !important;
+  }
+
+  .gos-native-android .gos-customer-login-form input:not([type="checkbox"]):not([type="radio"]),
+  .gos-native-android .gos-customer-register-form input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 50px;
+  }
+
+  .gos-native-android .gos-customer-login-form label > span:has(input),
+  .gos-native-android .gos-customer-login-form div > div:has(> input),
+  .gos-native-android .gos-customer-register-form label > span:has(input),
+  .gos-native-android .gos-customer-register-form div:has(> input[type="tel"]) {
+    border-radius: 14px !important;
+    border-color: #d8e4e8 !important;
+    background: rgba(255, 255, 255, .94) !important;
+    box-shadow: 0 5px 16px rgba(8, 43, 91, .05);
+  }
+
+  .gos-native-android .gos-customer-login-form button[type="submit"],
+  .gos-native-android .gos-customer-register-form button[type="submit"] {
+    min-height: 54px !important;
+    border-radius: 15px !important;
+    box-shadow: 0 10px 22px rgba(8, 43, 91, .20);
+  }
+
+  /* Compact operational screens: the website navbar is absent in native mode,
+     so its former top allowance must not survive in page padding. */
+  .gos-native-android .gos-booking-page {
+    padding-top: calc(env(safe-area-inset-top) + 8px) !important;
+  }
+
+  .gos-native-android .gos-booking-page > section {
+    padding-inline: .75rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .gos-native-android .gos-booking-page .booking-hero {
+    margin-bottom: .75rem !important;
+    padding: .85rem 1rem !important;
+    border-radius: 16px;
+  }
+
+  .gos-native-android .gos-booking-page .booking-hero h1 {
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif !important;
+    font-size: 1.45rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -.03em;
+  }
+
+  .gos-native-android .gos-booking-page .booking-workspace {
+    border-radius: 16px;
+    padding: .75rem !important;
+    box-shadow: 0 5px 18px rgba(8, 43, 91, .06) !important;
+  }
+
+  .gos-native-android .gos-booking-page [class*="gap-5"] {
+    gap: .75rem !important;
+  }
+
+  .gos-native-android .gos-notifications-page {
+    padding-top: env(safe-area-inset-top) !important;
+  }
+
+  .gos-native-android .gos-notifications-page > section:first-of-type {
+    background: rgba(248, 251, 252, .96) !important;
+  }
+
+  .gos-native-android .gos-notifications-page > section:first-of-type > div {
+    padding-top: .65rem !important;
+    padding-bottom: .75rem !important;
+  }
+
+  .gos-native-android .gos-notifications-page h1 {
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif !important;
+    font-size: 1.45rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -.03em;
+  }
+
+  .gos-native-android .gos-notifications-page > div.mx-auto {
+    padding-top: .75rem !important;
+  }
+
+  .gos-native-android .gos-notifications-page section[aria-label="Notification activity"] {
+    border-inline: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .gos-native-android .gos-illustrated-service-tile svg {
+    animation: gos-native-service-float 3.8s ease-in-out infinite;
+  }
+
+  @keyframes gos-native-service-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gos-native-android .gos-illustrated-service-tile svg { animation: none; }
+  }
+
+  /* Technician registration previously nested the evidence fields inside a
+     separately scrolling 430px panel, which trapped vertical finger swipes. */
+  .gos-native-android .gos-technician-register [class~="max-h-[430px]"] {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  /* The desktop technician console intentionally uses a fixed viewport and an
+     inner scroller. Android uses the document scroller and reserves room for
+     its fixed bottom navigation instead. */
+  .gos-native-android .gos-technician-portal,
+  .gos-native-android .gos-technician-portal > main {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .gos-native-android .gos-technician-portal #technician-main-content {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom) + 24px) !important;
+  }
+
+  .gos-native-android .tracking-page button,
+  .gos-native-android .gos-booking-page button {
+    touch-action: manipulation;
+  }
+
+  /* Contact/Help and the legal pages (Terms, Privacy, Refund) get a compact
+     app top bar in JSX; the desktop hero/back-link header that assumed a
+     website navbar above it is replaced, not stacked underneath it. */
+  .gos-native-android .gos-contact-hero,
+  .gos-native-android .gos-legal-hero {
+    display: none !important;
+  }
+
+  .gos-native-android .gos-contact-page,
+  .gos-native-android .gos-legal-page {
+    padding-top: calc(2.9rem + env(safe-area-inset-top)) !important;
+  }
+
+  .gos-native-android .gos-contact-page section {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .gos-native-android .gos-contact-page h1,
+  .gos-native-android .gos-contact-page h2,
+  .gos-native-android .gos-legal-page h1,
+  .gos-native-android .gos-legal-page h2 {
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif !important;
+    letter-spacing: -.02em !important;
+  }
+
+  .gos-native-android .gos-contact-page h2,
+  .gos-native-android .gos-legal-page h2 {
+    font-size: 1.35rem !important;
+    font-weight: 900 !important;
+    line-height: 1.15 !important;
+  }
+
+  .gos-native-android .gos-contact-page form {
+    padding: 1.25rem !important;
+    border-radius: 16px !important;
+    box-shadow: none !important;
+  }
+
+  .gos-native-android .gos-contact-page form > div[class*="mt-6"] {
+    margin-top: 0 !important;
+  }
+
+  .gos-native-android .gos-legal-page article {
+    box-shadow: none !important;
+  }
+
+  .gos-native-android .gos-legal-page article section {
+    padding: 1rem !important;
+  }
+
+  .gos-native-android .gos-legal-page aside {
+    border-radius: 16px !important;
+  }
 }

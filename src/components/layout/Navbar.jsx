@@ -7,6 +7,7 @@ import Button from "../ui/Button"
 import { setLocation as saveLocation } from "../../utils/location"
 import { useCustomerAuth } from "../../context/CustomerAuthContext"
 import BrandLogo from "../common/BrandLogo"
+import { getDashboardPathForRole } from "../../utils/authRouting"
 
 const mainLinks = [
   { label: "Home", path: "/" },
@@ -61,7 +62,7 @@ export default function Navbar() {
     const name = customer.fullName || customer.name || customer.username || [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email?.split("@")[0] || "Account"
     const roleKey = String(customer.role || "CUSTOMER").toUpperCase()
     const roleConfig = ROLE_DASHBOARDS[roleKey] || ROLE_DASHBOARDS.CUSTOMER
-    setProfile({ loggedIn: true, name, role: roleConfig.label, dashboardPath: roleConfig.path })
+    setProfile({ loggedIn: true, name, role: roleConfig.label, dashboardPath: getDashboardPathForRole(roleKey) })
   }, [customer, isAuthenticated])
 
   const closeMenus = () => { setMobileOpen(false); setProfileOpen(false); setPortalOpen(false) }
