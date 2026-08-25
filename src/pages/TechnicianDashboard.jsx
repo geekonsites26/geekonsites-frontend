@@ -27,6 +27,7 @@ import { apiRequest } from "../services/api"
 import { formatLocalDateTime } from "../utils/dateTime"
 import { safeNotificationPath } from "../utils/notificationRoute"
 import { normalizeNotifications } from "../utils/notifications"
+import { normalizeBookingStatus, TECHNICIAN_ACTIVE_STATUSES, TECHNICIAN_DECISION_STATUSES } from "../utils/technicianJobs"
 import {
   Activity,
   Bell,
@@ -100,6 +101,7 @@ const getSupportType = (booking) => {
 
 const mapBookingToJob = (booking) => {
   const supportType = getSupportType(booking)
+  const bookingStatus = normalizeBookingStatus(booking)
 
   return {
     bookingId: booking.id,
@@ -116,12 +118,12 @@ const mapBookingToJob = (booking) => {
         ? `${booking.bookingDate} • ${booking.timeSlot}`
         : "Schedule not selected",
     priority:
-      booking.bookingStatus === "PENDING" ||
-      booking.bookingStatus === "ASSIGNMENT_PENDING"
+      bookingStatus === "PENDING" ||
+      bookingStatus === "ASSIGNMENT_PENDING"
         ? "High"
         : "Medium",
-    status: statusToLabel[booking.bookingStatus] || "New",
-    bookingStatus: booking.bookingStatus || "PENDING",
+    status: statusToLabel[bookingStatus] || bookingStatus.replaceAll("_", " "),
+    bookingStatus,
     bookingTimezone: booking.bookingTimezone || booking.timezone || booking.timeZone,
     country: booking.country,
     state: booking.state,
@@ -151,7 +153,13 @@ export default function TechnicianDashboard() {
   const { user, logoutCustomer } = useCustomerAuth()
   const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
 
-  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get("view") === "notifications" ? "Notifications" : "Dashboard")
+  const [activeTab, setActiveTab] = useState(() => {
+    const view = new URLSearchParams(window.location.search).get("view")
+    if (["jobs", "assigned"].includes(view)) return "Assigned Jobs"
+    if (view === "active") return "Active Work"
+    if (view === "notifications") return "Notifications"
+    return "Dashboard"
+  })
   const [availability, setAvailability] = useState("Offline")
   const [technicianProfile, setTechnicianProfile] = useState(null)
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("")
@@ -234,6 +242,14 @@ export default function TechnicianDashboard() {
     setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, read: true, isRead: true } : item))
     if (!notification.isRead) {
       try { await markNotificationAsRead(notification.id) } catch { loadTechnicianNotifications() }
+    }
+    const assignmentAlert = notification.bookingId && /assign|booking|job/i.test(`${notification.type || ""} ${notification.title || ""}`)
+    if (assignmentAlert) {
+      await refreshJobs()
+      setSearchTerm(`GOS-${notification.bookingId}`)
+      openTab("Assigned Jobs")
+      navigate(`/technician-dashboard?view=jobs&bookingId=${encodeURIComponent(notification.bookingId)}`, { replace: true })
+      return
     }
     navigate(safeNotificationPath(notification.actionUrl, "TECHNICIAN"))
   }
@@ -333,6 +349,28 @@ export default function TechnicianDashboard() {
     setActiveTrackingJobId(activeJourney?.bookingId ?? null)
   }
 
+  useEffect(() => {
+    const refreshOperationalData = () => {
+      if (document.visibilityState === "visible") refreshJobs().catch((error) => console.error("Technician jobs could not be refreshed", error))
+    }
+    const timer = window.setInterval(refreshOperationalData, 15000)
+    const openPushBooking = (event) => {
+      const bookingId = event.detail?.bookingId
+      if (bookingId) setSearchTerm(`GOS-${bookingId}`)
+      setActiveTab(event.detail?.view === "active" ? "Active Work" : "Assigned Jobs")
+      refreshOperationalData()
+    }
+    window.addEventListener("gos:push-received", refreshOperationalData)
+    window.addEventListener("gos:technician-booking-open", openPushBooking)
+    document.addEventListener("visibilitychange", refreshOperationalData)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("gos:push-received", refreshOperationalData)
+      window.removeEventListener("gos:technician-booking-open", openPushBooking)
+      document.removeEventListener("visibilitychange", refreshOperationalData)
+    }
+  }, [])
+
   const openTab = (tab) => {
     setActiveTab(tab)
     setMobileMenu(false)
@@ -393,7 +431,9 @@ export default function TechnicianDashboard() {
 
   const handleAcceptJob = async (job) => {
     try {
-      await acceptTechnicianJob(job.bookingId)
+      const updated = await acceptTechnicianJob(job.bookingId)
+      setJobs((current) => current.map((item) => String(item.bookingId) === String(job.bookingId) ? mapBookingToJob(updated || { ...item.raw, bookingStatus: "TECHNICIAN_ACCEPTED" }) : item))
+      setActiveTab("Active Work")
       await refreshJobs()
       showPopup("Job accepted. Customer notified.")
     } catch (error) {
@@ -404,8 +444,10 @@ export default function TechnicianDashboard() {
 
   const handleRejectJob = async (job) => {
     try {
-      const reason = window.prompt("Reason for rejecting this job?") || ""
+      const reason = window.prompt("Reason for rejecting this job?")?.trim()
+      if (!reason) return
       await rejectTechnicianJob(job.bookingId, reason)
+      setJobs((current) => current.filter((item) => String(item.bookingId) !== String(job.bookingId)))
       await refreshJobs()
       showPopup("Job rejected. Customer will be reassigned.")
     } catch (error) {
@@ -661,8 +703,8 @@ const saveMeetingLink = async (job) => {
     )
   }
 
-  const JobsSection = ({ mode = "all", title = "Assigned Jobs" } = {}) => {
-    const visibleJobs = filteredJobs.filter((job) => mode === "all" || job.supportType === mode)
+  const JobsSection = ({ mode = "all", title = "Assigned Jobs", statuses = null } = {}) => {
+    const visibleJobs = filteredJobs.filter((job) => (mode === "all" || job.supportType === mode) && (!statuses || statuses.includes(job.bookingStatus)))
     return (
     <section className="rounded-[28px] border border-cyan-500/10 bg-[#071122] p-4 md:rounded-[32px] md:p-7">
       <div className="mb-7 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -1017,6 +1059,8 @@ const saveMeetingLink = async (job) => {
       </div>
 
       {isNativeAndroid && <TechnicianChangePassword />}
+
+      <button type="button" onClick={() => { logoutCustomer(); navigate("/technician-login", { replace: true }) }} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 text-sm font-black text-red-300"><LogOut size={17} /> Logout</button>
     </section>
   )
 
@@ -1170,7 +1214,7 @@ const saveMeetingLink = async (job) => {
     </div>
   )
 
-  const ActiveWorkSection = () => activeOnsiteJob ? <ActiveJobCard job={activeOnsiteJob} /> : activeRemoteJob ? <RemoteActiveCard /> : <EmptyActiveCard />
+  const ActiveWorkSection = () => <JobsSection title="Active Work" statuses={TECHNICIAN_ACTIVE_STATUSES} />
 
   // Keep the legacy desktop composition available while the mobile-first Home
   // is used for the Dashboard tab.
@@ -1179,7 +1223,7 @@ const saveMeetingLink = async (job) => {
   const renderContent = () => {
     if (activeTab === "Dashboard") return <PremiumHomeSection />
     if (activeTab === "Active Work") return <ActiveWorkSection />
-    if (activeTab === "Assigned Jobs") return <JobsSection />
+    if (activeTab === "Assigned Jobs") return <JobsSection statuses={TECHNICIAN_DECISION_STATUSES} />
     if (activeTab === "Remote Services") return <ServicesSection mode="remote" />
     if (activeTab === "On-site Services") return <ServicesSection mode="onsite" />
     if (activeTab === "Remote Sessions") return <RemoteSessionsSection />
@@ -1269,7 +1313,7 @@ const saveMeetingLink = async (job) => {
 
   return (
     <div className="gos-technician-portal flex h-screen w-full overflow-hidden bg-[#020817] text-white">
-      <StatusToast message={popup} />
+      <StatusToast message={popup} branded />
 
       {liveTracking && (
         <div className="fixed bottom-24 left-4 z-50 rounded-2xl border border-green-500/20 bg-green-500/10 px-5 py-4 text-sm font-bold text-green-300 shadow-2xl md:bottom-6">
@@ -1407,12 +1451,11 @@ const saveMeetingLink = async (job) => {
       )}
 
       <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex h-[82px] shrink-0 items-center justify-between border-b border-cyan-500/10 bg-[#071122]/90 px-4 md:h-[90px] md:px-6">
-          <div>
-            <h1 className="text-xl font-black md:text-2xl">{activeTab}</h1>
-            <p className="mt-1 text-xs text-cyan-100/40 md:text-sm">
-              Approved technician workspace
-            </p>
+        <div className="flex min-h-[82px] shrink-0 items-center justify-between border-b border-cyan-500/10 bg-[#071122]/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] md:min-h-[90px] md:px-6">
+          <div className="min-w-0">
+            <BrandLogo className="h-7 w-auto max-w-[145px] md:h-8" />
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-cyan-100/55"><MapPin size={11} className="shrink-0 text-cyan-300" /><span className="truncate">{[technicianProfile?.city, technicianProfile?.state, technicianProfile?.country].filter(Boolean).join(", ") || "Service location not set"}</span></div>
+            <h1 className="sr-only">{activeTab}</h1>
           </div>
 
           <div className="hidden w-full max-w-[360px] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-5 py-3 md:flex">
@@ -1512,13 +1555,11 @@ function JobCard({
   const canAccept = job.bookingStatus === "TECHNICIAN_ASSIGNED"
   const canStartJourney =
     !isRemote &&
-    (job.bookingStatus === "TECHNICIAN_ACCEPTED" ||
-      job.bookingStatus === "TECHNICIAN_ASSIGNED")
+    job.bookingStatus === "TECHNICIAN_ACCEPTED"
   const canArrive = !isRemote && job.bookingStatus === "TECHNICIAN_ON_THE_WAY"
   const canStartService =
     !isRemote &&
-    (job.bookingStatus === "TECHNICIAN_ARRIVED" ||
-      job.bookingStatus === "TECHNICIAN_ON_THE_WAY")
+    job.bookingStatus === "TECHNICIAN_ARRIVED"
   const canComplete =
     job.bookingStatus === "SERVICE_STARTED" ||
     job.bookingStatus === "REMOTE_SESSION_STARTED"
@@ -1531,7 +1572,6 @@ function JobCard({
       const canRemote =
   isRemote &&
   (
-    job.bookingStatus === "TECHNICIAN_ASSIGNED" ||
     job.bookingStatus === "TECHNICIAN_ACCEPTED"
   )
   

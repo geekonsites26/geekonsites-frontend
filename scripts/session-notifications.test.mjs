@@ -15,6 +15,7 @@ globalThis.window = { setTimeout, clearTimeout }
 const api = await import("../src/services/api.js")
 const { safeNotificationPath } = await import("../src/utils/notificationRoute.js")
 const { normalizeNotifications } = await import("../src/utils/notifications.js")
+const { classifyTechnicianBooking, normalizeBookingStatus } = await import("../src/utils/technicianJobs.js")
 
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
@@ -60,4 +61,18 @@ test("a stale refresh cannot repaint an optimistically read notification", () =>
   const refreshed = normalizeNotifications([{ id: 21, title: "Booking assigned", read: false }], previous)
   assert.equal(refreshed[0].isRead, true)
   assert.equal(refreshed[0].read, true)
+})
+
+test("technician assigned bookings remain in Jobs until accepted", () => {
+  assert.equal(classifyTechnicianBooking({ bookingStatus: "TECHNICIAN_ASSIGNED" }), "jobs")
+  assert.equal(classifyTechnicianBooking({ status: "ASSIGNED" }), "jobs")
+  assert.equal(normalizeBookingStatus({ status: "ASSIGNED" }), "TECHNICIAN_ASSIGNED")
+  assert.equal(classifyTechnicianBooking({ bookingStatus: "TECHNICIAN_ASSIGNED" }), "jobs")
+})
+
+test("accepted remote and onsite bookings classify as Active, not Completed", () => {
+  for (const status of ["TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED"]) {
+    assert.equal(classifyTechnicianBooking({ bookingStatus: status }), "active")
+  }
+  assert.equal(classifyTechnicianBooking({ bookingStatus: "SERVICE_COMPLETED" }), "completed")
 })

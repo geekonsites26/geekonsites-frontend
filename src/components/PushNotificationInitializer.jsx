@@ -41,7 +41,14 @@ export default function PushNotificationInitializer() {
         const notificationId = notification?.data?.notificationId || notification?.data?.id
         if (notificationId) markNotificationAsRead(notificationId).catch(() => {})
         window.dispatchEvent(new CustomEvent("gos:notifications-updated", { detail: { refresh: true } }))
-        navigate(safeNotificationPath(notification?.data?.actionUrl, role))
+        const target = safeNotificationPath(notification?.data?.actionUrl, role)
+        if (role === "TECHNICIAN" && notification?.data?.bookingId) {
+          const view = target.includes("view=active") ? "active" : "jobs"
+          window.dispatchEvent(new CustomEvent("gos:technician-booking-open", { detail: { bookingId: notification.data.bookingId, view } }))
+          navigate(`/technician-dashboard?view=${view}&bookingId=${encodeURIComponent(notification.data.bookingId)}`)
+          return
+        }
+        navigate(target)
       })
 
       let permission = await PushNotifications.checkPermissions()
