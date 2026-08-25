@@ -53,8 +53,9 @@ export default function InvoiceDetails() {
         throw new Error("Booking ID not found")
       }
 
-      await generateInvoiceByBookingId(bookingId)
       const finalBooking = await getBookingById(bookingId)
+      const finalPaymentDue = Number(finalBooking.remainingAmount || 0) > 0
+      if (!finalPaymentDue) await generateInvoiceByBookingId(bookingId)
       const storedInvoice = await getInvoiceByBookingId(bookingId)
 
       const currencySymbol = finalBooking.currency === "GBP" || finalBooking.country === "UK" ? "\u00A3" : "$"
