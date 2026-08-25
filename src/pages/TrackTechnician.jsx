@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { DirectionsRenderer, GoogleMap, Marker, OverlayView, useLoadScript } from "@react-google-maps/api"
 import { ArrowLeft, CheckCircle2, Clock3, MapPin, MessageCircle, Navigation, Phone, RefreshCcw, Share2 } from "lucide-react"
-import gosVan from "../assets/map/gos-van.webp"
 import customerHome from "../assets/map/customer-home.webp"
 import { getBookingTracking } from "../services/bookingService"
 import { SkeletonList, SkeletonMapPanel } from "../components/ui/Skeleton"
@@ -54,7 +53,7 @@ export default function TrackTechnician() {
       setBooking(data)
       setLastUpdated(new Date())
     } catch (requestError) {
-      setError(requestError?.message || "Tracking information is temporarily unavailable.")
+      setError(requestError?.code === "TIMEOUT" ? "Updating live location…" : requestError?.message || "Tracking information is temporarily unavailable.")
     } finally {
       if (showLoader) setLoading(false)
     }
@@ -127,7 +126,7 @@ export default function TrackTechnician() {
       <section className="overflow-hidden rounded-2xl border border-gos-border bg-white shadow-sm"><div className="h-[46vh] min-h-80 max-h-[560px]">
         {loadError ? <MapMessage text="Google Maps could not load." /> : !customerPosition ? <MapMessage text="The service location is not available yet." /> : isLoaded ? <GoogleMap onLoad={(map) => { mapRef.current = map }} mapContainerStyle={mapStyle} center={marker || customerPosition} zoom={marker ? 14 : 15} options={mapOptions}>
           <Marker position={customerPosition} icon={customerIcon()} />
-          {marker && <OverlayView position={marker} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}><div className="relative -translate-x-1/2 -translate-y-1/2"><span className="absolute inset-1 animate-ping rounded-full bg-gos-turquoise/20" /><img src={gosVan} alt="GeekOnSites technician vehicle" className="relative h-11 w-11 object-contain drop-shadow-md" /></div></OverlayView>}
+          {marker && <OverlayView position={marker} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}><div className="relative -translate-x-1/2 -translate-y-1/2"><span className="absolute inset-1 animate-ping rounded-full bg-gos-turquoise/20" /><div className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-gos-blue-deep shadow-lg" title="Technician location" role="img" aria-label="Technician's current location"><Navigation size={15} className="text-gos-turquoise" style={{ transform: `rotate(${Number(booking?.technicianHeading) || 0}deg)` }} /></div></div></OverlayView>}
           {directions && <DirectionsRenderer directions={directions} options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#0b9e9a", strokeWeight: 5, strokeOpacity: 0.9 } }} />}
         </GoogleMap> : <MapMessage text="Loading map…" />}
       </div><div className="grid grid-cols-2 border-t border-gos-border"><Metric icon={Clock3} label="Estimated arrival" value={journeyLive ? eta : "Journey not started"} /><Metric icon={Navigation} label="Distance" value={journeyLive ? distance : "Journey not started"} border /></div></section>
