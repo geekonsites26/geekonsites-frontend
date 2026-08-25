@@ -14,6 +14,7 @@ globalThis.window = { setTimeout, clearTimeout }
 
 const api = await import("../src/services/api.js")
 const { safeNotificationPath } = await import("../src/utils/notificationRoute.js")
+const { normalizeNotifications } = await import("../src/utils/notifications.js")
 
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
@@ -41,4 +42,22 @@ test("notification routes are role-aware and reject external or cross-role paths
   assert.equal(safeNotificationPath("https://evil.example/steal", "TECHNICIAN"), "/technician-dashboard?view=notifications")
   assert.equal(safeNotificationPath("/admin-dashboard", "CUSTOMER"), "/notifications")
   assert.equal(safeNotificationPath("//evil.example/steal", "AGENT"), "/agent-dashboard?view=notifications")
+})
+
+test("notification read aliases normalize and duplicate IDs collapse", () => {
+  const items = normalizeNotifications([
+    { id: 11, title: "Assigned", read: false },
+    { id: 11, title: "Assigned", is_read: true },
+    { notificationId: 12, title: "Payment", isRead: false },
+  ])
+  assert.equal(items.length, 2)
+  assert.equal(items.find((item) => item.id === 11).isRead, true)
+  assert.equal(items.find((item) => item.id === 11).read, true)
+})
+
+test("a stale refresh cannot repaint an optimistically read notification", () => {
+  const previous = [{ id: 21, title: "Booking assigned", isRead: true, read: true }]
+  const refreshed = normalizeNotifications([{ id: 21, title: "Booking assigned", read: false }], previous)
+  assert.equal(refreshed[0].isRead, true)
+  assert.equal(refreshed[0].read, true)
 })

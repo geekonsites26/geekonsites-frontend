@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Capacitor } from "@capacitor/core"
 import { PushNotifications } from "@capacitor/push-notifications"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
-import { registerPushDevice } from "../services/notificationService"
+import { markNotificationAsRead, registerPushDevice } from "../services/notificationService"
 import { safeNotificationPath } from "../utils/notificationRoute"
 
 export default function PushNotificationInitializer() {
@@ -38,6 +38,9 @@ export default function PushNotificationInitializer() {
       })
 
       await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
+        const notificationId = notification?.data?.notificationId || notification?.data?.id
+        if (notificationId) markNotificationAsRead(notificationId).catch(() => {})
+        window.dispatchEvent(new CustomEvent("gos:notifications-updated", { detail: { refresh: true } }))
         navigate(safeNotificationPath(notification?.data?.actionUrl, role))
       })
 

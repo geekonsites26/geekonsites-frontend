@@ -15,6 +15,7 @@ import { useCustomerAuth } from "../context/CustomerAuthContext"
 import { apiRequest } from "../services/api"
 import { formatLocalDateTime } from "../utils/dateTime"
 import { safeNotificationPath } from "../utils/notificationRoute"
+import { normalizeNotifications } from "../utils/notifications"
 import { getAllContactMessages, updateContactMessageStatus } from "../services/contactService"
 import RevenueChart from "../components/agent/RevenueChart"
 import BookingChart from "../components/agent/BookingChart"
@@ -156,6 +157,15 @@ const [modeFilter, setModeFilter] = useState("ALL")
     }
   }, [notificationsMuted])
 
+  useEffect(() => {
+    if (!["Assign Technician", "Technicians"].includes(activeTab)) return
+    let active = true
+    getAllTechnicians()
+      .then((data) => { if (active) setTechnicians(Array.isArray(data) ? data : []) })
+      .catch((error) => console.error("Technician availability could not be refreshed", error))
+    return () => { active = false }
+  }, [activeTab])
+
   const loadDashboard = async () => {
     try {
       setLoading(true)
@@ -183,8 +193,9 @@ const [modeFilter, setModeFilter] = useState("ALL")
       setBookings(Array.isArray(bookingData) ? bookingData : [])
       setTechnicians(Array.isArray(technicianData) ? technicianData : [])
       setAgents(Array.isArray(agentData) ? agentData : [])
-      setNotifications(Array.isArray(notificationData) ? notificationData : [])
-      knownNotificationIds.current = new Set((Array.isArray(notificationData) ? notificationData : []).map((item) => item.id))
+      const normalizedNotifications = normalizeNotifications(notificationData)
+      setNotifications(normalizedNotifications)
+      knownNotificationIds.current = new Set(normalizedNotifications.map((item) => String(item.id)))
       setAgentProfile(profileData)
       setSupportMessages(Array.isArray(supportData) ? supportData : [])
       setOperationsSummary(summaryData)
@@ -218,16 +229,16 @@ const [modeFilter, setModeFilter] = useState("ALL")
     try {
       if (quiet) setNotificationRefreshing(true)
       const data = await getAgentNotifications()
-      const items = Array.isArray(data) ? data : []
-      const newItems = knownNotificationIds.current.size
-        ? items.filter((item) => !knownNotificationIds.current.has(item.id))
-        : []
-      knownNotificationIds.current = new Set(items.map((item) => item.id))
-      setNotifications(items)
-      if (newItems.length && !notificationsMuted) {
-        showPopup(newItems[0].title || "New agent notification")
-        navigator.vibrate?.([100, 60, 100])
-      }
+      setNotifications((previous) => {
+        const items = normalizeNotifications(data, previous)
+        const newItems = knownNotificationIds.current.size ? items.filter((item) => !knownNotificationIds.current.has(String(item.id))) : []
+        knownNotificationIds.current = new Set(items.map((item) => String(item.id)))
+        if (newItems.length && !notificationsMuted) {
+          showPopup(newItems[0].title || "New agent notification")
+          navigator.vibrate?.([100, 60, 100])
+        }
+        return items
+      })
     } catch (error) {
       if (!quiet) showPopup(error.message || "Notifications could not be loaded")
     } finally {
@@ -601,8 +612,9 @@ const [modeFilter, setModeFilter] = useState("ALL")
     const isReassigning = Boolean(selectedBooking) && !isUnassigned(selectedBooking)
     // Only technicians approved for the selected booking's service mode are
     // shown, so the list can never offer one the backend would reject.
+    const technicianKeyword = searchTerm.trim().toLowerCase()
     const eligibleTechnicians = selectedBooking
-      ? technicians.filter((tech) => isTechnicianEligibleForBookingMode(tech, selectedBooking))
+      ? technicians.filter((tech) => isTechnicianEligibleForBookingMode(tech, selectedBooking) && (!technicianKeyword || [tech.name, tech.email, tech.phone, tech.city, tech.country, tech.specialization, tech.availabilityStatus].some((value) => String(value || "").toLowerCase().includes(technicianKeyword))))
       : []
 
     return (

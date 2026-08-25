@@ -6,6 +6,7 @@ import { getMyNotifications, markAllNotificationsAsRead, markNotificationAsRead 
 import { getMyBookings } from "../services/bookingService"
 import { formatLocalDateTime } from "../utils/dateTime"
 import { safeNotificationPath } from "../utils/notificationRoute"
+import { normalizeNotifications } from "../utils/notifications"
 
 const eventStyle = (title = "") => {
   const value = title.toLowerCase()
@@ -59,21 +60,18 @@ export default function Notifications() {
       setError("")
       const [data, bookingData] = await Promise.all([getMyNotifications(), getMyBookings()])
       setBookings(Array.isArray(bookingData) ? bookingData : [])
-      const items = [...(Array.isArray(data) ? data : [])].sort((a, b) => {
-        const left = a?.createdAt ? new Date(a.createdAt).getTime() : 0
-        const right = b?.createdAt ? new Date(b.createdAt).getTime() : 0
-        return right - left
+      setNotifications((previous) => {
+        const items = normalizeNotifications(data, previous)
+        const newItems = feedInitialized.current ? items.filter((item) => !knownIds.current.has(String(item.id))) : []
+        knownIds.current = new Set(items.map((item) => String(item.id)))
+        feedInitialized.current = true
+        if (newItems.length && !mutedRef.current) {
+          setLiveAlert(newItems[0])
+          if (navigator.vibrate) navigator.vibrate([100, 60, 100])
+        }
+        return items
       })
-      const newItems = feedInitialized.current ? items.filter((item) => !knownIds.current.has(item.id)) : []
-      knownIds.current = new Set(items.map((item) => item.id))
-      feedInitialized.current = true
-      setNotifications(items)
       setLastUpdated(new Date())
-
-      if (newItems.length && !mutedRef.current) {
-        setLiveAlert(newItems[0])
-        if (navigator.vibrate) navigator.vibrate([100, 60, 100])
-      }
     } catch (loadError) {
       setError(loadError?.message || "Notifications could not be loaded.")
     } finally {
@@ -124,7 +122,7 @@ export default function Notifications() {
     setNotifications((current) => current.map((item) => ({ ...item, isRead: true })))
     try {
       const updated = await markAllNotificationsAsRead()
-      if (Array.isArray(updated)) setNotifications(updated)
+      if (Array.isArray(updated)) setNotifications((previous) => normalizeNotifications(updated, previous))
     } catch (readError) {
       setNotifications(previous)
       setError(readError?.message || "Notifications could not be updated.")
