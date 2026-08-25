@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
-import { ArrowRight, CheckCircle2, ChevronDown, Clock3, Mail, MapPin, Send, ShieldCheck } from "lucide-react"
+import { Capacitor } from "@capacitor/core"
+import { ArrowRight, CheckCircle2, ChevronDown, ChevronLeft, Clock3, Mail, MapPin, Send, ShieldCheck } from "lucide-react"
 import SEO from "../components/common/SEO"
 import Container from "../components/layout/Container"
 import { sendContactMessage } from "../services/contactService"
@@ -18,6 +20,8 @@ const initialForm = {
 }
 
 export default function Contact() {
+  const navigate = useNavigate()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
   const region = useRegion()
   const { customer } = useCustomerAuth()
   const [loading, setLoading] = useState(false)
@@ -81,10 +85,17 @@ export default function Contact() {
   }
 
   return (
-    <main className="min-h-screen bg-gos-off-white pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-gos-charcoal lg:pb-0">
+    <main className="gos-contact-page min-h-screen bg-gos-off-white pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-gos-charcoal lg:pb-0">
       <SEO title="Contact GeekOnSites | Remote & On-Site Support" description="Contact GeekOnSites for professional remote and on-site technology support across the United States and United Kingdom." />
 
-      <section className="border-b border-gos-border bg-white pt-[calc(3.5rem+env(safe-area-inset-top))] sm:pt-[calc(4rem+env(safe-area-inset-top))]">
+      {nativeAndroid && (
+        <header className="fixed inset-x-0 top-0 z-40 flex items-center gap-3 border-b border-[#dfe8ed] bg-[#f8fbfc]/95 px-3 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl">
+          <button type="button" onClick={() => navigate(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gos-off-white text-gos-blue-deep" aria-label="Go back"><ChevronLeft size={19} /></button>
+          <p className="min-w-0 flex-1 truncate text-[15px] font-extrabold text-gos-blue-deep">Contact & Support</p>
+        </header>
+      )}
+
+      <section className="gos-contact-hero border-b border-gos-border bg-white pt-[calc(3.5rem+env(safe-area-inset-top))] sm:pt-[calc(4rem+env(safe-area-inset-top))]">
         <Container><DashboardReturnLink force to="/" className="-ml-2 my-2" /></Container>
         <Container className="grid gap-8 pb-10 sm:pb-14 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-end lg:gap-14 lg:pb-16">
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>

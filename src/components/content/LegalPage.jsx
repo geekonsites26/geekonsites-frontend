@@ -1,15 +1,26 @@
-import { Mail, ShieldCheck } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Mail, ShieldCheck, ChevronLeft } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
+import { Capacitor } from "@capacitor/core"
 import Container from "../layout/Container"
 import SEO from "../common/SEO"
 import DashboardReturnLink from "../customer/DashboardReturnLink"
 
 export default function LegalPage({ eyebrow, title, description, sections, seoTitle, dateLabel = "Effective date: 14 August 2026", relatedLinks = [] }) {
+  const navigate = useNavigate()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
+
   return (
-    <main className="min-h-screen bg-gos-off-white pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal lg:pb-0 sm:pt-[calc(4rem+env(safe-area-inset-top))]">
+    <main className="gos-legal-page min-h-screen bg-gos-off-white pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[calc(3.5rem+env(safe-area-inset-top))] text-gos-charcoal lg:pb-0 sm:pt-[calc(4rem+env(safe-area-inset-top))]">
       <SEO title={seoTitle} description={description} />
 
-      <header className="border-b border-gos-border bg-white">
+      {nativeAndroid && (
+        <header className="fixed inset-x-0 top-0 z-40 flex items-center gap-3 border-b border-[#dfe8ed] bg-[#f8fbfc]/95 px-3 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl">
+          <button type="button" onClick={() => navigate(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gos-off-white text-gos-blue-deep" aria-label="Go back"><ChevronLeft size={19} /></button>
+          <p className="min-w-0 flex-1 truncate text-[15px] font-extrabold text-gos-blue-deep">{title}</p>
+        </header>
+      )}
+
+      <header className="gos-legal-hero border-b border-gos-border bg-white">
         <Container className="pb-7 pt-2 sm:pb-10">
           <DashboardReturnLink force to="/" className="-ml-2 mb-2" />
           <div className="max-w-3xl">

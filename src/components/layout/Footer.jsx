@@ -49,7 +49,7 @@ export default function Footer() {
         </div>
       </Container>
     </footer>
-    <footer className="border-t border-gos-border bg-white px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6 text-center text-gos-charcoal lg:hidden">
+    <footer className="gos-mobile-site-footer border-t border-gos-border bg-white px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6 text-center text-gos-charcoal lg:hidden">
       <div className="mx-auto flex max-w-md flex-col items-center">
         <Link to="/" aria-label="GeekOnSites home" className="inline-flex">
           <BrandLogo className="h-auto w-44 max-w-[70vw]" />
