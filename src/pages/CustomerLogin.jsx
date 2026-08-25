@@ -3,9 +3,15 @@ import { Link, useNavigate } from "react-router-dom"
 import { ArrowRight, CalendarCheck, Eye, EyeOff, Loader2, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react"
 import { useCustomerAuth } from "../context/CustomerAuthContext"
 import AuthHeader from "../components/auth/AuthHeader"
+import { Capacitor } from "@capacitor/core"
+
+const customerDestination = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
+  ? "/"
+  : "/customer-dashboard"
 
 export default function CustomerLogin() {
   const navigate = useNavigate()
+  const nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
   const { loginCustomer, user, token, authReady } = useCustomerAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -22,7 +28,7 @@ export default function CustomerLogin() {
 
   useEffect(() => {
     if (authReady && token && String(user?.role || "").toUpperCase() === "CUSTOMER") {
-      navigate("/customer-dashboard", { replace: true })
+      navigate(customerDestination(), { replace: true })
     }
   }, [authReady, navigate, token, user?.role])
 
@@ -42,7 +48,7 @@ export default function CustomerLogin() {
       }
       if (remember) localStorage.setItem("gos_remember_customer", email.trim())
       const role = String(result?.role || result?.user?.role || "").toUpperCase()
-      navigate(role === "CUSTOMER" ? "/customer-dashboard" : role === "TECHNICIAN" ? "/technician-dashboard" : role === "AGENT" ? "/agent-dashboard" : role === "ADMIN" ? "/admin-dashboard" : "/")
+      navigate(role === "CUSTOMER" ? customerDestination() : role === "TECHNICIAN" ? "/technician-dashboard" : role === "AGENT" ? "/agent-dashboard" : role === "ADMIN" ? "/admin-dashboard" : "/")
     } catch (loginError) {
       setError(loginError.message || "Login failed. Please try again.")
     } finally {
@@ -67,14 +73,14 @@ export default function CustomerLogin() {
           </div>
         </section>
 
-        <section className="flex min-w-0 w-full flex-col px-4 py-3 sm:justify-center sm:p-8 lg:p-10 xl:p-12">
+        <section className="gos-customer-login-panel flex min-w-0 w-full flex-col px-4 py-3 sm:justify-center sm:p-8 lg:p-10 xl:p-12">
           <div className="mt-3 sm:mt-8 lg:mt-0">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-gos-turquoise">Customer portal</p>
-            <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none tracking-normal text-gos-blue-deep sm:text-5xl">Welcome back.</h2>
-            <p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">Sign in to view your bookings and service updates.</p>
+            <h2 className="mt-2 font-['Cormorant_Garamond'] text-4xl font-bold leading-none tracking-normal text-gos-blue-deep sm:text-5xl">{nativeAndroid ? "Customer Sign In" : "Welcome back."}</h2>
+            <p className="mt-3 text-sm font-semibold leading-6 text-gos-muted">{nativeAndroid ? "Access your bookings and support." : "Sign in to view your bookings and service updates."}</p>
           </div>
 
-          <form onSubmit={handleLogin} className="mt-7 min-w-0 w-full">
+          <form onSubmit={handleLogin} className="gos-customer-login-form mt-7 min-w-0 w-full">
             {error && <div role="alert" className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-5 text-red-700">{error}</div>}
 
             <div className="space-y-5">
@@ -90,7 +96,7 @@ export default function CustomerLogin() {
 
             <button type="submit" disabled={loading} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-gos-blue-deep px-5 text-sm font-extrabold text-white transition hover:bg-gos-blue disabled:cursor-not-allowed disabled:opacity-60">{loading ? <><Loader2 size={17} className="animate-spin" /> Signing in...</> : <>Sign in securely <ArrowRight size={17} /></>}</button>
 
-            <div className="mt-6 border-t border-gos-border pt-5 text-center"><p className="text-sm font-semibold leading-6 text-gos-muted">New to GeekOnSites? <Link to="/customer-register" className="inline-block font-extrabold text-gos-blue hover:text-gos-turquoise">Create an account</Link></p><p className="mt-4 flex items-center justify-center gap-2 text-[10px] font-bold text-gos-muted"><ShieldCheck size={14} className="shrink-0 text-gos-turquoise" /> Secure customer access for the US and UK</p></div>
+            <div className="mt-6 border-t border-gos-border pt-5 text-center"><p className="text-sm font-semibold leading-6 text-gos-muted">New to GeekOnSites? <Link to="/customer-register" className="inline-block font-extrabold text-gos-blue hover:text-gos-turquoise">Create an account</Link></p>{nativeAndroid && <p className="mt-3 text-xs font-semibold text-gos-muted">Are you a technician? <Link to="/technician-login" className="font-extrabold text-gos-blue">Technician Sign In</Link></p>}<p className="mt-4 flex items-center justify-center gap-2 text-[10px] font-bold text-gos-muted"><ShieldCheck size={14} className="shrink-0 text-gos-turquoise" /> Secure customer access for the US and UK</p></div>
           </form>
         </section>
       </div>

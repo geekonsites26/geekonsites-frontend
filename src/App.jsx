@@ -132,8 +132,8 @@ function AppContent() {
         <Route path="/remaining-payment" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><RemainingPayment /></ProtectedRoute>} />
         <Route path="/booking-success" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><BookingSuccess /></ProtectedRoute>} />
         <Route path="/technician-assigned" element={<ProtectedRoute allowedRoles={["CUSTOMER"]}><TechnicianAssigned /></ProtectedRoute>} />
-        <Route path="/remote-session" element={<ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"]}><RemoteSession /></ProtectedRoute>} />
-        <Route path="/session-summary" element={<ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"]}><SessionSummary /></ProtectedRoute>} />
+        <Route path="/remote-session" element={<ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN"]}><RemoteSession /></ProtectedRoute>} />
+        <Route path="/session-summary" element={<ProtectedRoute allowedRoles={["CUSTOMER", "TECHNICIAN"]}><SessionSummary /></ProtectedRoute>} />
 
         <Route path="/customer-login" element={<CustomerLogin />} />
         <Route path="/customer-register" element={<CustomerRegister />} />

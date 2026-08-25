@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { loginUser, registerUser } from "../services/authService"
-import { clearAuth, getToken, getUser, setToken, setUser } from "../services/api"
+import { clearAuth, establishAuthSession, getToken, getTokenRole, getUser, setUser } from "../services/api"
 import { getLocation, setLocation } from "../utils/location"
 import { unregisterPushDevice } from "../services/notificationService"
 import { stopNativeTechnicianTracking } from "../services/technicianTrackingService"
@@ -18,18 +18,28 @@ export function CustomerAuthProvider({ children }) {
   const [authReady, setAuthReady] = useState(false)
 
   useEffect(() => {
+    const restore = () => {
     const savedToken = getToken()
     const savedUser = getUser()
 
-    if (savedToken && savedUser) {
+    const savedRole = String(savedUser?.role || "").toUpperCase()
+    const tokenRole = getTokenRole(savedToken)
+    if (savedToken && savedUser && ["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"].includes(savedRole) && (!tokenRole || tokenRole === savedRole)) {
       const restoredRole = String(savedUser.role || "").toUpperCase()
       setAuthToken(savedToken)
-      setCustomer(savedUser)
+      setCustomer({ ...savedUser, role: restoredRole })
       if (restoredRole) localStorage.setItem("gos_role", restoredRole)
       if (savedUser.id) localStorage.setItem("gos_user_id", String(savedUser.id))
+    } else {
+      clearAuth({ notify: false })
+      setAuthToken(null)
+      setCustomer(null)
     }
-
+    }
+    restore()
     setAuthReady(true)
+    window.addEventListener("gos-auth-changed", restore)
+    return () => window.removeEventListener("gos-auth-changed", restore)
   }, [])
 
   const registerCustomer = async (data) => {
@@ -60,7 +70,7 @@ export function CustomerAuthProvider({ children }) {
 
   const loginCustomer = async (email, password) => {
     try {
-      const result = await loginUser(email, password)
+      const result = await loginUser(email, password, "CUSTOMER")
 
       const userRole = (
         result?.role ||
@@ -102,11 +112,7 @@ export function CustomerAuthProvider({ children }) {
         throw new Error("User ID missing from backend response")
       }
 
-      setToken(jwtToken)
-      setUser(userData)
-
-      localStorage.setItem("gos_user_id", userData.id)
-      localStorage.setItem("gos_role", userRole)
+      establishAuthSession(jwtToken, userData)
       setLocation(userData.country)
 
       setAuthToken(jwtToken)

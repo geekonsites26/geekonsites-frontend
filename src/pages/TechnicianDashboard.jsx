@@ -27,7 +27,7 @@ import { apiRequest } from "../services/api"
 import { formatLocalDateTime } from "../utils/dateTime"
 import { safeNotificationPath } from "../utils/notificationRoute"
 import { normalizeNotifications } from "../utils/notifications"
-import { normalizeBookingStatus, TECHNICIAN_ACTIVE_STATUSES, TECHNICIAN_DECISION_STATUSES } from "../utils/technicianJobs"
+import { classifyTechnicianBooking, normalizeBookingStatus, TECHNICIAN_ACTIVE_STATUSES, TECHNICIAN_DECISION_STATUSES } from "../utils/technicianJobs"
 import {
   Activity,
   Bell,
@@ -157,6 +157,7 @@ export default function TechnicianDashboard() {
     const view = new URLSearchParams(window.location.search).get("view")
     if (["jobs", "assigned"].includes(view)) return "Assigned Jobs"
     if (view === "active") return "Active Work"
+    if (view === "completed") return "Completed Jobs"
     if (view === "notifications") return "Notifications"
     return "Dashboard"
   })
@@ -689,6 +690,7 @@ const saveMeetingLink = async (job) => {
     { title: "Earnings", icon: DollarSign },
     { title: "Ratings", icon: Star },
     { title: "Notifications", icon: Bell },
+    { title: "Completed Jobs", icon: CheckCircle2 },
     { title: "Profile", icon: User },
     { title: "Settings", icon: Settings },
   ]
@@ -1166,14 +1168,14 @@ const saveMeetingLink = async (job) => {
 
   const PremiumHomeSection = () => {
     const currentJob = jobs.find((job) => ["TECHNICIAN_ACCEPTED", "TECHNICIAN_ON_THE_WAY", "TECHNICIAN_ARRIVED", "SERVICE_STARTED", "REMOTE_SESSION_STARTED"].includes(job.bookingStatus)) || jobs.find((job) => job.status === "New")
-    const activeCount = jobs.filter((job) => ["Accepted", "On The Way", "Arrived", "Service Started"].includes(job.status)).length
+    const activeCount = jobs.filter((job) => classifyTechnicianBooking(job) === "active").length
     const serviceModeLabel = serviceMode === "REMOTE_ONLY" ? "Remote only" : serviceMode === "ONSITE_ONLY" ? "On-site only" : "Remote + on-site"
     return <div className="mx-auto max-w-5xl space-y-4 text-slate-900">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold text-slate-500">{greeting}</p><h1 className="truncate text-xl font-black text-[#071d3d]">{firstName}</h1><p className="mt-1 text-[10px] font-extrabold uppercase tracking-wider text-cyan-700">{serviceModeLabel}</p></div><button type="button" onClick={() => openTab("Notifications")} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-700" aria-label={`Updates, ${unreadNotificationCount} unread`}><Bell size={18} />{unreadNotificationCount > 0 && <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white">{unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}</span>}</button></div>
         <div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-black text-[#071d3d]">Availability</p><p aria-live="polite" className="text-[10px] font-bold text-slate-500">{availabilitySaving ? "Saving…" : `${availability} · synced`}</p></div><div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1" aria-label="Technician availability">{["Available", "Busy", "Offline"].map((item) => <button key={item} type="button" disabled={availabilitySaving} aria-pressed={availability === item} onClick={() => changeAvailability(item)} className={`min-h-11 rounded-lg px-1 text-xs font-black transition disabled:opacity-60 ${availability === item ? item === "Available" ? "bg-emerald-600 text-white shadow-sm" : item === "Busy" ? "bg-amber-500 text-white shadow-sm" : "bg-slate-700 text-white shadow-sm" : "text-slate-600"}`}>{item}</button>)}</div><p className="mt-2 text-[10px] leading-4 text-slate-500">Only Available technicians can be selected by an agent for a new assignment.</p></div>
       </section>
-      <section className="grid grid-cols-2 gap-2" aria-label="Work summary">{[["Assigned", jobs.filter((job) => job.status === "New").length, BriefcaseBusiness], ["Active", activeCount, Activity], ["Completed", jobs.filter((job) => job.status === "Completed").length, CheckCircle2], ["Unread", unreadNotificationCount, Bell]].map(([label, value, Icon]) => <button type="button" onClick={() => openTab(label === "Unread" ? "Notifications" : label === "Active" ? "Active Work" : "Assigned Jobs")} key={label} className="flex min-h-20 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700"><Icon size={17} /></span><span><strong className="block text-xl leading-none text-[#071d3d]">{value}</strong><span className="mt-1 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">{label}</span></span></button>)}</section>
+      <section className="grid grid-cols-2 gap-2" aria-label="Work summary">{[["Assigned", jobs.filter((job) => classifyTechnicianBooking(job) === "jobs").length, BriefcaseBusiness], ["Active", activeCount, Activity], ["Completed", jobs.filter((job) => classifyTechnicianBooking(job) === "completed").length, CheckCircle2], ["Unread", unreadNotificationCount, Bell]].map(([label, value, Icon]) => <button type="button" onClick={() => openTab(label === "Unread" ? "Notifications" : label === "Active" ? "Active Work" : label === "Completed" ? "Completed Jobs" : "Assigned Jobs")} key={label} className="flex min-h-20 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700"><Icon size={17} /></span><span><strong className="block text-xl leading-none text-[#071d3d]">{value}</strong><span className="mt-1 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">{label}</span></span></button>)}</section>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between"><h2 className="text-sm font-black text-[#071d3d]">{currentJob?.status === "New" ? "Next job" : "Current job"}</h2>{currentJob && <span className="rounded-full bg-cyan-50 px-2 py-1 text-[9px] font-black uppercase text-cyan-700">{currentJob.supportType === "remote" ? "Remote" : "On-site"}</span>}</div>
         {currentJob ? <div className="mt-3"><p className="text-[10px] font-black uppercase tracking-wide text-slate-500">GOS-{currentJob.bookingId} · {currentJob.status}</p><h3 className="mt-1 break-words text-base font-black text-[#071d3d]">{currentJob.serviceType}</h3><p className="mt-1 break-words text-xs text-slate-600">{currentJob.schedule}</p>{currentJob.supportType === "onsite" && <p className="mt-1 flex items-start gap-1 break-words text-xs text-slate-600"><MapPin size={13} className="mt-0.5 shrink-0" />{currentJob.location}</p>}<div className="mt-4 grid grid-cols-2 gap-2">{currentJob.status === "New" ? <><button type="button" onClick={() => handleRejectJob(currentJob)} className="min-h-11 rounded-xl border border-red-200 text-xs font-black text-red-700">Reject</button><button type="button" onClick={() => handleAcceptJob(currentJob)} className="min-h-11 rounded-xl bg-[#071d3d] text-xs font-black text-white">Accept</button></> : currentJob.supportType === "remote" ? <button type="button" onClick={() => handleStartRemoteSession(currentJob)} className="col-span-2 min-h-11 rounded-xl bg-cyan-600 text-xs font-black text-white">Open remote session</button> : <button type="button" onClick={() => currentJob.bookingStatus === "TECHNICIAN_ACCEPTED" ? handleStartJourney(currentJob) : openTab("Active Work")} className="col-span-2 min-h-11 rounded-xl bg-cyan-600 text-xs font-black text-white">{currentJob.bookingStatus === "TECHNICIAN_ACCEPTED" ? "On the way" : "Open active job"}</button>}</div></div> : <div className="py-7 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={28} /><p className="mt-2 text-sm font-black text-[#071d3d]">You’re all caught up</p><p className="mt-1 text-xs text-slate-500">New assigned jobs will appear here.</p></div>}
@@ -1233,6 +1235,11 @@ const saveMeetingLink = async (job) => {
 
   const ActiveWorkSection = () => <JobsSection title="Active Work" statuses={TECHNICIAN_ACTIVE_STATUSES} />
 
+  const CompletedJobsSection = () => {
+    const completed = filteredJobs.filter((job) => classifyTechnicianBooking(job) === "completed")
+    return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm"><div className="border-b border-slate-200 px-4 py-4"><h2 className="text-lg font-black text-[#071d3d]">Completed Jobs</h2><p className="mt-1 text-xs text-slate-500">Your persisted technician service history.</p></div>{completed.map((job) => <button key={job.bookingId} type="button" onClick={() => navigate(`/session-summary?bookingId=${encodeURIComponent(job.bookingId)}`, { state: { booking: job.raw } })} className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-4 text-left last:border-0 hover:bg-slate-50"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><CheckCircle2 size={18} /></span><span className="min-w-0 flex-1"><strong className="block text-sm text-[#071d3d]">GOS-{job.bookingId} · {job.serviceType}</strong><span className="mt-1 block truncate text-xs text-slate-500">{job.customerName} · {job.supportType === "remote" ? "Remote" : "On-site"} · {job.paymentStatus}</span></span><span className="text-[10px] font-black text-cyan-700">View Details</span></button>)}{!completed.length && <div className="px-5 py-12 text-center text-sm font-semibold text-slate-500">Completed services will appear here after the backend confirms completion.</div>}</section>
+  }
+
   // Keep the legacy desktop composition available while the mobile-first Home
   // is used for the Dashboard tab.
   void HomeSection
@@ -1248,6 +1255,7 @@ const saveMeetingLink = async (job) => {
     if (activeTab === "Earnings") return <EarningsSection />
     if (activeTab === "Ratings") return <RatingsSection />
     if (activeTab === "Notifications") return <NotificationsSection />
+    if (activeTab === "Completed Jobs") return <CompletedJobsSection />
     if (activeTab === "Profile") return <ProfileSection />
     if (activeTab === "Settings") return <SettingsSection />
 
@@ -1470,10 +1478,10 @@ const saveMeetingLink = async (job) => {
       )}
 
       <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-[82px] shrink-0 items-center justify-between border-b border-cyan-500/10 bg-[#071122]/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] md:min-h-[90px] md:px-6">
+        <div className="flex min-h-[72px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 pb-2 pt-[max(10px,env(safe-area-inset-top))] text-slate-900 md:min-h-[78px] md:px-6">
           <div className="min-w-0">
-            <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Technician workspace</p>
-            <h1 className="truncate text-lg font-black text-white">{activeTab}</h1>
+            <BrandLogo className="h-6 w-auto max-w-[125px]" />
+            <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">Technician Workspace · {activeTab}</p>
           </div>
 
           <div className="hidden w-full max-w-[360px] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1628] px-5 py-3 md:flex">
@@ -1495,9 +1503,9 @@ const saveMeetingLink = async (job) => {
             </span>
             <button
               onClick={() => openTab("Notifications")}
-              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0b1628] md:h-12 md:w-12"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 md:h-11 md:w-11"
             >
-              <Bell className="h-5 w-5 text-cyan-300" />
+              <Bell className="h-5 w-5 text-cyan-700" />
               {unreadNotificationCount > 0 && (
                 <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-cyan-400" />
               )}
@@ -1505,9 +1513,9 @@ const saveMeetingLink = async (job) => {
 
             <button
               onClick={() => setMobileMenu(true)}
-              className="technician-secondary-menu flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0b1628] lg:hidden"
+              className="technician-secondary-menu flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 lg:hidden"
             >
-              <Menu className="h-5 w-5 text-cyan-300" />
+              <Menu className="h-5 w-5 text-cyan-700" />
             </button>
           </div>
         </div>

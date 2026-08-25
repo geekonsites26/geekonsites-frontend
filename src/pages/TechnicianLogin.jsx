@@ -44,7 +44,7 @@ export default function TechnicianLogin() {
   setLoading(true)
 
   try {
-    const result = await loginUser(email, password)
+    const result = await loginUser(email, password, "TECHNICIAN")
 
     const role = (
       result?.role ||
@@ -57,9 +57,6 @@ export default function TechnicianLogin() {
     }
 
     setSuccess(true)
-
-    localStorage.setItem("gos_role", role)
-localStorage.setItem("gos_user_id", result.id || result.userId)
 
 setTimeout(() => {
   window.location.href = "/technician-dashboard"

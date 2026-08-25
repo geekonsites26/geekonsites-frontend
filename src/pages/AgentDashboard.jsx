@@ -651,12 +651,7 @@ const [modeFilter, setModeFilter] = useState("ALL")
                   }`}
                 >
                   <h4 className="font-black">GOS-{booking.id}</h4>
-                  <p className="mt-1 text-sm text-cyan-100/70">
-                    {booking.customerName}
-                  </p>
-                  <p className="mt-1 text-sm text-cyan-100/45">
-                    {booking.serviceType}
-                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/40">Customer</p><p className="mt-1 font-bold text-cyan-100/80">{booking.customerName || "Customer"}</p></div><div><p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/40">Technician</p><p className="mt-1 font-bold text-cyan-100/80">{booking.technicianName || "Unassigned"}</p></div><div><p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/40">Service</p><p className="mt-1 text-cyan-100/70">{booking.serviceType || "Selected service"}</p></div><div><p className="text-[10px] font-black uppercase tracking-wide text-cyan-100/40">Mode</p><p className="mt-1 text-cyan-100/70">{getMode(booking)}</p></div></div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <StatusBadge status={booking.bookingStatus} />
                     <Badge>{booking.country}</Badge>

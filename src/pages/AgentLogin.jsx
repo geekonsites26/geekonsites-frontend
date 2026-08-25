@@ -26,12 +26,10 @@ export default function AgentLogin() {
 
     setLoading(true)
     try {
-      const result = await loginUser(email.trim(), password)
+      const result = await loginUser(email.trim(), password, "AGENT")
       const role = String(result?.role || result?.user?.role || "").toUpperCase()
       if (role !== "AGENT") throw new Error("This account does not have agent access.")
 
-      localStorage.setItem("gos_role", role)
-      localStorage.setItem("gos_user_id", String(result?.id || result?.userId || result?.user?.id || ""))
       if (remember) localStorage.setItem("gos_remember_agent", email.trim())
 
       setSuccess(true)

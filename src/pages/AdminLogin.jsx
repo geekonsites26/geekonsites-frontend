@@ -21,8 +21,6 @@ export default function AdminLogin() {
       setLoading(true)
       const result = await loginAdmin(email.trim(), password)
       if (String(result?.role || result?.user?.role || "").toUpperCase() !== "ADMIN") throw new Error("This account does not have administrator access.")
-      localStorage.setItem("gos_role", "ADMIN")
-      localStorage.setItem("gos_user_id", String(result.id || result.userId || ""))
       navigate("/admin-dashboard", { replace: true })
     } catch (loginError) {
       setError(loginError.message || "The admin email or password is incorrect.")

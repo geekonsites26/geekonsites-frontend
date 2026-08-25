@@ -10,13 +10,15 @@ class MemoryStorage {
 }
 
 globalThis.localStorage = new MemoryStorage()
-globalThis.window = { setTimeout, clearTimeout }
+globalThis.window = { setTimeout, clearTimeout, dispatchEvent() {} }
+if (!globalThis.CustomEvent) globalThis.CustomEvent = class CustomEvent { constructor(type, options = {}) { this.type = type; this.detail = options.detail } }
 
 const api = await import("../src/services/api.js")
 const { safeNotificationPath } = await import("../src/utils/notificationRoute.js")
 const { normalizeNotifications } = await import("../src/utils/notifications.js")
 const { classifyTechnicianBooking, normalizeBookingStatus } = await import("../src/utils/technicianJobs.js")
 const { remoteSessionReady, validGoogleMeetLink } = await import("../src/utils/remoteSession.js")
+const { createBooking } = await import("../src/services/bookingService.js")
 
 test("token and role metadata persist without a password", () => {
   api.setToken("controlled-test-jwt")
@@ -85,4 +87,27 @@ test("remote sessions expose only ready backend Google Meet links", () => {
   assert.equal(remoteSessionReady({ ...booking, paymentStatus: "PENDING" }), false)
   assert.equal(remoteSessionReady({ ...booking, remoteSessionLink: "https://evil.example/room" }), false)
   assert.equal(validGoogleMeetLink("javascript:alert(1)"), "")
+})
+
+test("successful account switching atomically replaces the previous role", () => {
+  api.establishAuthSession("admin-token", { id: 1, role: "ADMIN", email: "admin@example.com" })
+  api.establishAuthSession("customer-token", { id: 7, role: "CUSTOMER", email: "customer@example.com" })
+  assert.equal(api.getToken(), "customer-token")
+  assert.equal(api.getUser().role, "CUSTOMER")
+  assert.equal(localStorage.getItem("gos_role"), "CUSTOMER")
+  assert.equal(localStorage.getItem("gos_user_id"), "7")
+})
+
+test("customer booking creation cannot inherit stale technician identity", async () => {
+  api.establishAuthSession("customer-token", { id: 7, role: "CUSTOMER", fullName: "Ashwik", email: "ashwik@example.com" })
+  let sent
+  globalThis.fetch = async (_url, options) => {
+    sent = JSON.parse(options.body)
+    return new Response(JSON.stringify({ id: 4, ...sent }), { status: 200, headers: { "content-type": "application/json" } })
+  }
+  await createBooking({ serviceType: "New PC Setup", technicianId: 99, technicianName: "Stale Jack", customerName: "Wrong" })
+  assert.equal(sent.customerId, 7)
+  assert.equal(sent.customerName, "Ashwik")
+  assert.equal(sent.technicianId, null)
+  assert.equal(sent.technicianName, null)
 })

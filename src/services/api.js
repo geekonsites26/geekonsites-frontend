@@ -6,6 +6,16 @@ const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || "")
 
 export const getToken = () => localStorage.getItem("gos_token")
 
+export const getTokenRole = (token = getToken()) => {
+  try {
+    const payload = JSON.parse(atob(String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/")))
+    const claim = payload.role || payload.roles?.[0] || payload.authorities?.[0]
+    return claim ? String(claim).replace(/^ROLE_/, "").toUpperCase() : ""
+  } catch {
+    return ""
+  }
+}
+
 export const setToken = (token) => {
   if (token) localStorage.setItem("gos_token", token)
 }
@@ -29,7 +39,7 @@ export const getUser = () => {
   }
 }
 
-export const clearAuth = () => {
+export const clearAuth = ({ notify = true } = {}) => {
   localStorage.removeItem("gos_token")
   localStorage.removeItem("gos_user")
   localStorage.removeItem("gos_user_id")
@@ -39,6 +49,32 @@ export const clearAuth = () => {
   localStorage.removeItem("customerEmail")
   localStorage.removeItem("technicianLoggedIn")
   localStorage.removeItem("technicianAccount")
+  localStorage.removeItem("agentLoggedIn")
+  localStorage.removeItem("agentName")
+  localStorage.removeItem("agentEmail")
+  localStorage.removeItem("adminLoggedIn")
+  localStorage.removeItem("currentBooking")
+  if (notify) window.dispatchEvent?.(new CustomEvent("gos-auth-changed"))
+}
+
+export const establishAuthSession = (token, user) => {
+  const role = String(user?.role || "").toUpperCase()
+  const id = user?.id
+  if (!token || !id || !["CUSTOMER", "TECHNICIAN", "AGENT", "ADMIN"].includes(role)) {
+    clearAuth({ notify: false })
+    throw new Error("Authenticated session identity is incomplete")
+  }
+  const tokenRole = getTokenRole(token)
+  if (tokenRole && tokenRole !== role) {
+    clearAuth({ notify: false })
+    throw new Error("Authenticated token role does not match the user session")
+  }
+  clearAuth({ notify: false })
+  setToken(token)
+  setUser({ ...user, role })
+  localStorage.setItem("gos_role", role)
+  localStorage.setItem("gos_user_id", String(id))
+  window.dispatchEvent?.(new CustomEvent("gos-auth-changed", { detail: { role, id } }))
 }
 
 export async function apiRequest(endpoint, options = {}) {

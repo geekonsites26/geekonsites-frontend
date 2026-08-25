@@ -12,6 +12,6 @@ export const classifyTechnicianBooking = (booking = {}) => {
   const status = normalizeBookingStatus(booking)
   if (TECHNICIAN_DECISION_STATUSES.includes(status)) return "jobs"
   if (TECHNICIAN_ACTIVE_STATUSES.includes(status)) return "active"
-  if (["SERVICE_COMPLETED", "REMAINING_PAYMENT_PENDING", "INVOICE_GENERATED", "FULLY_PAID", "BOOKING_CLOSED"].includes(status)) return "completed"
+  if (["SERVICE_COMPLETED", "COMPLETED", "CLOSED", "REMAINING_PAYMENT_PENDING", "INVOICE_GENERATED", "FULLY_PAID", "BOOKING_CLOSED"].includes(status)) return "completed"
   return "other"
 }

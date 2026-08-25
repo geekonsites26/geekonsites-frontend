@@ -1,7 +1,10 @@
-import { apiRequest, getUser } from "./api"
+import { apiRequest, getUser } from "./api.js"
 
 export const createBooking = async (bookingData, options = {}) => {
   const user = getUser()
+  if (String(user?.role || "").toUpperCase() !== "CUSTOMER" || !user?.id) {
+    throw new Error("A valid customer session is required to create a booking")
+  }
 
   const payload = {
     ...bookingData,
@@ -9,6 +12,9 @@ export const createBooking = async (bookingData, options = {}) => {
     customerName: user?.fullName || user?.name || bookingData.customerName,
     customerEmail: user?.email || bookingData.customerEmail,
     customerPhone: user?.phone || bookingData.customerPhone,
+    technicianId: null,
+    technicianName: null,
+    assignedTechnicianId: null,
   }
 
   return apiRequest("/api/bookings", {
